@@ -1,15 +1,36 @@
 import time
+import datetime
 import tushare
 import pandas as pd
+import akshare as ak
 from functools import wraps
 from datetime import date
 from dateutil import parser as date_parser
 
 from trade.utils import get_latest_trade_date
 from trade.convertion import (
-    convert_to_ts_date, convert_v1_hist_data, convert_v2_hist_data, convert_v2_fundamentals_data,
-    convert_ts_date_to_iso_format
+    convert_tushare_v1_hist_data,
+    convert_tushare_v2_hist_data,
+    convert_tushare_v2_fundamentals_data,
+    convert_to_ts_date,
+    convert_ts_date_to_iso_format,
+    convert_akshare_hist_data,
 )
+
+
+
+class AkShareClient:
+
+    def get_daily(self, code: str, start_date: datetime.date | str):
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+
+        df = ak.stock_zh_a_hist(
+            symbol=code,
+            start_date=start_date.strftime('%Y%m%d'),
+            period="daily"
+        )
+        return convert_akshare_hist_data(df)
 
 
 class TushareClient:
@@ -64,7 +85,7 @@ class TushareClientV1(TushareClient):
         if not isinstance(df, pd.DataFrame):
             raise Exception(f'No data is fetched for code {code}. Result is {df}')
 
-        return convert_v1_hist_data(df.reset_index())
+        return convert_tushare_v1_hist_data(df.reset_index())
 
     def get_daily(self, *args, **kwargs) -> pd.DataFrame:
         kwargs['ktype'] = 'D'
@@ -112,12 +133,12 @@ class TushareClientPro(TushareClient):
     def __init__(self, token: str):
         self.api = tushare.pro_api(token=token)
 
-    @with_retry_and_normalize(65, normalizer=convert_v2_hist_data)
+    @with_retry_and_normalize(65, normalizer=convert_tushare_v2_hist_data)
     def get_daily(self, *args, **kwargs) -> pd.DataFrame:
         return self.api.daily(*args, **kwargs)
         # return self.api.stk_factor(*args, **kwargs)
 
-    @with_retry_and_normalize(65, normalizer=convert_v2_fundamentals_data)
+    @with_retry_and_normalize(65, normalizer=convert_tushare_v2_fundamentals_data)
     def get_company_fundamentals(self, trade_date=None, ts_code=None) -> pd.DataFrame:
         if trade_date:
             assert len(trade_date) == 8, date  # e.g, 20220101

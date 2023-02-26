@@ -36,11 +36,8 @@ class StocksPool:
         return self.df['company'].unique().tolist()
 
     @property
-    def ts_codes(self) -> list[str]:
-        return [
-            f'{code}.{suffix}'
-            for code, suffix in self.df['ts_suffix'].iteritems()
-        ]
+    def codes(self) -> list[str]:
+        return self.df.index.unique().tolist()
 
     def _build_stock_obj(self, row: pd.Series):
         d = row.to_dict()

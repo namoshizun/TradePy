@@ -1,4 +1,3 @@
-import akshare as ak
 import pandas as pd
 from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -18,17 +17,21 @@ class StockPricesUpdater:
             since_date = date.fromisoformat(since_date)
 
         self.since_date: date = since_date
-        self.repo = TicksDepot("daily.stock")
+        self.repo = TicksDepot("daily.stocks")
         self.batch_size = batch_size
 
     def _jobs_iterator(self):
-        # Update existing stocks
+        # Update existing listing
         repo_iter = self.repo.traverse(always_load=True)
-        ts_codes = list()
+        curr_codes = list()
 
-        for ts_code, df in repo_iter:
+        for code, df in repo_iter:
+            # Legacy
+            if len(parts := code.split('.')) == 2:
+                code = parts[0]
+
             assert isinstance(df, pd.DataFrame)
-            ts_codes.append(ts_code)
+            curr_codes.append(code)
 
             try:
                 latest_date = '2000-01-01'
@@ -40,19 +43,19 @@ class StockPricesUpdater:
                 if latest_date < self.since_date:
                     start_date = latest_date + timedelta(days=1)
                     yield {
-                        "ts_code": ts_code,
-                        "start_date": start_date.strftime('%Y%m%d')
+                        "code": code,
+                        "start_date": start_date
                     }
             except Exception as exc:
-                print(f'!!!!!!!!! failed to exaim {ts_code} !!!!!!!!!')
+                print(f'!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!')
                 raise exc
 
         # Add new listing
-        new_listings = set(trade.listing.ts_codes) - set(ts_codes)
-        for ts_code in new_listings:
+        new_listings = set(trade.listing.codes) - set(curr_codes)
+        for code in new_listings:
             yield {
-                "ts_code": ts_code,
-                "start_date": date.fromisoformat('2000-01-01').strftime('%Y%m%d')
+                "code": code,
+                "start_date": date.fromisoformat('2000-01-01')
             }
 
     def run(self):
@@ -63,13 +66,13 @@ class StockPricesUpdater:
         print(f'[DailyPricesUpdater]: {len(jobs)} jobs, batch size = {self.batch_size}, number of batches = {len(batches)}')
         with ThreadPoolExecutor() as executor:
             for batch in tqdm(batches):
-                results_iter = map_routines(executor, trade.pro_api.get_daily, [
+                results_iter = map_routines(executor, trade.ak_api.get_daily, [
                     ((), args)
                     for args in batch
                 ])
 
                 for i, df in enumerate(results_iter):
-                    code = batch[i]["ts_code"]
+                    code = batch[i]["code"]
                     self.repo.append(df, f'{code}.csv')
 
 

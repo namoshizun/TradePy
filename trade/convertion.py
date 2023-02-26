@@ -43,7 +43,7 @@ ListingFields = [
 ]
 
 
-def convert_v1_hist_data(df: pd.DataFrame):
+def convert_tushare_v1_hist_data(df: pd.DataFrame):
     _df =  df.rename(columns={
         'date': 'timestamp',
         'volume': 'vol',
@@ -57,7 +57,7 @@ def convert_v1_hist_data(df: pd.DataFrame):
     return _df[TickFields]
 
 
-def convert_v2_hist_data(df: pd.DataFrame):
+def convert_tushare_v2_hist_data(df: pd.DataFrame):
     _df = df.rename(columns={
         'trade_date': 'timestamp',
         'open_qfq': 'open',
@@ -71,7 +71,7 @@ def convert_v2_hist_data(df: pd.DataFrame):
     return _df[TickFields]
 
 
-def convert_v2_fundamentals_data(df: pd.DataFrame):
+def convert_tushare_v2_fundamentals_data(df: pd.DataFrame):
     _df = df.rename(columns={
         'trade_date': 'timestamp',
         'name': 'company',
@@ -113,7 +113,7 @@ def convert_code_to_exchange(code: str) -> ExchangeType:
     match market:
         case Markets.STAR | Markets.SH_MAIN | Markets.CDR:
             return "SH"
-        case Markets.CHI_NEXT | Markets.SZ_MAIN:
+        case Markets.CHI_NEXT | Markets.SZ_MAIN | Markets.SME:
             return "SZ"
         case Markets.BSE:
             return "BJ"
@@ -126,3 +126,16 @@ def convert_to_ts_date(dt: date) -> str:
 
 def convert_ts_date_to_iso_format(value: str) -> str:
     return date_parse.parse(value).date().isoformat()
+
+
+def convert_akshare_hist_data(df: pd.DataFrame):
+    return df.rename(columns={
+        "日期": "timestamp",
+        "开盘": "open",
+        "收盘": "close",
+        "最高": "high",
+        "最低": "low",
+        "成交量": "vol",
+        "涨跌幅": "pct_chg",
+        "涨跌额": "chg",
+    })[TickFields]

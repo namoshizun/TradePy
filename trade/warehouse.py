@@ -8,8 +8,8 @@ from influxdb_client.client.write_api import WriteType, WriteApi, WriteOptions
 from influxdb_client.domain.write_precision import WritePrecision
 
 import trade
-from trade.convertion import convert_code_to_market
-from trade.types import FundamentalTags, TickTagSet, TickTags
+from trade.convertion import convert_code_to_exchange, convert_code_to_market
+from trade.types import FundamentalTags, TickTags
 
 
 class TicksDepot:
@@ -66,11 +66,10 @@ class TicksDepot:
 
             while True:
                 try:
-                    filename: str = next(source_iter)
+                    code: str = next(source_iter)
                 except StopIteration:
                     break
 
-                code, exchange = filename.split('.')
                 if not trade.listing.has_code(code):
                     continue
 
@@ -78,6 +77,7 @@ class TicksDepot:
                 market = convert_code_to_market(code)
 
                 df = source_iter.send(True)
+                exchange = convert_code_to_exchange(code)
                 df[["company", "code", "market", "exchange"]] = company, code, market, exchange
 
                 if since_date:
@@ -86,6 +86,11 @@ class TicksDepot:
                     yield df
 
         df = pd.concat(loader())
+
+        cat_columns = ["code", "company", "market", "exchange"]
+        for col in cat_columns:
+            df[col] = df[col].astype("category")
+
         df.set_index(index_by, inplace=True)
         df.sort_index(inplace=True)
         return df
@@ -121,6 +126,16 @@ class TradeCalendarDepot:
         df = df[df["cal_date"] >= since_date]
         df = df[df["cal_date"] <= end_date]
         return df.set_index("cal_date").sort_index()
+
+
+
+class ListingDepot:
+
+    path = "./datasets/listing.csv"
+
+    @staticmethod
+    def load() -> pd.DataFrame:
+        return pd.read_csv(ListingDepot.path).set_index("code")
 
 
 def with_write_api(fun):

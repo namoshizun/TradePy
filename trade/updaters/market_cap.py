@@ -29,11 +29,11 @@ class MarketCapitalsUpdater:
             yield day_df
 
     def run(self):
-        repo = TicksDepot("daily")
+        repo = TicksDepot("daily.stocks")
         df = repo.load_stocks_ticks(index_by=["timestamp"])
         df = pd.concat(self.compute_mkt_cap_percentile_ranks(df))
-
         df.reset_index(inplace=True, drop=False)
+
         for code, sub_df in df.groupby("code"):
             ts_code = trade.listing.get_by_code(code).ts_code
             columns  = TickFields + ["mkt_cap", "mkt_cap_rank"]
