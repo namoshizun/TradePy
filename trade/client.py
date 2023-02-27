@@ -1,5 +1,6 @@
 import time
 import datetime
+from typing import Literal
 import tushare
 import pandas as pd
 import akshare as ak
@@ -9,6 +10,7 @@ from dateutil import parser as date_parser
 
 from trade.utils import get_latest_trade_date
 from trade.convertion import (
+    convert_code_to_exchange,
     convert_tushare_v1_hist_data,
     convert_tushare_v2_hist_data,
     convert_tushare_v2_fundamentals_data,
@@ -31,6 +33,21 @@ class AkShareClient:
             period="daily"
         )
         return convert_akshare_hist_data(df)
+
+    def get_adjust_factor(self, code: str, adjust: Literal["hfq", "qfq"]="hfq"):
+        if code == "689009":
+            # No idea why this company is so special...
+            return pd.DataFrame()
+
+        exchange = convert_code_to_exchange(code)
+        symbol = f'{exchange.lower()}{code}'
+
+        df = ak.stock_zh_a_daily(symbol=symbol, adjust=f"{adjust}-factor")
+        df.rename(columns={"date": "timestamp"}, inplace=True)
+
+        df["code"] = code
+        df["timestamp"] = df["timestamp"].dt.date.astype(str)
+        return df
 
 
 class TushareClient:

@@ -1,14 +1,13 @@
 import pandas as pd
 from datetime import date, timedelta
-from concurrent.futures import ThreadPoolExecutor
 
 import trade
-from tqdm import tqdm
-from trade.utils import get_latest_trade_date, chunks
+from trade.utils import get_latest_trade_date
 from trade.warehouse import TicksDepot
+from trade.updaters import DataUpdater
 
 
-class StockPricesUpdater:
+class StockPricesUpdater(DataUpdater):
 
     def __init__(self, since_date: str | date | None = None, batch_size: int = 50) -> None:
         if not since_date:
@@ -20,7 +19,7 @@ class StockPricesUpdater:
         self.repo = TicksDepot("daily.stocks")
         self.batch_size = batch_size
 
-    def _jobs_iterator(self):
+    def _jobs_generator(self):
         # Update existing listing
         repo_iter = self.repo.traverse(always_load=True)
         curr_codes = list()
@@ -60,55 +59,14 @@ class StockPricesUpdater:
 
     def run(self):
         assert trade.pro_api
-        jobs = list(self._jobs_iterator())
-        batches = list(chunks(jobs, self.batch_size))
+        jobs = list(self._jobs_generator())
+        results_gen = self.run_batch_jobs(jobs, self.batch_size, fun=trade.ak_api.get_daily)
 
-        print(f'[DailyPricesUpdater]: {len(jobs)} jobs, batch size = {self.batch_size}, number of batches = {len(batches)}')
-        with ThreadPoolExecutor() as executor:
-            for batch in tqdm(batches):
-                results_iter = map_routines(executor, trade.ak_api.get_daily, [
-                    ((), args)
-                    for args in batch
-                ])
-
-                for i, df in enumerate(results_iter):
-                    code = batch[i]["code"]
-                    self.repo.append(df, f'{code}.csv')
+        for args, ticks_df in results_gen:
+            code = args["code"]
+            self.repo.append(ticks_df, f'{code}.csv')
 
 
 class MarketIndexUpdater:
     ...
 
-
-def map_routines(executor, routine, arguments):
-    """
-    arguments: list of args and kwargs, e.g.,
-
-    arguments = [
-        (('arg1', 'arg2'), {'kw':1, 'kw':2}),
-        (('arg1', 'arg2'))
-    ]
-    """
-
-    futures = []
-
-    for arg in arguments:
-        kwargs = dict()
-        if len(arg) == 2:
-            args, kwargs = arg
-        else:
-            args = arg[0]
-        
-        futures.append(executor.submit(routine, *args, **kwargs))
-    
-    def result_iterator():
-        try:
-            # reverse to keep finishing order
-            futures.reverse()
-            while futures:
-                yield futures.pop().result()
-        finally:
-            for future in futures:
-                future.cancel()
-
-    return result_iterator()

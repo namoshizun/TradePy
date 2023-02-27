@@ -38,7 +38,6 @@ class Clause:
                 param_value = type_and_default[1]
 
             setattr(self, name, param_value)
-    
 
     def clone(self):
         return self.__class__(**{

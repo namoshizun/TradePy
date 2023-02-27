@@ -5,9 +5,10 @@ from tqdm import tqdm
 import trade
 from trade.convertion import TickFields
 from trade.warehouse import TicksDepot
+from trade.updaters import DataUpdater
 
 
-class MarketCapitalsUpdater:
+class MarketCapitalsUpdater(DataUpdater):
 
     @staticmethod
     def compute_mkt_cap_percentile_ranks(df):

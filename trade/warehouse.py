@@ -128,6 +128,20 @@ class TradeCalendarDepot:
         return df.set_index("cal_date").sort_index()
 
 
+class AdjustFactorDepot:
+
+    path = "./datasets/adjust_factors.csv"
+
+    @staticmethod
+    def load() -> pd.DataFrame:
+        df = pd.read_csv(AdjustFactorDepot.path, dtype={
+            "code": str,
+            "date": str,
+            "hfq_factor": float
+        })
+        df.set_index("code", inplace=True)
+        return df
+
 
 class ListingDepot:
 

@@ -26,7 +26,7 @@ class MA60SupportStrategy(ChinaMarketStrategy):
     # ma60_dist_thres = 0.6
 
     def compute_indicators(self, df: pd.DataFrame):
-        # Keep if its related market's index data is available
+        # Keep ones whose market's index data is available
         market_name_to_index = {
             Markets.SH_MAIN: "SSE",
             Markets.SZ_MAIN: "SZSE",
@@ -40,7 +40,7 @@ class MA60SupportStrategy(ChinaMarketStrategy):
         # Filtering
         if not index_name:
             return pd.DataFrame()
-        
+
         company = df.iloc[0]["company"]
         if re.match(r'ST|银行', company, re.I):
             return pd.DataFrame()
