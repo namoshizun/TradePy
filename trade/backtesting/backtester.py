@@ -44,33 +44,17 @@ class Backtester:
         return spec.args[1:]
 
     def adjust_prices(self, ticks_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
-        tick_min_ts = ticks_df.iloc[0]["timestamp"]
-
-        # Rolling to get the first bonus window
-        factor_window_iter = iter(adj_df.rolling(window=2, step=1))
-        curr_window = None
-        for w in factor_window_iter:
-            if len(w) == 2:
-                if w.iloc[1]["timestamp"] >= tick_min_ts:
-                    curr_window = w
-                    break
-        assert curr_window is not None
-
-        # Assign each day an adjust factor
-        adjust_factors = []
-        for _, tick in ticks_df.iterrows():
-            if tick["timestamp"] >= curr_window.iloc[1]["timestamp"]:
-                curr_window = next(factor_window_iter)
-
-            adjust_factors.append(curr_window.iloc[0]["hfq_factor"])
-        
-        ticks_df["adjust_factors"] = adjust_factors
+        # Assign each day a adjust factor
+        adj_df = adj_df.reset_index(drop=True).set_index("timestamp")
+        ticks_df = ticks_df.join(adj_df, on="timestamp")
+        factor_vals = ticks_df["hfq_factor"].reset_index(drop=True).interpolate(method="pad").values
 
         # Adjust prices accordingly
-        ticks_df[["open", "close", "high", "low"]] *= np.array(adjust_factors).reshape(-1, 1)
+        ticks_df[["open", "close", "high", "low"]] *= factor_vals.reshape(-1, 1)
         ticks_df["chg"] = ticks_df["close"] - ticks_df["close"].shift(1)
         ticks_df["pct_chg"] = 100 * (ticks_df['chg'] / ticks_df['close'].shift(1))
 
+        ticks_df.drop("hfq_factor", axis=1, inplace=True)
         ticks_df.dropna(inplace=True)
         return ticks_df.round(2)
 
@@ -80,7 +64,7 @@ class Backtester:
 
             if self.adjust_factors_df is not None:
                 with suppress(KeyError):
-                    adjust_factors_df = self.adjust_factors_df.loc[code]
+                    adjust_factors_df = self.adjust_factors_df.loc[code].sort_values("timestamp")
                     ticks_df = self.adjust_prices(ticks_df, adjust_factors_df)
 
             return strategy.compute_indicators(ticks_df)
