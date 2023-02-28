@@ -43,7 +43,6 @@ class StocksPool:
         d = row.to_dict()
         return Stock(
             code=d['code'],
-            ts_code=f"{d['code']}.{d['ts_suffix']}",
             name=d['company'],
             industry=d['industry'],
             market=d['market'],
@@ -75,13 +74,11 @@ class Stock:
 
     def __init__(self,
                  code: str,
-                 ts_code: str,
                  name: str,
                  industry: str,
                  total_share: float,
                  market: MarketType) -> None:
         self.code = code
-        self.ts_code = ts_code
         self.name = name
         self.industry = industry
         self.market = market

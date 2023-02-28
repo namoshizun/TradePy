@@ -4,7 +4,6 @@ from typing import Literal, TypedDict
 class TickTagSet(TypedDict, total=False):
     code: str
     company: str
-    ts_suffix: str
 
 
 TickTags = Literal[

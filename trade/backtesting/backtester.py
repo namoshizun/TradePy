@@ -1,7 +1,9 @@
+import sys
 import inspect
 import operator
 import numpy as np
 import pandas as pd
+from contextlib import suppress
 from typing import TYPE_CHECKING
 from tqdm import tqdm
 
@@ -21,17 +23,17 @@ class Backtester:
             sell_commission_rate=ctx.sell_commission_rate,
         )
 
-        if ctx.hfq_adjust_factors:
+        if ctx.hfq_adjust_factors is not None:
             _adf = ctx.hfq_adjust_factors.copy()
             _adf.reset_index(inplace=True)
             _adf.set_index("code", inplace=True)
-            _adf.sort_values(["code", "date"], inplace=True)
+            _adf.sort_values(["code", "timestamp"], inplace=True)
             self.adjust_factors_df = _adf
         else:
             self.adjust_factors_df = None
 
     def __filter_in_holdings(self, selector: pd.Series) -> pd.Series:
-        for index, _ in selector.iteritems():
+        for index, _ in selector.items():
             _, code = index
             if self.account.holdings.has(code):
                 selector.at[index] = False
@@ -41,36 +43,10 @@ class Backtester:
         spec = inspect.getfullargspec(strategy.should_buy)
         return spec.args[1:]
 
-    def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
-        def adjust_then_compute(code, ticks_df):
-            ticks_df.sort_values("timestamp", inplace=True)
-
-            if self.adjust_factors_df:
-                adjust_factors_df = self.adjust_factors_df.loc[code]
-                ticks_df = self.adjust_prices(ticks_df, adjust_factors_df)
-
-            return strategy.compute_indicators(ticks_df)
-
-        print(f'>>> Skip if indicators already exist')
-        indicator_names = self.__get_buy_indicators(strategy)
-        if set(indicator_names).issubset(set(df.columns)):
-            print(f'> found {indicator_names}')
-            return df
-
-        print('>>> Index by code ...')
-        if df.index.name != "code":
-            df.reset_index(inplace=True)
-            df.set_index("code", inplace=True)
-        
-        print('>>> Computing indicators ...')
-        return pd.concat(
-            adjust_then_compute(code, ticks_df)
-            for code, ticks_df in tqdm(df.groupby(level="code"))
-        )
-
     def adjust_prices(self, ticks_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
-        # Rolling to get the first bonus window
         tick_min_ts = ticks_df.iloc[0]["timestamp"]
+
+        # Rolling to get the first bonus window
         factor_window_iter = iter(adj_df.rolling(window=2, step=1))
         curr_window = None
         for w in factor_window_iter:
@@ -98,6 +74,34 @@ class Backtester:
         ticks_df.dropna(inplace=True)
         return ticks_df.round(2)
 
+    def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
+        def adjust_then_compute(code, ticks_df):
+            ticks_df.sort_values("timestamp", inplace=True)
+
+            if self.adjust_factors_df is not None:
+                with suppress(KeyError):
+                    adjust_factors_df = self.adjust_factors_df.loc[code]
+                    ticks_df = self.adjust_prices(ticks_df, adjust_factors_df)
+
+            return strategy.compute_indicators(ticks_df)
+
+        print(f'>>> Skip if indicators already exist')
+        indicator_names = self.__get_buy_indicators(strategy)
+        if set(indicator_names).issubset(set(df.columns)):
+            print(f'> found {indicator_names}')
+            return df
+
+        print('>>> Index by code ...')
+        if df.index.name != "code":
+            df.reset_index(inplace=True)
+            df.set_index("code", inplace=True)
+        
+        print('>>> Computing indicators ...')
+        return pd.concat(
+            adjust_then_compute(code, ticks_df)
+            for code, ticks_df in tqdm(df.groupby(level="code"), file=sys.stdout)
+        )
+
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
             print('>>> Resetting indices ...')
@@ -112,7 +116,7 @@ class Backtester:
 
         # Per day
         indicator_names = self.__get_buy_indicators(strategy)
-        for timestamp, sub_df in tqdm(df.groupby(level="timestamp")):
+        for timestamp, sub_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
             assert isinstance(timestamp, str)
 
             # Opening

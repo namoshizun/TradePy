@@ -3,27 +3,12 @@ import re
 import pandas as pd
 import numpy as np
 
-from trade.backtesting.strategy import ChinaMarketStrategy
+from trade.backtesting.strategy import Strategy
 from trade.warehouse import TicksDepot
 from trade.types import Markets  
 
 
-class MA60SupportStrategy(ChinaMarketStrategy):
-    # ----------
-    # buggy combo
-    expiry = 5
-    stop_loss = 2.5
-    take_profit = 3.5
-    min_mkt_capt_rank = 0.6
-    ma60_dist_thres = 0.25
-
-    # # ----------
-    # # Best combo
-    # expiry = 7
-    # stop_loss = 2.5
-    # take_profit = 3.5
-    # min_mkt_capt_rank = 0.3
-    # ma60_dist_thres = 0.6
+class MA60SupportStrategy(Strategy):
 
     def compute_indicators(self, df: pd.DataFrame):
         # Keep ones whose market's index data is available
@@ -43,10 +28,6 @@ class MA60SupportStrategy(ChinaMarketStrategy):
 
         company = df.iloc[0]["company"]
         if re.match(r'ST|银行', company, re.I):
-            return pd.DataFrame()
-
-        df = df.query(f'mkt_cap_rank >= {self.min_mkt_capt_rank}')
-        if df.empty:
             return pd.DataFrame()
 
         # Compute MACD values of its market index
@@ -83,7 +64,7 @@ class MA60SupportStrategy(ChinaMarketStrategy):
         # Compute the distances to MA60 as pct change from the MA60
         df["dist_ma60"] = (100 * (df["low"] - df["ma60"]) / df["ma60"]).round(2)
 
-        # Count number of times the price is below ma60 in the past few days
+        # Count number of ticks the price is below ma60 in the past few days
         wsize = 4
         df["n_below_ma60"] = [
             np.nan if len(w) < wsize else (w < 0).sum()
@@ -94,6 +75,6 @@ class MA60SupportStrategy(ChinaMarketStrategy):
         return df
 
     def should_buy(self, n_below_ma60, dist_ma60, index_macd, index_ma5, index_ma20) -> pd.Series:
-        market_up_trend = (index_ma5 > index_ma20) & (index_macd > 0)
+        market_up_trend = (index_ma5 > index_ma20) & (index_macd >= 5)
         reaching_ma60_from_above = (n_below_ma60 == 0) & (dist_ma60.abs() <= self.ma60_dist_thres)
         return market_up_trend & reaching_ma60_from_above

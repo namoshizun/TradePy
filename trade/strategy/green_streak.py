@@ -1,11 +1,10 @@
 import pandas as pd
 import numpy as np
-from trade.backtesting.strategy import ChinaMarketStrategy
+from trade.backtesting.strategy import Strategy
 
 
-class GreenStreakStrategy(ChinaMarketStrategy):
+class GreenStreakStrategy(Strategy):
 
-    expiry = 5
     stop_loss = 10
     take_profit = 2
     green_streaks_threshold = 7

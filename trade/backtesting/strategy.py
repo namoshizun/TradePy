@@ -97,7 +97,12 @@ class StrategyBase(Generic[TickDataType]):
     def backtest(cls, ticks_data: pd.DataFrame, ctx: Context) -> TradeBook:
         instance = cls(ctx)
         bt = Backtester(ctx)
-        return bt.run(ticks_data, instance)
+        return bt.run(ticks_data.copy(), instance)
+
+    @classmethod
+    def get_indicators_df(cls, ticks_data: pd.DataFrame, ctx: Context) -> pd.DataFrame:
+        bt = Backtester(ctx)
+        return bt.get_indicators_df(ticks_data.copy(), cls(ctx))
 
 
 class Strategy(StrategyBase[TickData]):
@@ -110,9 +115,3 @@ class Strategy(StrategyBase[TickData]):
             df["pct_chg"] = (100 * df["chg"] / df["close"].shift(1)).fillna(0).round(2)
 
         return super().compute_indicators(df)
-
-
-
-class ChinaMarketStrategy(Strategy):
-
-    trading_unit = 100

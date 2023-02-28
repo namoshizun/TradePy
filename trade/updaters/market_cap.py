@@ -36,6 +36,5 @@ class MarketCapitalsUpdater(DataUpdater):
         df.reset_index(inplace=True, drop=False)
 
         for code, sub_df in df.groupby("code"):
-            ts_code = trade.listing.get_by_code(code).ts_code
             columns  = TickFields + ["mkt_cap", "mkt_cap_rank"]
-            repo.save(sub_df[columns], filename=ts_code + ".csv")
+            repo.save(sub_df[columns], filename=code + ".csv")
