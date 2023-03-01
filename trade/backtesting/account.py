@@ -99,12 +99,12 @@ class Account:
             self.holdings.tick(price_lookup)
 
     def buy(self, positions: Iterable[Position]):
-        cost_total = self.holdings.buy(positions)
-        self.cash_amount -= self.take_buy_commissions(cost_total)
+        if cost_total := self.holdings.buy(positions):
+            self.cash_amount -= self.take_buy_commissions(cost_total)
 
     def sell(self, positions: Iterable[Position]):
-        close_total = self.holdings.sell(positions)
-        self.cash_amount += self.take_sell_commissions(close_total)
+        if close_total := self.holdings.sell(positions):
+            self.cash_amount += self.take_sell_commissions(close_total)
 
     def clear(self):
         all_positions = [
@@ -121,8 +121,8 @@ class Account:
     def take_sell_commissions(self, amount: float) -> float:
         return amount * (1 - self.sell_commission_rate * 1e-2)
     
-    def get_total_asset(self, price_lookup: Holdings.PriceLookupFun) -> float:
-        return self.holdings.get_total_worth(price_lookup) + self.cash_amount
+    def get_total_asset_value(self) -> float:
+        return self.holdings.get_total_worth() + self.cash_amount
 
-    def get_positions_worth(self, price_lookup: Holdings.PriceLookupFun) -> float:
-        return self.holdings.get_total_worth(price_lookup)
+    def get_positions_value(self) -> float:
+        return self.holdings.get_total_worth()

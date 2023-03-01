@@ -26,3 +26,7 @@ The suggested option is to upload an [extended annotation CSV](https://docs.infl
 * Important concept:
     - a query creates streams of tables, where each table holds a collection of results.
     - a stream of table is uniquely identified by its group key, which contains the query condition and retrieved fields
+
+
+## MA60 support
+* Best params: stop_loss = 2.5, take_profit = 4, ma60_dist_thres = 0.6, max_daily_opens= 10, max_position_size = 0.2

@@ -87,7 +87,7 @@ class TicksDepot:
 
         df = pd.concat(loader())
 
-        cat_columns = ["code", "company", "market", "exchange"]
+        cat_columns = ["company", "market", "exchange"]
         for col in cat_columns:
             df[col] = df[col].astype("category")
 
@@ -121,7 +121,7 @@ class TradeCalendarDepot:
     path = "./datasets/trade_cal.csv"
 
     @staticmethod
-    def load(since_date: str, end_date: str) -> pd.DataFrame:
+    def load(since_date: str="1900-01-01", end_date: str="3000-01-01") -> pd.DataFrame:
         df = pd.read_csv(TradeCalendarDepot.path)
         df = df[df["cal_date"] >= since_date]
         df = df[df["cal_date"] <= end_date]

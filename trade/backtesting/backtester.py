@@ -17,11 +17,7 @@ if TYPE_CHECKING:
 class Backtester:
 
     def __init__(self, ctx: Context) -> None:
-        self.account = Account(
-            cash_amount=ctx.cash_amount,
-            buy_commission_rate=ctx.buy_commission_rate,
-            sell_commission_rate=ctx.sell_commission_rate,
-        )
+        self.account = ctx.account
 
         if ctx.hfq_adjust_factors is not None:
             _adf = ctx.hfq_adjust_factors.copy()
@@ -44,9 +40,22 @@ class Backtester:
         return spec.args[1:]
 
     def adjust_prices(self, ticks_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
-        # Assign each day a adjust factor
         adj_df = adj_df.reset_index(drop=True).set_index("timestamp")
         ticks_df = ticks_df.join(adj_df, on="timestamp")
+        factor_vals = ticks_df["hfq_factor"].values
+
+        if np.isnan(factor_vals[0]):
+            # Patch the furtherest factor value, whose timestamp might be outside the ticks range
+            min_date = ticks_df.iloc[0]["timestamp"]
+            for w in adj_df.rolling(2):
+                if len(w) == 2:
+                    since, until = w.iloc[0].name, w.iloc[1].name
+                    if until > min_date:
+                        factor_vals[0] = w.iloc[0]["hfq_factor"]
+                        break
+
+        # Assign each day a adjust factor
+        ticks_df["hfq_factor"] = factor_vals
         factor_vals = ticks_df["hfq_factor"].reset_index(drop=True).interpolate(method="pad").values
 
         # Adjust prices accordingly
@@ -140,10 +149,11 @@ class Backtester:
 
             buy_positions = []
             if stocks_selector.any():
-                buy_positions = strategy.generate_positions(
+                pool_df, budget = strategy.get_pool_and_budget(
                     sub_df[stocks_selector].copy(),
                     self.account.cash_amount
                 )
+                buy_positions = strategy.generate_positions(pool_df, budget)
 
                 self.account.buy(buy_positions)
                 for pos in buy_positions:
@@ -159,7 +169,7 @@ class Backtester:
 
         return trade_book
 
-    def run(self, ticks_df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
+    def run(self, ticks_df: pd.DataFrame, strategy: "StrategyBase") -> tuple[pd.DataFrame, TradeBook]:
         ind_df = self.get_indicators_df(ticks_df, strategy)
         trade_book = self.trade(ind_df, strategy)
-        return trade_book
+        return ind_df, trade_book

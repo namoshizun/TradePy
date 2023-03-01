@@ -64,8 +64,24 @@ class StrategyBase(Generic[TickDataType]):
         high_pct_chg = calc_pct_chg(position.price, tick["high"])
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
+    
+    def get_pool_and_budget(self, df: pd.DataFrame, budget: float) -> tuple[pd.DataFrame, float]:
+        # Limit number of new opens
+        if len(df) > self.max_position_opens:
+            df = df.sample(self.max_position_opens)
+
+        # Limit position budget allocation
+        min_position_allocation = budget // len(df)
+        max_position_value = self.max_position_size * self.account.get_total_asset_value()
+
+        if min_position_allocation > max_position_value:
+            budget = len(df) * max_position_value
+
+        return df, budget
 
     def generate_positions(self, df: pd.DataFrame, budget: float) -> list[Position]:
+        if df.empty or budget <= 0:
+            return []
         # Calculate the minimum number of shares to buy per stock
         num_stocks = len(df)
 
@@ -94,7 +110,7 @@ class StrategyBase(Generic[TickDataType]):
         ]
 
     @classmethod
-    def backtest(cls, ticks_data: pd.DataFrame, ctx: Context) -> TradeBook:
+    def backtest(cls, ticks_data: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
         instance = cls(ctx)
         bt = Backtester(ctx)
         return bt.run(ticks_data.copy(), instance)
