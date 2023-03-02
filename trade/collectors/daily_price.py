@@ -4,10 +4,10 @@ from datetime import date, timedelta
 import trade
 from trade.utils import get_latest_trade_date
 from trade.warehouse import TicksDepot
-from trade.updaters import DataUpdater
+from trade.collectors import DataCollector
 
 
-class StockPricesUpdater(DataUpdater):
+class StockPricesCollector(DataCollector):
 
     def __init__(self, since_date: str | date | None = None, batch_size: int = 50) -> None:
         if not since_date:
@@ -65,8 +65,3 @@ class StockPricesUpdater(DataUpdater):
         for args, ticks_df in results_gen:
             code = args["code"]
             self.repo.append(ticks_df, f'{code}.csv')
-
-
-class MarketIndexUpdater:
-    ...
-

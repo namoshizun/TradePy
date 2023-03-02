@@ -87,3 +87,13 @@ class MA60SupportStrategy(Strategy):
         reaching_ma60_from_above = (n_below_ma60_past_4 == 0) & (dist_ma60.abs() <= self.ma60_dist_thres)
         safe_window = n_limit_downs_past_5 == 0
         return market_up_trend & safe_window & reaching_ma60_from_above
+
+    def get_pool_and_budget(self, ticks_df: pd.DataFrame, selector: pd.Series, budget: float) -> tuple[pd.DataFrame, float]:
+        n_total = len(ticks_df)
+        n_signals = selector.sum()
+
+        if n_signals / n_total > self.max_signal_ratio:
+            # This day has a abonrmaly high percent of buy signals
+            return pd.DataFrame(), 0
+
+        return super().get_pool_and_budget(ticks_df, selector, budget)

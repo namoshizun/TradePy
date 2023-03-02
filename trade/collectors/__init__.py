@@ -10,7 +10,7 @@ from tqdm import tqdm
 from trade.utils import chunks
 
 
-class DataUpdater:
+class DataCollector:
 
     def run_batch_jobs(self,
                        jobs: list[Any],

@@ -149,10 +149,7 @@ class Backtester:
 
             buy_positions = []
             if stocks_selector.any():
-                pool_df, budget = strategy.get_pool_and_budget(
-                    sub_df[stocks_selector].copy(),
-                    self.account.cash_amount
-                )
+                pool_df, budget = strategy.get_pool_and_budget(sub_df, stocks_selector, self.account.cash_amount)
                 buy_positions = strategy.generate_positions(pool_df, budget)
 
                 self.account.buy(buy_positions)

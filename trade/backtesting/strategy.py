@@ -64,38 +64,40 @@ class StrategyBase(Generic[TickDataType]):
         high_pct_chg = calc_pct_chg(position.price, tick["high"])
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
-    
-    def get_pool_and_budget(self, df: pd.DataFrame, budget: float) -> tuple[pd.DataFrame, float]:
+
+    def get_pool_and_budget(self, ticks_df: pd.DataFrame, selector: pd.Series, budget: float) -> tuple[pd.DataFrame, float]:
+        pool_df = ticks_df[selector].copy()
+
         # Limit number of new opens
-        if len(df) > self.max_position_opens:
-            df = df.sample(self.max_position_opens)
+        if len(pool_df) > self.max_position_opens:
+            pool_df = ticks_df.sample(self.max_position_opens)
 
         # Limit position budget allocation
-        min_position_allocation = budget // len(df)
+        min_position_allocation = budget // len(pool_df)
         max_position_value = self.max_position_size * self.account.get_total_asset_value()
 
         if min_position_allocation > max_position_value:
-            budget = len(df) * max_position_value
+            budget = len(pool_df) * max_position_value
 
-        return df, budget
+        return pool_df, budget
 
-    def generate_positions(self, df: pd.DataFrame, budget: float) -> list[Position]:
-        if df.empty or budget <= 0:
+    def generate_positions(self, pool_df: pd.DataFrame, budget: float) -> list[Position]:
+        if pool_df.empty or budget <= 0:
             return []
         # Calculate the minimum number of shares to buy per stock
-        num_stocks = len(df)
+        num_stocks = len(pool_df)
 
-        df["trade_price"] = df["close"] * self.trading_unit
-        df["trade_shares"] = budget / num_stocks // df["trade_price"]
+        pool_df["trade_price"] = pool_df["close"] * self.trading_unit
+        pool_df["trade_shares"] = budget / num_stocks // pool_df["trade_price"]
 
         # Gather the remaining budget
-        remaining_budget = budget - (df["trade_price"] * df["trade_shares"]).sum()
+        remaining_budget = budget - (pool_df["trade_price"] * pool_df["trade_shares"]).sum()
 
         # Distribute that budget again, starting from the big guys
-        df.sort_values("trade_price", inplace=True, ascending=False)
-        for idx, stock in df.iterrows():
+        pool_df.sort_values("trade_price", inplace=True, ascending=False)
+        for idx, stock in pool_df.iterrows():
             if residual_shares := remaining_budget // stock["trade_price"]:
-                df.at[idx, "trade_shares"] += residual_shares
+                pool_df.at[idx, "trade_shares"] += residual_shares
                 remaining_budget -= residual_shares * stock["trade_price"]
 
         return [
@@ -105,7 +107,7 @@ class StrategyBase(Generic[TickDataType]):
                 price=stock["close"],
                 shares=stock["trade_shares"] * self.trading_unit,
             )
-            for (timestamp, code), stock in df.iterrows()
+            for (timestamp, code), stock in pool_df.iterrows()
             if stock["trade_shares"] > 0
         ]
 

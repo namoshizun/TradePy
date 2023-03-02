@@ -139,3 +139,56 @@ def convert_akshare_hist_data(df: pd.DataFrame):
         "涨跌幅": "pct_chg",
         "涨跌额": "chg",
     })[TickFields]
+
+
+def convert_akshare_stock_info(data: dict) -> dict:
+    to_100_mil = lambda v: v * 1e-8
+
+    name_translation_and_convert = {
+        '总市值': ("mkcap", to_100_mil),
+        '行业': ("industry",),
+        '上市时间': ("listdate",),
+        '股票代码': ("code",),
+        '股票简称': ("company",),
+        '总股本': ("total_share", to_100_mil),
+        '流通股': ("float_share", to_100_mil),
+    }
+
+    converted = dict()
+    for ch_name, trans_and_conv in name_translation_and_convert.items():
+        if len(trans_and_conv) == 2:
+            en_name, converter = trans_and_conv
+            converted[en_name] = converter(data[ch_name])
+        else:
+            en_name = trans_and_conv[0]
+            converted[en_name] = data[ch_name]
+    
+    return converted
+
+
+def convert_akshare_industry_listing(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        '板块名称': "name",
+        '板块代码': "code",
+        '最新价': "close",
+        '涨跌额': "chg",
+        '涨跌幅': "pct_chg",
+        '总市值': "mkcap",
+        '换手率': "turnover",
+    }
+    return df.rename(columns=mapping)[list(mapping.values())]
+
+
+def convert_akshare_industry_ticks(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "日期": "timestamp",
+        "开盘": "open",
+        "收盘": "close",
+        "最高": "high",
+        "最低": "low",
+        "涨跌幅": "pct_chg",
+        "涨跌额": "chg",
+        "成交量": "vol",
+        "换手率": "turnover",
+    }
+    return df.rename(columns=mapping)[list(mapping.values())]

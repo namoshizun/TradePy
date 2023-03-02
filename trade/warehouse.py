@@ -1,3 +1,4 @@
+from contextlib import suppress
 import pandas as pd
 from tqdm import tqdm
 from functools import wraps, partial
@@ -95,12 +96,16 @@ class TicksDepot:
         df.sort_index(inplace=True)
         return df
 
-    def load_index_ticks(self, index_by: str | list[str]="code", cache=False) -> pd.DataFrame:
-        cache_key = "index-ticks"
-        if cache and cache_key in self.caches:
-            return self.caches[cache_key]
+    def __generic_load_ticks(self,
+                             index_by: str | list[str]="code",
+                             cache_key=None,
+                             cache=False) -> pd.DataFrame:
 
-        assert self.folder.name == "daily.index", self.folder
+        if cache:
+            assert cache_key
+            if cache_key in self.caches:
+                return self.caches[cache_key]
+
         def loader() -> Generator[pd.DataFrame, None, None]:
             for code, df in self.traverse(always_load=True):
                 df["code"] = code
@@ -109,10 +114,23 @@ class TicksDepot:
         df = pd.concat(loader())
         df.set_index(index_by, inplace=True)
         df.sort_index(inplace=True)
-        df.sort_values("timestamp", inplace=True)
+
+        with suppress(KeyError):
+            df.sort_values("timestamp", inplace=True)
 
         if cache:
+            assert cache_key
             self.caches[cache_key] = df.copy()
+        return df
+    
+    def load_index_ticks(self, index_by: str | list[str]="code", cache=False) -> pd.DataFrame:
+        assert self.folder.name == "daily.index", self.folder
+        return self.__generic_load_ticks(index_by, cache_key="index-ticks", cache=cache)
+
+    def load_industry_ticks(self, index_by: str | list[str]="name", cache=False) -> pd.DataFrame:
+        assert self.folder.name == "daily.industry", self.folder
+        df = self.__generic_load_ticks(index_by, cache_key="industry-ticks", cache=cache)
+        df["code"] = df["code"].astype("category")
         return df
 
 

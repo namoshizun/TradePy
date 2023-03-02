@@ -3,11 +3,11 @@ import pandas as pd
 from tqdm import tqdm
 
 import trade
-from trade.updaters import DataUpdater
+from trade.collectors import DataCollector
 from trade.warehouse import AdjustFactorDepot
 
 
-class AdjustFactorUpdater(DataUpdater):
+class AdjustFactorCollector(DataCollector):
 
     def __init__(self, batch_size: int=50):
         self.batch_size = batch_size
