@@ -192,3 +192,13 @@ def convert_akshare_industry_ticks(df: pd.DataFrame) -> pd.DataFrame:
         "换手率": "turnover",
     }
     return df.rename(columns=mapping)[list(mapping.values())]
+
+
+def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:
+    df.rename(columns={
+        "date": "timestamp",
+        "volume": "vol"
+    }, inplace=True)
+
+    df["timestamp"] = df["timestamp"].astype(str)
+    return df

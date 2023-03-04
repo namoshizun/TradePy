@@ -1,13 +1,11 @@
 import sys
-import inspect
-import operator
 import numpy as np
 import pandas as pd
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
-from trade.backtesting.account import Account, TradeBook
+from trade.backtesting.account import TradeBook
 from trade.backtesting.context import Context
 
 if TYPE_CHECKING:
@@ -28,17 +26,6 @@ class Backtester:
         else:
             self.adjust_factors_df = None
 
-    def __filter_in_holdings(self, selector: pd.Series) -> pd.Series:
-        for index, _ in selector.items():
-            _, code = index
-            if self.account.holdings.has(code):
-                selector.at[index] = False
-        return selector
-
-    def __get_buy_indicators(self, strategy: "StrategyBase") -> list[str]:
-        spec = inspect.getfullargspec(strategy.should_buy)
-        return spec.args[1:]
-
     def adjust_prices(self, ticks_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
         adj_df = adj_df.reset_index(drop=True).set_index("timestamp")
         ticks_df = ticks_df.join(adj_df, on="timestamp")
@@ -49,7 +36,7 @@ class Backtester:
             min_date = ticks_df.iloc[0]["timestamp"]
             for w in adj_df.rolling(2):
                 if len(w) == 2:
-                    since, until = w.iloc[0].name, w.iloc[1].name
+                    _, until = w.iloc[0].name, w.iloc[1].name
                     if until > min_date:
                         factor_vals[0] = w.iloc[0]["hfq_factor"]
                         break
@@ -79,9 +66,9 @@ class Backtester:
             return strategy.compute_indicators(ticks_df)
 
         print(f'>>> Skip if indicators already exist')
-        indicator_names = self.__get_buy_indicators(strategy)
-        if set(indicator_names).issubset(set(df.columns)):
-            print(f'> found {indicator_names}')
+        all_indicators = strategy.buy_indicators + strategy.close_indicators
+        if set(all_indicators).issubset(set(df.columns)):
+            print(f'> found {all_indicators}')
             return df
 
         print('>>> Index by code ...')
@@ -94,6 +81,37 @@ class Backtester:
             adjust_then_compute(code, ticks_df)
             for code, ticks_df in tqdm(df.groupby(level="code"), file=sys.stdout)
         )
+
+    def get_buy_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
+        curr_positions = self.account.holdings.position_codes
+
+        return [
+            row.Index
+            for row in df.itertuples()
+            # won't increase existing positions
+            if (row.Index[1] not in curr_positions) and strategy.should_buy(*[
+                getattr(row, ind)
+                for ind in strategy.buy_indicators
+            ])
+        ]
+
+    def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
+        if not strategy.close_indicators:
+            return []
+
+        curr_positions = self.account.holdings.position_codes
+        if not curr_positions:
+            return []
+
+        return [
+            row.Index
+            for row in df.itertuples()
+            # only evaluate existing positions
+            if (row.Index[1] in curr_positions) and strategy.should_close(*[
+                getattr(row, ind)
+                for ind in strategy.close_indicators
+            ])
+        ]
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
@@ -108,7 +126,6 @@ class Backtester:
         trade_book = TradeBook()
 
         # Per day
-        indicator_names = self.__get_buy_indicators(strategy)
         for timestamp, sub_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
             assert isinstance(timestamp, str)
 
@@ -116,11 +133,16 @@ class Backtester:
             price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]
             self.account.tick(price_lookup)
 
+            # Signals
+            buy_indices = self.get_buy_signals(sub_df, strategy)
+            close_indices = self.get_close_signals(sub_df, strategy)
+
             # Sell
             sell_positions = []
             for code, pos in self.account.holdings:
                 index = (timestamp, code)
                 if index not in sub_df.index:
+                    # Not a tradable day, so nothing to do
                     continue
 
                 bar: TickDataType = sub_df.loc[index].to_dict()  # type: ignore
@@ -137,33 +159,33 @@ class Backtester:
                     trade_book.stop_loss(timestamp, pos)
                     sell_positions.append(pos)
 
+                # [3] Close
+                elif index in close_indices:
+                    pos.close(bar["close"])
+                    trade_book.close_position(timestamp, pos)
+                    sell_positions.append(pos)
+
             if sell_positions:
                 self.account.sell(sell_positions)
 
             # Buy
-            stocks_selector = strategy.should_buy(*[
-                operator.getitem(sub_df, ind)
-                for ind in indicator_names
-            ])
-            stocks_selector = self.__filter_in_holdings(stocks_selector)
-
-            buy_positions = []
-            if stocks_selector.any():
-                pool_df, budget = strategy.get_pool_and_budget(sub_df, stocks_selector, self.account.cash_amount)
+            if buy_indices:
+                pool_df, budget = strategy.get_pool_and_budget(sub_df, buy_indices, self.account.cash_amount)
                 buy_positions = strategy.generate_positions(pool_df, budget)
 
                 self.account.buy(buy_positions)
                 for pos in buy_positions:
                     trade_book.buy(timestamp, pos)
 
-            # Log closing capitals
-            if buy_positions or sell_positions:
+            # Log this action day
+            if buy_indices or close_indices:
                 trade_book.log_capitals(
                     timestamp,
                     self.account.cash_amount,
                     self.account.holdings.get_total_worth()
                 )
 
+        # That was quite a long story :D
         return trade_book
 
     def run(self, ticks_df: pd.DataFrame, strategy: "StrategyBase") -> tuple[pd.DataFrame, TradeBook]:

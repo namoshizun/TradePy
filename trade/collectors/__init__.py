@@ -2,6 +2,7 @@ import os
 import abc
 import time
 import tempfile
+import talib
 import pandas as pd
 from typing import Any, Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,35 @@ from trade.utils import chunks
 
 
 class DataCollector:
+
+    def precompute_indicators(self, df, nmacd_period=120):
+        # Moving averages
+        df["ma5"] = talib.SMA(df["close"], 5)
+        df["ma20"] = talib.SMA(df["close"], 20)
+
+        df["ema5"] = talib.EMA(df["close"], 5)
+        df["ema20"] = talib.EMA(df["close"], 20)
+
+        # RSI
+        df["rsi6"] = talib.RSI(df["close"], timeperiod=6)
+
+        # MACD
+        _, _, macdhist = talib.MACD(df["close"])
+        df["macd"] = (macdhist * 2)
+
+        macd_max = df["macd"].rolling(nmacd_period).max()
+        macd_min = df["macd"].rolling(nmacd_period).min()
+
+        df.dropna(inplace=True)
+
+        # NMACD
+        # NOTE: because NMACD is supposed to use a rather long period normalizer, a lot of data points
+        # will be truncated if dropna, which is probably not desirable
+        nmacd_col = f"nmacd{nmacd_period}"
+        df[nmacd_col] = (df["macd"] - macd_min) / (macd_max - macd_min) # normalized to (0, 1)
+        df[nmacd_col] = (df[nmacd_col] - 0.5) * 2.  # rescale to (-1, 1)
+
+        return df.round(2)
 
     def run_batch_jobs(self,
                        jobs: list[Any],

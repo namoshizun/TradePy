@@ -130,7 +130,15 @@ class TicksDepot:
     def load_industry_ticks(self, index_by: str | list[str]="name", cache=False) -> pd.DataFrame:
         assert self.folder.name == "daily.industry", self.folder
         df = self.__generic_load_ticks(index_by, cache_key="industry-ticks", cache=cache)
+
+        # Optimize memory consumption
         df["code"] = df["code"].astype("category")
+
+        for col, dtype in df.dtypes.items():
+            if str(dtype) == "float64":
+                df[col] = df[col].astype("float32")
+            elif str(dtype) == "int64":
+                df[col] = df[col].astype("int32")
         return df
 
 

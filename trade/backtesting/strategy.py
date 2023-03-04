@@ -1,7 +1,7 @@
 import abc
+import inspect
 import pandas as pd
-import numpy as np
-from typing import TypedDict, Generic, TypeVar
+from typing import Any, TypedDict, Generic, TypeVar
 
 from trade.backtesting.context import Context
 from trade.backtesting.backtester import Backtester
@@ -31,17 +31,22 @@ class StrategyBase(Generic[TickDataType]):
 
     def __init__(self, ctx: Context) -> None:
         self.ctx = ctx
+        self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[1:]
+        self.close_indicators: list[str] = inspect.getfullargspec(self.should_close).args[1:]
 
     def __getattr__(self, name: str):
         return getattr(self.ctx, name)
 
     @abc.abstractmethod
-    def should_buy(self, *indicators) -> pd.Series:
+    def compute_indicators(self, ticks_df: pd.DataFrame):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def compute_indicators(self, ticks_df: pd.DataFrame):
+    def should_buy(self, *indicators) -> bool:
         raise NotImplementedError
+
+    def should_close(self, *indicators) -> bool:
+        return False
 
     def should_stop_loss(self, tick: TickDataType, position: Position) -> float | None:
         # During opening
@@ -65,8 +70,8 @@ class StrategyBase(Generic[TickDataType]):
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
 
-    def get_pool_and_budget(self, ticks_df: pd.DataFrame, selector: pd.Series, budget: float) -> tuple[pd.DataFrame, float]:
-        pool_df = ticks_df[selector].copy()
+    def get_pool_and_budget(self, ticks_df: pd.DataFrame, buy_indices: list[Any], budget: float) -> tuple[pd.DataFrame, float]:
+        pool_df = ticks_df.loc[buy_indices].copy()
 
         # Limit number of new opens
         if len(pool_df) > self.max_position_opens:

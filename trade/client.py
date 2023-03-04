@@ -19,7 +19,8 @@ from trade.convertion import (
     convert_akshare_hist_data,
     convert_akshare_stock_info,
     convert_akshare_industry_listing,
-    convert_akshare_industry_ticks
+    convert_akshare_industry_ticks,
+    convert_akshare_stock_index_ticks
 )
 
 
@@ -71,6 +72,10 @@ class AkShareClient:
 
     def get_industry_listing(self) -> pd.DataFrame:
         return convert_akshare_industry_listing(ak.stock_board_industry_name_em())
+
+    def get_stock_index_ticks(self, code: str) -> pd.DataFrame:
+        df = ak.stock_zh_index_daily(symbol=code)
+        return convert_akshare_stock_index_ticks(df)
 
 
 class TushareClient:

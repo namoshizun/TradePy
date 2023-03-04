@@ -66,7 +66,7 @@ class TradeBook:
         })
 
     def exit(self, *args, **kwargs):
-        kwargs["action"] = TradeActions.EXIT
+        kwargs["action"] = TradeActions.CLOSE
         self.__sell(*args, **kwargs)
 
     def stop_loss(self, *args, **kwargs):
@@ -75,6 +75,10 @@ class TradeBook:
 
     def take_profit(self, *args, **kwargs):
         kwargs["action"] = TradeActions.TAKE_PROFIT
+        self.__sell(*args, **kwargs)
+    
+    def close_position(self, *args, **kwargs):
+        kwargs["action"] = TradeActions.CLOSE
         self.__sell(*args, **kwargs)
 
     def log_capitals(self, timestamp, cash_amount: float, positions_value: float):

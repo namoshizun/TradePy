@@ -58,6 +58,6 @@ TradeActionType = Literal[
 
 class TradeActions:
     OPEN = "开仓"
-    EXIT = "平仓"
+    CLOSE = "平仓"
     STOP_LOSS = "止损"
     TAKE_PROFIT = "止盈"

@@ -17,7 +17,7 @@ class AdjustFactorCollector(DataCollector):
             yield {
                 "code": code
             }
-    
+
     def _add_period_padding(self, df: pd.DataFrame):
         def pad(sub_df: pd.DataFrame):
             sub_df.sort_values("timestamp", inplace=True)

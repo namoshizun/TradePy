@@ -9,6 +9,10 @@ class Holdings:
 
     def __init__(self):
         self.positions: dict[str, Position] = dict()  # code => Position
+    
+    @property
+    def position_codes(self) -> set[str]:
+        return set(code for code, _ in self)
 
     def tick(self, price_lookup: PriceLookupFun):
         for _, pos in self:

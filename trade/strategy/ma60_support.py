@@ -2,7 +2,9 @@ import talib
 import re
 import pandas as pd
 import numpy as np
+from typing import Any
 
+import trade
 from trade.backtesting.strategy import Strategy
 from trade.warehouse import TicksDepot
 from trade.types import Markets  
@@ -10,52 +12,41 @@ from trade.types import Markets
 
 class MA60SupportStrategy(Strategy):
 
+    def patch_index_data(self, df: pd.DataFrame, idx_df: pd.DataFrame, prefix: str):
+        indicator_cols = ["ema5", "ema20", "rsi6", "macd", "nmacd120"]
+
+        ind_df = idx_df[indicator_cols + ["timestamp"]].copy()
+        ind_df.set_index("timestamp", inplace=True)
+        ind_df.rename(columns={
+            col: f"{prefix}_{col}"
+            for col in indicator_cols
+        }, inplace=True)
+
+        return df.join(ind_df, on="timestamp")
+
     def compute_indicators(self, df: pd.DataFrame):
         # Keep ones whose market's index data is available
-        market_name_to_index = {
+        market_name_to_board = {
             Markets.SH_MAIN: "SSE",
             Markets.SZ_MAIN: "SZSE",
             Markets.SME: "SZSE",
             Markets.CHI_NEXT: "ChiNext",
         }
 
-        market = df.iloc[0]["market"]
-        index_name = market_name_to_index.get(market)
+        board_name = market_name_to_board.get(df.iloc[0]["market"])
 
         # Filtering
-        if not index_name:
+        if not board_name:
             return pd.DataFrame()
 
         company = df.iloc[0]["company"]
         if re.match(r'ST|银行', company, re.I):
             return pd.DataFrame()
 
-        # Compute MACD values of its market index
-        index_df = TicksDepot("daily.index").load_index_ticks(cache=True).loc[index_name].copy()
-        assert isinstance(index_df, pd.DataFrame)
-
-        _, _, macdhist = talib.MACD(index_df["close"])
-        index_df["index_macd"] = (macdhist * 2).round(2)
-
-        # Compute market index MA5 & MA20
-        index_df["index_ma5"] = talib.SMA(index_df["close"], 5).round(2)
-        index_df["index_ma20"] = talib.SMA(index_df["close"], 20).round(2)
-        index_df["index_ema5"] = talib.EMA(index_df["close"], 5).round(2)
-        index_df["index_ema20"] = talib.EMA(index_df["close"], 20).round(2)
-
-        # Patch market indicators
-        index_df.drop(
-            index_df.columns.difference(["timestamp", "index_macd", "index_ma5", "index_ma20", "index_ema5", "index_ema20"]),
-            axis=1,
-            inplace=True
-        )
-        index_df.set_index("timestamp", inplace=True)
-        df = df.join(index_df, on="timestamp")
-
         # Compute SMA60
         df["ma60"] = talib.SMA(df["close"], 60).round(2)
 
-        # Compute the distances to MA60 as pct change from the MA60
+        # Compute the distances to SMA60 as pct change from the MA60
         df["dist_ma60"] = (100 * (df["low"] - df["ma60"]) / df["ma60"]).round(2)
 
         # Count number of ticks the price is below ma60 in the past few days
@@ -73,27 +64,105 @@ class MA60SupportStrategy(Strategy):
         ]
 
         df.dropna(inplace=True)
+
+        # Get indicators from industry ticks data
+        try:
+            industry = trade.listing.get_by_name(company).industry
+        except IndexError:
+            return pd.DataFrame()
+
+        ind_df = TicksDepot("daily.industry").load_industry_ticks(cache=True).loc[industry]
+        df = self.patch_index_data(df, ind_df, "industry")
+
+        # Get indicators from the main board ticks data
+        board_df = TicksDepot("daily.index").load_index_ticks(cache=True).loc[board_name]
+        df = self.patch_index_data(df, board_df, "board")
+
         return df
 
     def should_buy(self,
                    n_below_ma60_past_4,
                    n_limit_downs_past_5,
                    dist_ma60,
-                   index_macd,
-                   index_ema5,
-                   index_ema20) -> pd.Series:
+                   board_rsi6,
+                   board_macd,
+                   board_nmacd120,
+                   board_ema5,
+                   board_ema20,
+                   industry_macd,
+                   industry_nmacd120,
+                   industry_ema5,
+                   industry_ema20) -> bool:
 
-        market_up_trend = (index_ema5 > index_ema20) & (index_macd >= 5)
-        reaching_ma60_from_above = (n_below_ma60_past_4 == 0) & (dist_ma60.abs() <= self.ma60_dist_thres)
-        safe_window = n_limit_downs_past_5 == 0
-        return market_up_trend & safe_window & reaching_ma60_from_above
+        reaching_ma60_from_above = (n_below_ma60_past_4 == 0) and \
+            (abs(dist_ma60) <= self.ma60_dist_thres)
 
-    def get_pool_and_budget(self, ticks_df: pd.DataFrame, selector: pd.Series, budget: float) -> tuple[pd.DataFrame, float]:
+        if not reaching_ma60_from_above:
+            return False
+
+        if n_limit_downs_past_5 > 0:
+            return False
+
+        if board_rsi6 < 15:
+            return True
+
+        if np.isnan(industry_macd):
+            ref_macd = board_macd
+            ref_nmacd120 = board_nmacd120
+            ref_ema5 = board_ema5
+            ref_ema20 = board_ema20
+        else:
+            ref_macd = industry_macd
+            ref_nmacd120 = industry_nmacd120
+            ref_ema5 = industry_ema5
+            ref_ema20 = industry_ema20
+
+        if ref_ema5 > ref_ema20:
+            if np.isnan(ref_nmacd120):
+                return ref_macd > 5  # use macd instead if nmacd not available
+            return ref_nmacd120 >= 0.15  # otherwise we prefer nmacd120
+
+        return False
+
+    def should_close(self,
+                     board_rsi6,
+                     board_macd,
+                     board_nmacd120,
+                     board_ema5,
+                     board_ema20,
+                     industry_macd,
+                     industry_nmacd120,
+                     industry_ema5,
+                     industry_ema20) -> bool:
+
+        if board_rsi6 > 85:
+            return True
+
+        if np.isnan(industry_macd):
+            ref_macd = board_macd
+            ref_nmacd120 = board_nmacd120
+            ref_ema5 = board_ema5
+            ref_ema20 = board_ema20
+        else:
+            ref_macd = industry_macd
+            ref_nmacd120 = industry_nmacd120
+            ref_ema5 = industry_ema5
+            ref_ema20 = industry_ema20
+
+        if ref_ema5 < ref_ema20:
+            return True
+        
+        if np.isnan(ref_nmacd120):
+            return ref_macd < -2  # use macd instead if nmacd not available
+
+        return ref_nmacd120 <= -0.15  # otherwise we prefer nmacd120
+
+    def get_pool_and_budget(self, ticks_df: pd.DataFrame, buy_indices: list[Any], budget: float) -> tuple[pd.DataFrame, float]:
         n_total = len(ticks_df)
-        n_signals = selector.sum()
+        n_signals = len(buy_indices)
 
         if n_signals / n_total > self.max_signal_ratio:
             # This day has a abonrmaly high percent of buy signals
             return pd.DataFrame(), 0
 
-        return super().get_pool_and_budget(ticks_df, selector, budget)
+        return super().get_pool_and_budget(ticks_df, buy_indices, budget)
