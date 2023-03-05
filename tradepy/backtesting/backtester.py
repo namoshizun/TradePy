@@ -5,11 +5,11 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
-from trade.backtesting.account import TradeBook
-from trade.backtesting.context import Context
+from tradepy.backtesting.account import TradeBook
+from tradepy.backtesting.context import Context
 
 if TYPE_CHECKING:
-    from trade.backtesting.strategy import StrategyBase, TickDataType
+    from tradepy.backtesting.strategy import StrategyBase, TickDataType
 
 
 class Backtester:

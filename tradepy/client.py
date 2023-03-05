@@ -8,8 +8,8 @@ from functools import wraps
 from datetime import date
 from dateutil import parser as date_parser
 
-from trade.utils import get_latest_trade_date
-from trade.convertion import (
+from tradepy.utils import get_latest_trade_date
+from tradepy.convertion import (
     convert_code_to_exchange,
     convert_tushare_v1_hist_data,
     convert_tushare_v2_hist_data,

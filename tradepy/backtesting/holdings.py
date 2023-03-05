@@ -1,6 +1,6 @@
 from typing import Callable, Iterable
 from contextlib import suppress
-from trade.backtesting.position import Position
+from tradepy.backtesting.position import Position
 
 
 class Holdings:

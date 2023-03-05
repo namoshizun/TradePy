@@ -2,10 +2,10 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 
-import trade
-from trade.convertion import TickFields
-from trade.warehouse import TicksDepot
-from trade.collectors import DataCollector
+import tradepy
+from tradepy.convertion import TickFields
+from tradepy.warehouse import TicksDepot
+from tradepy.collectors import DataCollector
 
 
 class MarketCapitalsCollector(DataCollector):
@@ -17,7 +17,7 @@ class MarketCapitalsCollector(DataCollector):
 
             for _, row in day_df.iterrows():
                 code = row["code"]
-                mkt_cap = trade.listing.get_by_code(code).get_market_cap_at(row["close"])
+                mkt_cap = tradepy.listing.get_by_code(code).get_market_cap_at(row["close"])
                 mkt_cap_lst.append(round(mkt_cap, 2))
 
             mkt_cap_percentiles = np.percentile(mkt_cap_lst, q=range(100))

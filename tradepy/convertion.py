@@ -2,8 +2,8 @@ import pandas as pd
 from datetime import date
 from dateutil import parser as date_parse
 
-import trade
-from trade.types import ExchangeType, MarketType, Markets
+import tradepy
+from tradepy.types import ExchangeType, MarketType, Markets
 
 
 TickFields = [
@@ -82,7 +82,7 @@ def convert_tushare_v2_fundamentals_data(df: pd.DataFrame):
 
     # Patch market cap
     _ts = str(_df.iloc[0]["timestamp"])
-    _day_k = trade.pro_api.api.daily(start_date=_ts, end_date=_ts)
+    _day_k = tradepy.pro_api.api.daily(start_date=_ts, end_date=_ts)
     _day_k[['code', 'ts_suffix']] = _day_k['ts_code'].str.split('.', expand=True)
 
     _df = _df.set_index("code").join(_day_k[["code", "close"]].set_index("code"))

@@ -5,8 +5,8 @@ from functools import partial
 from typing import Any, Generator
 from pathlib import Path
 
-import trade
-from trade.convertion import convert_code_to_exchange, convert_code_to_market
+import tradepy
+from tradepy.convertion import convert_code_to_exchange, convert_code_to_market
 
 
 class TicksDepot:
@@ -68,10 +68,10 @@ class TicksDepot:
                 except StopIteration:
                     break
 
-                if not trade.listing.has_code(code):
+                if not tradepy.listing.has_code(code):
                     continue
 
-                company = trade.listing.get_by_code(code).name
+                company = tradepy.listing.get_by_code(code).name
                 market = convert_code_to_market(code)
 
                 df = source_iter.send(True)

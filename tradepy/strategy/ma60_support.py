@@ -4,10 +4,10 @@ import pandas as pd
 import numpy as np
 from typing import Any
 
-import trade
-from trade.backtesting.strategy import Strategy
-from trade.warehouse import TicksDepot
-from trade.types import Markets
+import tradepy
+from tradepy.backtesting.strategy import Strategy
+from tradepy.warehouse import TicksDepot
+from tradepy.types import Markets
 
 
 class MA60SupportStrategy(Strategy):
@@ -67,7 +67,7 @@ class MA60SupportStrategy(Strategy):
 
         # Get indicators from industry ticks data
         try:
-            industry = trade.listing.get_by_name(company).industry
+            industry = tradepy.listing.get_by_name(company).industry
         except IndexError:
             return pd.DataFrame()
 

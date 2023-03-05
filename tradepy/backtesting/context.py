@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from trade.backtesting.account import Account
+from tradepy.backtesting.account import Account
 
 
 @dataclass

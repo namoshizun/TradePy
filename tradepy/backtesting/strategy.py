@@ -3,11 +3,11 @@ import inspect
 import pandas as pd
 from typing import Any, TypedDict, Generic, TypeVar
 
-from trade.backtesting.context import Context
-from trade.backtesting.backtester import Backtester
-from trade.backtesting.account import TradeBook
-from trade.backtesting.position import Position
-from trade.utils import calc_pct_chg
+from tradepy.backtesting.context import Context
+from tradepy.backtesting.backtester import Backtester
+from tradepy.backtesting.account import TradeBook
+from tradepy.backtesting.position import Position
+from tradepy.utils import calc_pct_chg
 
 
 class TickData(TypedDict):

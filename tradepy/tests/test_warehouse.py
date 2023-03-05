@@ -1,4 +1,4 @@
-from trade.warehouse import TicksDepot
+from tradepy.warehouse import TicksDepot
 
 
 repo = TicksDepot("daily.index")

@@ -1,10 +1,10 @@
 import pandas as pd
 from datetime import date, timedelta
 
-import trade
-from trade.utils import get_latest_trade_date
-from trade.warehouse import TicksDepot
-from trade.collectors import DataCollector
+import tradepy
+from tradepy.utils import get_latest_trade_date
+from tradepy.warehouse import TicksDepot
+from tradepy.collectors import DataCollector
 
 
 class StockPricesCollector(DataCollector):
@@ -50,7 +50,7 @@ class StockPricesCollector(DataCollector):
                 raise exc
 
         # Add new listing
-        new_listings = set(trade.listing.codes) - set(curr_codes)
+        new_listings = set(tradepy.listing.codes) - set(curr_codes)
         for code in new_listings:
             yield {
                 "code": code,
@@ -58,9 +58,9 @@ class StockPricesCollector(DataCollector):
             }
 
     def run(self):
-        assert trade.pro_api
+        assert tradepy.pro_api
         jobs = list(self._jobs_generator())
-        results_gen = self.run_batch_jobs(jobs, self.batch_size, fun=trade.ak_api.get_daily)
+        results_gen = self.run_batch_jobs(jobs, self.batch_size, fun=tradepy.ak_api.get_daily)
 
         for args, ticks_df in results_gen:
             code = args["code"]

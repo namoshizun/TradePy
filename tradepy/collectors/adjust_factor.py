@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import trade
-from trade.collectors import DataCollector
-from trade.warehouse import AdjustFactorDepot
+import tradepy
+from tradepy.collectors import DataCollector
+from tradepy.warehouse import AdjustFactorDepot
 
 
 class AdjustFactorCollector(DataCollector):
@@ -13,7 +13,7 @@ class AdjustFactorCollector(DataCollector):
         self.batch_size = batch_size
 
     def _jobs_generator(self):
-        for code in trade.listing.codes:
+        for code in tradepy.listing.codes:
             yield {
                 "code": code
             }
@@ -46,7 +46,7 @@ class AdjustFactorCollector(DataCollector):
         results_gen = self.run_batch_jobs(
             jobs,
             self.batch_size,
-            fun=trade.ak_api.get_adjust_factor,
+            fun=tradepy.ak_api.get_adjust_factor,
             iteration_pause=3,
         )
 

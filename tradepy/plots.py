@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from trade.backtesting.account import TradeBook
-from trade.warehouse import TicksDepot, TradeCalendarDepot
+from tradepy.backtesting.account import TradeBook
+from tradepy.warehouse import TicksDepot, TradeCalendarDepot
 
 
 def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_date="3000-01-01"):

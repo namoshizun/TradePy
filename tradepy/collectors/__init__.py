@@ -8,7 +8,7 @@ from typing import Any, Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
-from trade.utils import chunks
+from tradepy.utils import chunks
 
 
 class DataCollector:

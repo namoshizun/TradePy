@@ -1,5 +1,5 @@
-from trade.stocks import StocksPool
-from trade.client import TushareClientV1, TushareClientPro, AkShareClient
+from tradepy.stocks import StocksPool
+from tradepy.client import TushareClientV1, TushareClientPro, AkShareClient
 
 
 v1_api: TushareClientV1 | None = None

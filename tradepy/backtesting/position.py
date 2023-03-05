@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass, field
 
-from trade.utils import calc_pct_chg, round_val
+from tradepy.utils import calc_pct_chg, round_val
 
 
 @dataclass

@@ -2,10 +2,10 @@ from dataclasses import dataclass, field
 from typing import TypedDict, Iterable
 from typing_extensions import NotRequired
 
-from trade.backtesting.holdings import Holdings
-from trade.backtesting.position import Position
-from trade.types import TradeActions, TradeActionType
-from trade.utils import round_val
+from tradepy.backtesting.holdings import Holdings
+from tradepy.backtesting.position import Position
+from tradepy.types import TradeActions, TradeActionType
+from tradepy.utils import round_val
 
 
 class TradeLog(TypedDict):
