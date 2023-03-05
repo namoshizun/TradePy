@@ -9,6 +9,7 @@ class Position:
 
     timestamp: str
     code: str
+    company: str
     price: float
     shares: int
 
@@ -20,7 +21,7 @@ class Position:
         self.latest_price = self.price
 
         uuid_piece = str(uuid.uuid4()).split('-')[1]
-        self.id = f'{self.code}-{uuid_piece}'
+        self.id = f'{self.company}-{uuid_piece}'
 
     @property
     @round_val

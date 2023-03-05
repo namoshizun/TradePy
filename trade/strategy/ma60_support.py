@@ -3,6 +3,7 @@ import re
 import pandas as pd
 import numpy as np
 from typing import Any
+import random
 
 import trade
 from trade.backtesting.strategy import Strategy
@@ -40,7 +41,7 @@ class MA60SupportStrategy(Strategy):
             return pd.DataFrame()
 
         company = df.iloc[0]["company"]
-        if re.match(r'ST|银行', company, re.I):
+        if re.match(r'^.*(ST|银行)', company, re.I):
             return pd.DataFrame()
 
         # Compute SMA60
@@ -118,10 +119,7 @@ class MA60SupportStrategy(Strategy):
             ref_ema20 = industry_ema20
 
         if ref_ema5 > ref_ema20:
-            if np.isnan(ref_nmacd120):
-                return ref_macd > 5  # use macd instead if nmacd not available
-            return ref_nmacd120 >= 0.15  # otherwise we prefer nmacd120
-
+            return (ref_nmacd120 >= 0.15) or (ref_macd > 5):  # always prefer nmacd120
         return False
 
     def should_close(self,

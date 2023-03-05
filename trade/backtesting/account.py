@@ -19,6 +19,7 @@ class TradeLog(TypedDict):
     total_value: float
     chg: NotRequired[float | None]
     pct_chg: NotRequired[float | None]
+    total_return: NotRequired[float | None]
 
 
 class CapitalsLog(TypedDict):
@@ -52,6 +53,7 @@ class TradeBook:
             "total_value": pos.latest_price * pos.shares,
             "chg": chg,
             "pct_chg": pct_chg,
+            "total_return": (pos.price * pct_chg * 1e-2) * pos.shares
         })
 
     def buy(self, timestamp: str, pos: Position):

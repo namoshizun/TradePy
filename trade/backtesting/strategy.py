@@ -109,6 +109,7 @@ class StrategyBase(Generic[TickDataType]):
             Position(
                 timestamp=timestamp,
                 code=code,
+                company=stock["company"],
                 price=stock["close"],
                 shares=stock["trade_shares"] * self.trading_unit,
             )
