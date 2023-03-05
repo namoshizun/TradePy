@@ -51,7 +51,7 @@ class Position:
     def tick(self, price: float):
         self.days_held += 1
         self.latest_price = price
-    
+
     def close(self, price: float):
         # NOTE: the actual closing price might be different from the daily close price, which is
         # used to update the latest price when the position is still in holding
@@ -59,7 +59,7 @@ class Position:
 
     def __hash__(self):
         return hash(self.code)
-    
+
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
         msg = f'[{self.timestamp} + {self.days_held or 0}] {self.code}: {self.price} ({pct_chg}%) * {self.shares}'

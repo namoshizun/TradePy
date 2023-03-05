@@ -60,12 +60,12 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
     )
     fig.update_xaxes(
         rangebreaks=[
-            dict(bounds=["sat", "mon"]), #hide weekends
+            dict(bounds=["sat", "mon"]),  # hide weekends
         ]
     )
     fig.show()
 
-    
+
 def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
     trade_cal_df = TradeCalendarDepot.load()
 
@@ -73,7 +73,7 @@ def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
     df["ma60"] = talib.SMA(df["close"], 60).round(2)
     df["ma20"] = talib.SMA(df["close"], 20).round(2)
     df["ma5"] = talib.SMA(df["close"], 5).round(2)
-    
+
     sicne_date = trade_cal_df.index[max(trade_cal_df.index.get_loc(date) - window_size, 0)]
     until_date = trade_cal_df.index[min(trade_cal_df.index.get_loc(date) + window_size, len(trade_cal_df) - 1)]
 
@@ -115,7 +115,7 @@ def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
     ])
     fig.update_xaxes(
         rangebreaks=[
-            dict(bounds=["sat", "mon"]), #hide weekends
+            dict(bounds=["sat", "mon"]),  # hide weekends
         ]
     )
     fig.update_layout(
@@ -150,10 +150,9 @@ def plot_succ_rate_vs_positions_count(trade_book: TradeBook):
         name="开仓数量",
         x=monthly_df.index,
         y=monthly_df["total_open"],
-    #     mode='lines',
-    #     line=dict(color='blue', width=1),
+        #     mode='lines',
+        #     line=dict(color='blue', width=1),
     ), secondary_y=True)
-
 
     fig.add_trace(go.Scatter(
         name="胜率",

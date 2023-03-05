@@ -7,7 +7,7 @@ from trade.warehouse import ListingDepot
 
 class TushareStocksListingCollector(DataCollector):
 
-    def __init__(self, batch_size: int=50):
+    def __init__(self, batch_size: int = 50):
         self.batch_size = batch_size
 
     def _jobs_generator(self, listing_df):

@@ -78,7 +78,7 @@ class TradeBook:
     def take_profit(self, *args, **kwargs):
         kwargs["action"] = TradeActions.TAKE_PROFIT
         self.__sell(*args, **kwargs)
-    
+
     def close_position(self, *args, **kwargs):
         kwargs["action"] = TradeActions.CLOSE
         self.__sell(*args, **kwargs)
@@ -126,7 +126,7 @@ class Account:
     @round_val
     def take_sell_commissions(self, amount: float) -> float:
         return amount * (1 - self.sell_commission_rate * 1e-2)
-    
+
     def get_total_asset_value(self) -> float:
         return self.holdings.get_total_worth() + self.cash_amount
 

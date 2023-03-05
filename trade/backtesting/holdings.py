@@ -9,7 +9,7 @@ class Holdings:
 
     def __init__(self):
         self.positions: dict[str, Position] = dict()  # code => Position
-    
+
     @property
     def position_codes(self) -> set[str]:
         return set(code for code, _ in self)
@@ -28,7 +28,7 @@ class Holdings:
 
             self.positions[pos.code] = pos
             total += pos.cost
-        
+
         return total
 
     def sell(self, positions: Iterable[Position]) -> float:

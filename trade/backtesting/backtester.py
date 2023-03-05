@@ -65,7 +65,7 @@ class Backtester:
 
             return strategy.compute_indicators(ticks_df)
 
-        print(f'>>> Skip if indicators already exist')
+        print('>>> Skip if indicators already exist')
         all_indicators = strategy.buy_indicators + strategy.close_indicators
         if set(all_indicators).issubset(set(df.columns)):
             print(f'> found {all_indicators}')
@@ -75,7 +75,7 @@ class Backtester:
         if df.index.name != "code":
             df.reset_index(inplace=True)
             df.set_index("code", inplace=True)
-        
+
         print('>>> Computing indicators ...')
         return pd.concat(
             adjust_then_compute(code, ticks_df)

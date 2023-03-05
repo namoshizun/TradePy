@@ -37,7 +37,7 @@ class DataCollector:
         # NOTE: because NMACD is supposed to use a rather long period normalizer, a lot of data points
         # will be truncated if dropna, which is probably not desirable
         nmacd_col = f"nmacd{nmacd_period}"
-        df[nmacd_col] = (df["macd"] - macd_min) / (macd_max - macd_min) # normalized to (0, 1)
+        df[nmacd_col] = (df["macd"] - macd_min) / (macd_max - macd_min)  # normalized to (0, 1)
         df[nmacd_col] = (df[nmacd_col] - 0.5) * 2.  # rescale to (-1, 1)
 
         return df.round(2)
@@ -46,7 +46,7 @@ class DataCollector:
                        jobs: list[Any],
                        batch_size: int,
                        fun: Callable,
-                       iteration_pause: float=0) -> Generator[Any, None, None]:
+                       iteration_pause: float = 0) -> Generator[Any, None, None]:
 
         batches = list(chunks(jobs, batch_size))
         tempd = tempfile.TemporaryDirectory()
@@ -106,7 +106,7 @@ def map_routines(executor, routine, arguments):
             args = arg[0]
 
         futures.append(executor.submit(routine, *args, **kwargs))
-    
+
     def result_iterator():
         try:
             # reverse to keep finishing order

@@ -36,5 +36,5 @@ class MarketCapitalsCollector(DataCollector):
         df.reset_index(inplace=True, drop=False)
 
         for code, sub_df in df.groupby("code"):
-            columns  = TickFields + ["mkt_cap", "mkt_cap_rank"]
+            columns = TickFields + ["mkt_cap", "mkt_cap_rank"]
             repo.save(sub_df[columns], filename=code + ".csv")

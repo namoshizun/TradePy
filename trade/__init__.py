@@ -4,7 +4,7 @@ from trade.client import TushareClientV1, TushareClientPro, AkShareClient
 
 v1_api: TushareClientV1 | None = None
 
-pro_api : TushareClientPro | None = None
+pro_api: TushareClientPro | None = None
 
 listing: StocksPool = StocksPool()
 

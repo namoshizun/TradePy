@@ -23,7 +23,6 @@ class TickData(TypedDict):
     pct_chg: float | None
 
 
-
 TickDataType = TypeVar("TickDataType", bound=TickData)
 
 

@@ -37,7 +37,7 @@ class AkShareClient:
         )
         return convert_akshare_hist_data(df)
 
-    def get_adjust_factor(self, code: str, adjust: Literal["hfq", "qfq"]="hfq"):
+    def get_adjust_factor(self, code: str, adjust: Literal["hfq", "qfq"] = "hfq"):
         if code == "689009":
             # No idea why this company is so special...
             return pd.DataFrame()
@@ -51,14 +51,14 @@ class AkShareClient:
         df["code"] = code
         df["timestamp"] = df["timestamp"].dt.date.astype(str)
         return df
-    
+
     def get_stock_info(self, code: str) -> dict[str, Any]:
         df = ak.stock_individual_info_em(symbol=code)
         return convert_akshare_stock_info({
             row["item"]: row["value"]
             for _, row in df.iterrows()
         })
-    
+
     def get_industry_index_ticks(self, name: str) -> pd.DataFrame:
         df = ak.stock_board_industry_hist_em(
             symbol=name,
@@ -94,7 +94,6 @@ class TushareClient:
 
     def get_60m(self, *args, **kwargs) -> pd.DataFrame:
         raise NotImplementedError
-
 
 
 class TushareClientV1(TushareClient):
@@ -135,15 +134,15 @@ class TushareClientV1(TushareClient):
     def get_daily(self, *args, **kwargs) -> pd.DataFrame:
         kwargs['ktype'] = 'D'
         return self._get_hist_data_adaptor(*args, **kwargs)
-    
+
     def get_weekly(self, *args, **kwargs) -> pd.DataFrame:
         kwargs['ktype'] = 'W'
         return self._get_hist_data_adaptor(*args, **kwargs)
-    
+
     def get_monthly(self, *args, **kwargs) -> pd.DataFrame:
         kwargs['ktype'] = 'M'
         return self._get_hist_data_adaptor(*args, **kwargs)
-    
+
     def get_15m(self, *args, **kwargs) -> pd.DataFrame:
         kwargs['ktype'] = '15'
         return self._get_hist_data_adaptor(*args, **kwargs)
@@ -196,7 +195,7 @@ class TushareClientPro(TushareClient):
         df = self.api.bak_basic(trade_date=trade_date, ts_code=ts_code)
         return df
 
-    def get_trade_cal(self, start_date: date | str | None=None, end_date: date | str | None=None) -> pd.DataFrame:
+    def get_trade_cal(self, start_date: date | str | None = None, end_date: date | str | None = None) -> pd.DataFrame:
         _start = start_date or date.fromisoformat("2000-01-01")
         _end = end_date or get_latest_trade_date()
 
@@ -217,4 +216,4 @@ class TushareClientPro(TushareClient):
 
 class TushareProQuotas:
 
-    DAILY = 500 # per min
+    DAILY = 500  # per min

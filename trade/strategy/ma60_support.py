@@ -3,12 +3,11 @@ import re
 import pandas as pd
 import numpy as np
 from typing import Any
-import random
 
 import trade
 from trade.backtesting.strategy import Strategy
 from trade.warehouse import TicksDepot
-from trade.types import Markets  
+from trade.types import Markets
 
 
 class MA60SupportStrategy(Strategy):
@@ -119,7 +118,7 @@ class MA60SupportStrategy(Strategy):
             ref_ema20 = industry_ema20
 
         if ref_ema5 > ref_ema20:
-            return (ref_nmacd120 >= 0.15) or (ref_macd > 5):  # always prefer nmacd120
+            return (ref_nmacd120 >= 0.15) or (ref_macd > 5)  # always prefer nmacd120
         return False
 
     def should_close(self,
@@ -149,7 +148,7 @@ class MA60SupportStrategy(Strategy):
 
         if ref_ema5 < ref_ema20:
             return True
-        
+
         if np.isnan(ref_nmacd120):
             return ref_macd < -2  # use macd instead if nmacd not available
 

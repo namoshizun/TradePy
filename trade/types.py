@@ -1,24 +1,5 @@
-from typing import Literal, TypedDict
+from typing import Literal
 
-
-class TickTagSet(TypedDict, total=False):
-    code: str
-    company: str
-
-
-TickTags = Literal[
-    'code',
-    'company',
-    'market'
-]
-
-
-FundamentalTags = Literal[
-    'code',
-    'company',
-    'industry',
-    'market',
-]
 
 ExchangeType = Literal[
     "SZ",

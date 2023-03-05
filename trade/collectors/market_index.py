@@ -8,7 +8,7 @@ from trade.warehouse import TicksDepot
 
 class EastMoneyIndustryIndexCollector(DataCollector):
 
-    def __init__(self, batch_size: int=20):
+    def __init__(self, batch_size: int = 20):
         self.batch_size = batch_size
 
     def _jobs_generator(self, listing_df):
@@ -32,7 +32,7 @@ class EastMoneyIndustryIndexCollector(DataCollector):
         print("Exporting")
         repo = TicksDepot("daily.industry")
         for args, ticks_df in results_gen:
-            name = args["name"]
+            name = args["name"]  # noqa
             code = listing_df.query('name == @name').iloc[0]["code"]
             ticks_df["code"] = code
 
@@ -63,4 +63,3 @@ class StockIndexCollector(DataCollector):
                 self.precompute_indicators(df.copy()),
                 f'{name}.csv'
             )
-

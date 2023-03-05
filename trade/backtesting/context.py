@@ -40,18 +40,18 @@ class Context:
     def build(cls, **kwargs):
         # Pluck args not defined in the vanilia context definition
         extra_args = dict()
-        for field, value in kwargs.items():
-            if field not in Context.__annotations__:
-                extra_args[field] = deepcopy(value)
+        for key, value in kwargs.items():
+            if key not in Context.__annotations__:
+                extra_args[key] = deepcopy(value)
 
         # Build the vanilia context object
-        for field in extra_args.keys():
-            kwargs.pop(field)
+        for key in extra_args.keys():
+            kwargs.pop(key)
         ctx = cls(**kwargs)
 
         # Monkey patch extra args to it
-        for field, value in extra_args.items():
-            setattr(ctx, field, value)
+        for attr, value in extra_args.items():
+            setattr(ctx, attr, value)
 
         return ctx
 

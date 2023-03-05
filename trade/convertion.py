@@ -29,14 +29,14 @@ ListingFields = [
     "mkcap",
     'float_share',  # 流通股本（亿）
     'total_share',  # 总股本（亿）
-    'total_assets', # 总资产（亿）
+    'total_assets',  # 总资产（亿）
     'liquid_assets',  # 流动资产（亿）
     'fixed_assets',  # 固定资产（亿）
     'eps',  # 每股收益
     'bvps',  # 每股净资产
     'pb',  # 市净率
     'rev_yoy',  # 收入同比（%）
-    'profit_yoy',  # 利润同比（%） 
+    'profit_yoy',  # 利润同比（%）
     'gpr',  # 毛利率（%）
     'npr',  # 净利润率（%）
     'holder_num',  # 股东人数
@@ -44,7 +44,7 @@ ListingFields = [
 
 
 def convert_tushare_v1_hist_data(df: pd.DataFrame):
-    _df =  df.rename(columns={
+    _df = df.rename(columns={
         'date': 'timestamp',
         'volume': 'vol',
         'price_change': 'chg',
@@ -162,7 +162,7 @@ def convert_akshare_stock_info(data: dict) -> dict:
         else:
             en_name = trans_and_conv[0]
             converted[en_name] = data[ch_name]
-    
+
     return converted
 
 

@@ -20,8 +20,8 @@ def _fuzzy_match(target, texts) -> str:
 class StocksPool:
 
     def __init__(self,
-                 source_df: Optional[pd.DataFrame]=None,
-                 source_file: Optional[str]='datasets/listing.csv'):
+                 source_df: Optional[pd.DataFrame] = None,
+                 source_file: Optional[str] = 'datasets/listing.csv'):
 
         if isinstance(source_df, pd.DataFrame):
             self.df = source_df.copy()
