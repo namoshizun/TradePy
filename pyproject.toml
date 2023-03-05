@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "tradepy"
+version = "0.1.0"
+description = ""
+authors = ["Di Lu"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10.4"
+pandas = "^1.5.3"
+TA-Lib = "^0.4.25"
+requests = "^2.28.2"
+tushare = "^1.2.89"
+akshare = "^1.9.2"
+tqdm = "^4.65.0"
+xlrd = "^2.0.1"
+fuzzywuzzy = "^0.18.0"
+Levenshtein = "^0.20.9"
+openpyxl = "^3.1.1"
+plotly = "^5.13.1"
+python-dateutil = "^2.8.2"
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.11.0"
+jupyterlab = "^3.6.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
