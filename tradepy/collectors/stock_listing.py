@@ -5,7 +5,7 @@ from tradepy.collectors import DataCollector
 from tradepy.warehouse import ListingDepot
 
 
-class TushareStocksListingCollector(DataCollector):
+class StocksListingCollector(DataCollector):
 
     def __init__(self, batch_size: int = 50):
         self.batch_size = batch_size

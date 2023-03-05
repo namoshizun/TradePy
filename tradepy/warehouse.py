@@ -1,5 +1,5 @@
-from contextlib import suppress
 import pandas as pd
+from contextlib import suppress
 from tqdm import tqdm
 from functools import partial
 from typing import Any, Generator

@@ -1,17 +1,21 @@
 from functools import wraps
-from datetime import date, timedelta
+from datetime import date
 from dateutil import parser as date_parser
+
+import tradepy.trade_cal
 
 
 def get_latest_trade_date() -> date:
     today = date.today()
-    wkday = today.weekday()
+    today_str = str(today)
 
-    if wkday >= 5:
-        friday = today - timedelta(days=wkday - 4)
-        return friday
+    for idx, trade_date in enumerate(tradepy.trade_cal.trade_cal):
+        if trade_date == today:
+            return today
+        elif trade_date < today_str:
+            return date_parser.parse(tradepy.trade_cal.trade_cal[idx]).date()
 
-    return today
+    raise Exception('Unexpectedly unable to find the latest trade date?!')
 
 
 def chunks(lst, batch_size: int):

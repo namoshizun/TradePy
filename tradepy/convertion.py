@@ -2,7 +2,6 @@ import pandas as pd
 from datetime import date
 from dateutil import parser as date_parse
 
-import tradepy
 from tradepy.types import ExchangeType, MarketType, Markets
 
 
@@ -16,79 +15,6 @@ TickFields = [
     'chg',  # float (...), 价格变化
     'pct_chg',  # float (-100, 100), 涨跌幅
 ]
-
-
-ListingFields = [
-    'timestamp',  # :[ trade_date ]
-    'code',  # :[ ts_code ]
-    'ts_suffix',  # :[ ts_code ]
-    'market',
-    'company',  # :[ name ]
-    'industry',
-    'pe',  # 市盈率（动）
-    "mkcap",
-    'float_share',  # 流通股本（亿）
-    'total_share',  # 总股本（亿）
-    'total_assets',  # 总资产（亿）
-    'liquid_assets',  # 流动资产（亿）
-    'fixed_assets',  # 固定资产（亿）
-    'eps',  # 每股收益
-    'bvps',  # 每股净资产
-    'pb',  # 市净率
-    'rev_yoy',  # 收入同比（%）
-    'profit_yoy',  # 利润同比（%）
-    'gpr',  # 毛利率（%）
-    'npr',  # 净利润率（%）
-    'holder_num',  # 股东人数
-]
-
-
-def convert_tushare_v1_hist_data(df: pd.DataFrame):
-    _df = df.rename(columns={
-        'date': 'timestamp',
-        'volume': 'vol',
-        'price_change': 'chg',
-        'p_change': 'pct_chg'
-    })
-
-    if not isinstance(_df['timestamp'].iloc[0], pd.Timestamp):
-        _df['timestamp'] = pd.to_datetime(_df['timestamp'])
-
-    return _df[TickFields]
-
-
-def convert_tushare_v2_hist_data(df: pd.DataFrame):
-    _df = df.rename(columns={
-        'trade_date': 'timestamp',
-        'open_qfq': 'open',
-        'high_qfq': 'high',
-        'low_qfq': 'low',
-        'close_qfq': 'close',
-        'change': 'chg',
-        'pct_change': 'pct_chg',
-    })
-
-    return _df[TickFields]
-
-
-def convert_tushare_v2_fundamentals_data(df: pd.DataFrame):
-    _df = df.rename(columns={
-        'trade_date': 'timestamp',
-        'name': 'company',
-    })
-
-    _df[['code', 'ts_suffix']] = _df['ts_code'].str.split('.', expand=True)
-    _df["market"] = list(map(convert_code_to_market, _df["code"]))
-
-    # Patch market cap
-    _ts = str(_df.iloc[0]["timestamp"])
-    _day_k = tradepy.pro_api.api.daily(start_date=_ts, end_date=_ts)
-    _day_k[['code', 'ts_suffix']] = _day_k['ts_code'].str.split('.', expand=True)
-
-    _df = _df.set_index("code").join(_day_k[["code", "close"]].set_index("code"))
-    _df["mkcap"] = (_df["close"] * _df["total_share"]).round(3)
-    _df.reset_index(inplace=True)
-    return _df[ListingFields].dropna()
 
 
 def convert_code_to_market(code: str) -> MarketType:

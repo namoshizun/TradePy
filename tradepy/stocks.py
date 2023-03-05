@@ -1,4 +1,3 @@
-import tushare
 import pandas as pd
 from functools import cache
 from typing import Optional
@@ -86,11 +85,6 @@ class Stock:
 
     def get_market_cap_at(self, price):
         return price * self.total_share
-
-    def get_current_quotes(self):
-        df = tushare.get_realtime_quotes(self.code)
-        assert len(df) == 1, df
-        return df.iloc[0].to_dict()
 
     def __str__(self) -> str:
         # return f'{self.name} ({self.ts_code}) - {self.market}, {self.industry}'
