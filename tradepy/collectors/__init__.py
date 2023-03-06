@@ -22,24 +22,16 @@ class DataCollector:
         df["ema20"] = talib.EMA(df["close"], 20)
 
         # RSI
-        df["rsi6"] = talib.RSI(df["close"], timeperiod=6)
+        df["rsi6"] = talib.RSI(df["close"], 6)
 
         # MACD
         _, _, macdhist = talib.MACD(df["close"])
         df["macd"] = (macdhist * 2)
 
-        macd_max = df["macd"].rolling(nmacd_period).max()
-        macd_min = df["macd"].rolling(nmacd_period).min()
+        # PPO
+        df["ppo"] = talib.PPO(df["close"])
 
         df.dropna(inplace=True)
-
-        # NMACD
-        # NOTE: because NMACD is supposed to use a rather long period normalizer, a lot of data points
-        # will be truncated if dropna, which is probably not desirable
-        nmacd_col = f"nmacd{nmacd_period}"
-        df[nmacd_col] = (df["macd"] - macd_min) / (macd_max - macd_min)  # normalized to (0, 1)
-        df[nmacd_col] = (df[nmacd_col] - 0.5) * 2.  # rescale to (-1, 1)
-
         return df.round(2)
 
     def run_batch_jobs(self,
@@ -54,11 +46,11 @@ class DataCollector:
         kls = self.__class__.__name__
         print(f'''
 [{kls}]:
-    {len(jobs)} jobs
-    batch size = {batch_size}
-    number of batches = {len(batches)}
-    pause between each iteration = {iteration_pause}
-    temporary result folder: {tempd.name}
+    {len(jobs)} 下载任务
+    批大小 = {batch_size}
+    批数量 = {len(batches)}
+    每批间隔(s) = {iteration_pause}
+    临时下载目录: {tempd.name}
         ''')
 
         with ThreadPoolExecutor() as executor:

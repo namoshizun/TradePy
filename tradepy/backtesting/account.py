@@ -106,7 +106,7 @@ class Account:
 
     def buy(self, positions: Iterable[Position]):
         if cost_total := self.holdings.buy(positions):
-            self.cash_amount -= self.take_buy_commissions(cost_total)
+            self.cash_amount -= self.add_buy_commissions(cost_total)
 
     def sell(self, positions: Iterable[Position]):
         if close_total := self.holdings.sell(positions):
@@ -120,8 +120,8 @@ class Account:
         self.sell(all_positions)
 
     @round_val
-    def take_buy_commissions(self, amount: float) -> float:
-        return amount * (1 - self.buy_commission_rate * 1e-2)
+    def add_buy_commissions(self, amount: float) -> float:
+        return amount * (1 + self.buy_commission_rate * 1e-2)
 
     @round_val
     def take_sell_commissions(self, amount: float) -> float:

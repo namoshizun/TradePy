@@ -9,9 +9,6 @@ from tradepy.warehouse import AdjustFactorDepot
 
 class AdjustFactorCollector(DataCollector):
 
-    def __init__(self, batch_size: int = 50):
-        self.batch_size = batch_size
-
     def _jobs_generator(self):
         for code in tradepy.listing.codes:
             yield {
@@ -38,14 +35,13 @@ class AdjustFactorCollector(DataCollector):
 
         return pd.concat(pad(g) for _, g in tqdm(df.groupby("code")))
 
-    def run(self):
-        print()
+    def run(self, batch_size: int = 50):
         jobs = list(self._jobs_generator())
 
-        print('>>> Downloading')
+        print('下载中')
         results_gen = self.run_batch_jobs(
             jobs,
-            self.batch_size,
+            batch_size,
             fun=tradepy.ak_api.get_adjust_factor,
             iteration_pause=3,
         )
@@ -57,11 +53,11 @@ class AdjustFactorCollector(DataCollector):
         df = df.round(7)
         df.rename(columns={"date": "timestamp"}, inplace=True)
 
-        print('>>> Add time period paddings')
+        print('添加头尾时间边界1900, 3000')
         df = self._add_period_padding(df)
         df.set_index("code", inplace=True)
 
-        print('>>> Outputting')
         df.sort_values(["code", "timestamp"], inplace=True)
-        df.to_csv(AdjustFactorDepot.path)
+        df.to_csv(out_path := AdjustFactorDepot.file_path())
+        print(f'已下载至 {out_path}')
         return df

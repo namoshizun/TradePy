@@ -1,26 +1,27 @@
+import numpy as np
 import pandas as pd
 from datetime import date, timedelta
+from tqdm import tqdm
 
 import tradepy
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import TicksDepot
+from tradepy.warehouse import StocksDailyTicksDepot
 from tradepy.collectors import DataCollector
 
 
 class StockPricesCollector(DataCollector):
 
-    def __init__(self, since_date: str | date | None = None, batch_size: int = 50) -> None:
+    def __init__(self, since_date: str | date | None = None) -> None:
         if not since_date:
             since_date = get_latest_trade_date()
         elif isinstance(since_date, str):
             since_date = date.fromisoformat(since_date)
 
         self.since_date: date = since_date
-        self.repo = TicksDepot("daily.stocks")
-        self.batch_size = batch_size
+        self.repo = StocksDailyTicksDepot()
 
     def _jobs_generator(self):
-        # Update existing listing
+        print("检查本地个股数据是否需要更新")
         repo_iter = self.repo.traverse(always_load=True)
         curr_codes = list()
 
@@ -49,7 +50,7 @@ class StockPricesCollector(DataCollector):
                 print(f'!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!')
                 raise exc
 
-        # Add new listing
+        print("添加新个股")
         new_listings = set(tradepy.listing.codes) - set(curr_codes)
         for code in new_listings:
             yield {
@@ -57,11 +58,40 @@ class StockPricesCollector(DataCollector):
                 "start_date": date.fromisoformat('2000-01-01')
             }
 
-    def run(self):
-        assert tradepy.pro_api
-        jobs = list(self._jobs_generator())
-        results_gen = self.run_batch_jobs(jobs, self.batch_size, fun=tradepy.ak_api.get_daily)
+    def _compute_mkt_cap_percentile_ranks(self, df: pd.DataFrame):
+        for _, day_df in tqdm(df.groupby("timestamp")):
+            mkt_cap_lst = [
+                row.mkt_cap
+                for row in day_df.itertuples()
+            ]
 
+            mkt_cap_percentiles = np.percentile(mkt_cap_lst, q=range(100))
+            day_df["mkt_cap_rank"] = [
+                (mkt_cap_percentiles < v).sum() / len(mkt_cap_percentiles)
+                for v in mkt_cap_lst
+            ]
+            yield day_df
+
+    def run(self, batch_size=50, iteration_pause=5):
+        print("下载个股日K数据")
+        jobs = list(self._jobs_generator())
+
+        results_gen = self.run_batch_jobs(
+            jobs,
+            batch_size,
+            iteration_pause=iteration_pause,
+            fun=tradepy.ak_api.get_daily)
         for args, ticks_df in results_gen:
             code = args["code"]
             self.repo.append(ticks_df, f'{code}.csv')
+
+        print("计算个股的每日市值分位")
+        df = self.repo.load(index_by="timestamp", fields="all")
+        df = pd.concat(self._compute_mkt_cap_percentile_ranks(df))
+        df.reset_index(inplace=True, drop=False)
+
+        print("保存中")
+        for code, sub_df in df.groupby("code"):
+            sub_df.drop("code", axis=1, inplace=True)
+            assert isinstance(code, str)
+            self.repo.save(sub_df, filename=code + ".csv")

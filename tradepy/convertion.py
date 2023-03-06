@@ -25,6 +25,8 @@ def convert_code_to_market(code: str) -> MarketType:
         ("300", "301"): "创业板",
         ("600", "601", "603", "605"): "上证主板",
         ("000", "001", "003"): "深证主板",
+        ("8",): "北交所",
+        ("43",): "新三板",
     }
 
     for prefix, market in mapping.items():
@@ -72,7 +74,7 @@ def convert_akshare_stock_info(data: dict) -> dict:
 
     name_translation_and_convert = {
         '总市值': ("mkcap", to_100_mil),
-        '行业': ("industry",),
+        '行业': ("sector",),
         '上市时间': ("listdate",),
         '股票代码': ("code",),
         '股票简称': ("company",),

@@ -5,11 +5,11 @@ from tradepy.client import AkShareClient
 from tradepy.conf import Config
 
 
-listing: StocksPool = StocksPool()
-
 ak_api = AkShareClient()
 
 config: Config = Config()
+
+listing: StocksPool = StocksPool()
 
 
 def _init_dataset_dir(path: str | pathlib.Path):

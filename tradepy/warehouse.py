@@ -1,20 +1,23 @@
+import abc
+from pathlib import Path
 import pandas as pd
 from contextlib import suppress
 from tqdm import tqdm
 from functools import partial
 from typing import Any, Generator
-from pathlib import Path
 
 import tradepy
-from tradepy.convertion import convert_code_to_exchange, convert_code_to_market
+from tradepy.convertion import convert_code_to_market
 
 
-class TicksDepot:
+class GenericTicksDepot:
 
+    folder_name: str
     caches: dict[str, Any] = dict()
 
-    def __init__(self, folder: str) -> None:
-        self.folder = Path('datasets') / folder
+    def __init__(self) -> None:
+        assert isinstance(self.folder_name, str)
+        self.folder = tradepy.config.dataset_dir / self.folder_name
         self.folder.mkdir(parents=True, exist_ok=True)
 
     def size(self) -> int:
@@ -54,49 +57,10 @@ class TicksDepot:
                     if should_load:
                         yield load(path)
 
-    def load_stocks_ticks(self,
-                          index_by: str | list[str] = "code",
-                          since_date: str | None = None) -> pd.DataFrame:
-        assert self.folder.name == "daily.stocks", self.folder
-
-        def loader() -> Generator[pd.DataFrame, None, None]:
-            source_iter = self.traverse()
-
-            while True:
-                try:
-                    code: str = next(source_iter)
-                except StopIteration:
-                    break
-
-                if not tradepy.listing.has_code(code):
-                    continue
-
-                company = tradepy.listing.get_by_code(code).name
-                market = convert_code_to_market(code)
-
-                df = source_iter.send(True)
-                exchange = convert_code_to_exchange(code)
-                df[["company", "code", "market", "exchange"]] = company, code, market, exchange
-
-                if since_date:
-                    yield df.query(f'timestamp >= "{since_date}"')
-                else:
-                    yield df
-
-        df = pd.concat(loader())
-
-        cat_columns = ["company", "market", "exchange"]
-        for col in cat_columns:
-            df[col] = df[col].astype("category")
-
-        df.set_index(index_by, inplace=True)
-        df.sort_index(inplace=True)
-        return df
-
-    def __generic_load_ticks(self,
-                             index_by: str | list[str] = "code",
-                             cache_key=None,
-                             cache=False) -> pd.DataFrame:
+    def _generic_load_ticks(self,
+                            index_by: str | list[str] = "code",
+                            cache_key=None,
+                            cache=False) -> pd.DataFrame:
 
         if cache:
             assert cache_key
@@ -120,16 +84,87 @@ class TicksDepot:
             self.caches[cache_key] = df.copy()
         return df
 
-    def load_index_ticks(self, index_by: str | list[str] = "code", cache=False) -> pd.DataFrame:
-        assert self.folder.name == "daily.index", self.folder
-        return self.__generic_load_ticks(index_by, cache_key="index-ticks", cache=cache)
+    @abc.abstractmethod
+    def _load(self, *args, **kwargs):
+        raise NotImplementedError
 
-    def load_industry_ticks(self, index_by: str | list[str] = "name", cache=False) -> pd.DataFrame:
-        assert self.folder.name == "daily.industry", self.folder
-        df = self.__generic_load_ticks(index_by, cache_key="industry-ticks", cache=cache)
+    @classmethod
+    def load(cls, *args, **kwargs):
+        self = cls()
+        return self._load(*args, **kwargs)
+
+
+class StocksDailyTicksDepot(GenericTicksDepot):
+
+    folder_name = "daily.stocks"
+    default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap_rank"
+
+    def _load(self,
+             index_by: str | list[str] = "code",
+             since_date: str | None = None,
+             fields: str = default_loaded_fields) -> pd.DataFrame:
+
+        def loader() -> Generator[pd.DataFrame, None, None]:
+            source_iter = self.traverse()
+
+            while True:
+                try:
+                    code: str = next(source_iter)
+                except StopIteration:
+                    break
+
+                if not tradepy.listing.has_code(code):
+                    continue
+
+                company = tradepy.listing.get_by_code(code).name
+                market = convert_code_to_market(code)
+
+                df = source_iter.send(True)
+                df[["company", "code", "market"]] = company, code, market
+
+                if since_date:
+                    yield df.query(f'timestamp >= "{since_date}"')
+                else:
+                    yield df
+
+        df = pd.concat(loader())
+
+        cat_columns = ["company", "market"]
+        for col in cat_columns:
+            df[col] = df[col].astype("category")
+
+        df.set_index(index_by, inplace=True)
+        df.sort_index(inplace=True)
+
+        if fields != "all":
+            _fields = fields.split(",")
+            if isinstance(index_by, str) and index_by in _fields:
+                _fields.remove(index_by)
+            else:
+                _fields = list(set(_fields) - set(index_by))
+            return df[_fields]
+        return df
+
+
+class BroadBasedIndexTicksDepot(GenericTicksDepot):
+
+    folder_name = "daily.broad-based"
+
+    def _load(self, index_by: str | list[str] = "code", cache=True) -> pd.DataFrame:
+        return self._generic_load_ticks(index_by, cache_key=self.folder_name, cache=cache)
+
+
+class SectorIndexTicksDepot(GenericTicksDepot):
+
+    folder_name = "daily.sectors"
+
+    def _load(self, index_by: str | list[str] = "name", cache=True) -> pd.DataFrame:
+        df = self._generic_load_ticks(index_by, cache_key=self.folder_name, cache=cache)
+        assert isinstance(df, pd.DataFrame)
 
         # Optimize memory consumption
-        df["code"] = df["code"].astype("category")
+        if df["code"].dtype.name != "category":
+            df["code"] = df["code"].astype("category")
 
         for col, dtype in df.dtypes.items():
             if str(dtype) == "float64":
@@ -139,37 +174,34 @@ class TicksDepot:
         return df
 
 
-class TradeCalendarDepot:
-
-    path = "./datasets/trade_cal.csv"
-
-    @staticmethod
-    def load(since_date: str = "1900-01-01", end_date: str = "3000-01-01") -> pd.DataFrame:
-        df = pd.read_csv(TradeCalendarDepot.path)
-        df = df[df["cal_date"] >= since_date]
-        df = df[df["cal_date"] <= end_date]
-        return df.set_index("cal_date").sort_index()
-
-
 class AdjustFactorDepot:
 
-    path = "./datasets/adjust_factors.csv"
+    file_name = "adjust_factors.csv"
+
+    @staticmethod
+    def file_path() -> Path:
+        return tradepy.config.dataset_dir / AdjustFactorDepot.file_name
 
     @staticmethod
     def load() -> pd.DataFrame:
-        df = pd.read_csv(AdjustFactorDepot.path, dtype={
+        path = AdjustFactorDepot.file_path()
+        df = pd.read_csv(path, dtype={
             "code": str,
             "date": str,
             "hfq_factor": float
-        })
-        df.set_index("code", inplace=True)
+        }, index_col="code")
         return df
 
 
 class ListingDepot:
 
-    path = "./datasets/listing.csv"
+    file_name = "listing.csv"
+
+    @staticmethod
+    def file_path() -> Path:
+        return tradepy.config.dataset_dir / ListingDepot.file_name
 
     @staticmethod
     def load() -> pd.DataFrame:
-        return pd.read_csv(ListingDepot.path).set_index("code")
+        path = ListingDepot.file_path()
+        return pd.read_csv(path, index_col="code", dtype={"code": str})

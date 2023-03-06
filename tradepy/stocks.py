@@ -1,9 +1,9 @@
 import pandas as pd
-from functools import cache
-from typing import Optional
+from functools import cache, cached_property
 from fuzzywuzzy import fuzz
 
-from .types import MarketType
+from tradepy.convertion import convert_code_to_market
+from tradepy.types import MarketType
 
 
 def _fuzzy_match(target, texts) -> str:
@@ -18,21 +18,16 @@ def _fuzzy_match(target, texts) -> str:
 
 class StocksPool:
 
-    def __init__(self,
-                 source_df: Optional[pd.DataFrame] = None,
-                 source_file: Optional[str] = 'datasets/listing.csv'):
+    filename = "listing.csv"
 
-        if isinstance(source_df, pd.DataFrame):
-            self.df = source_df.copy()
-        else:
-            assert source_file
-            self.df = pd.read_csv(source_file, index_col=None, dtype=str)
-
-        self.df.set_index('code', inplace=True)
+    @cached_property
+    def df(self):
+        from tradepy.warehouse import ListingDepot
+        return ListingDepot.load()
 
     @property
     def names(self) -> list[str]:
-        return self.df['company'].unique().tolist()
+        return self.df['name'].unique().tolist()
 
     @property
     def codes(self) -> list[str]:
@@ -42,9 +37,8 @@ class StocksPool:
         d = row.to_dict()
         return Stock(
             code=d['code'],
-            name=d['company'],
-            industry=d['industry'],
-            market=d['market'],
+            name=d['name'],
+            industry=d['sector'],
             total_share=d["total_share"]
         )
 
@@ -53,12 +47,12 @@ class StocksPool:
         if fuzzy:
             name = _fuzzy_match(name, self.names)
 
-        data = self.df.query(f'company == "{name}"')
+        data = self.df.query(f'name == "{name}"')
         return self._build_stock_obj(data.reset_index().iloc[0])
 
     @cache
     def get_by_code(self, code: str) -> 'Stock':
-        data = self.df.loc[code]
+        data = self.df.loc[code].copy()
         data['code'] = code
         return self._build_stock_obj(data)
 
@@ -75,20 +69,18 @@ class Stock:
                  code: str,
                  name: str,
                  industry: str,
-                 total_share: float,
-                 market: MarketType) -> None:
+                 total_share: float) -> None:
         self.code = code
         self.name = name
         self.industry = industry
-        self.market = market
         self.total_share = float(total_share)  # in 100 millions
+        self.market: MarketType = convert_code_to_market(code)
 
     def get_market_cap_at(self, price):
         return price * self.total_share
 
     def __str__(self) -> str:
-        # return f'{self.name} ({self.ts_code}) - {self.market}, {self.industry}'
-        return f'{self.name} ({self.code}) - {self.market}, {self.industry}'
+        return f'{self.name} ({self.code}) - {self.industry}, {self.market}'
 
     def __repr__(self) -> str:
         return str(self)
