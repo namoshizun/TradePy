@@ -94,7 +94,7 @@ def convert_akshare_stock_info(data: dict) -> dict:
     return converted
 
 
-def convert_akshare_industry_listing(df: pd.DataFrame) -> pd.DataFrame:
+def convert_akshare_sector_listing(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
         '板块名称': "name",
         '板块代码': "code",
@@ -107,7 +107,7 @@ def convert_akshare_industry_listing(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=mapping)[list(mapping.values())]
 
 
-def convert_akshare_industry_ticks(df: pd.DataFrame) -> pd.DataFrame:
+def convert_akshare_sector_ticks(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
         "日期": "timestamp",
         "开盘": "open",

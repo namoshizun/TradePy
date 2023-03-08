@@ -7,6 +7,7 @@ from tradepy.backtesting.context import Context
 from tradepy.backtesting.backtester import Backtester
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.position import Position
+from tradepy.types import IndSeries
 from tradepy.utils import calc_pct_chg
 
 
@@ -36,9 +37,11 @@ class StrategyBase(Generic[TickDataType]):
     def __getattr__(self, name: str):
         return getattr(self.ctx, name)
 
-    @abc.abstractmethod
-    def compute_indicators(self, ticks_df: pd.DataFrame):
-        raise NotImplementedError
+    def pre_process(self, bars_df: pd.DataFrame):
+        return bars_df
+
+    def post_process(self, bars_df: pd.DataFrame):
+        return bars_df
 
     @abc.abstractmethod
     def should_buy(self, *indicators) -> bool:
@@ -69,12 +72,12 @@ class StrategyBase(Generic[TickDataType]):
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
 
-    def get_pool_and_budget(self, ticks_df: pd.DataFrame, buy_indices: list[Any], budget: float) -> tuple[pd.DataFrame, float]:
-        pool_df = ticks_df.loc[buy_indices].copy()
+    def get_pool_and_budget(self, bars_df: pd.DataFrame, buy_indices: list[Any], budget: float) -> tuple[pd.DataFrame, float]:
+        pool_df = bars_df.loc[buy_indices].copy()
 
         # Limit number of new opens
         if len(pool_df) > self.max_position_opens:
-            pool_df = ticks_df.sample(self.max_position_opens)
+            pool_df = bars_df.sample(self.max_position_opens)
 
         # Limit position budget allocation
         min_position_allocation = budget // len(pool_df)
@@ -125,16 +128,14 @@ class StrategyBase(Generic[TickDataType]):
     @classmethod
     def get_indicators_df(cls, ticks_data: pd.DataFrame, ctx: Context) -> pd.DataFrame:
         bt = Backtester(ctx)
-        return bt.get_indicators_df(ticks_data.copy(), cls(ctx))
+        strategy = cls(ctx)
+        return bt.get_indicators_df(ticks_data.copy(), strategy)
 
 
 class Strategy(StrategyBase[TickData]):
 
-    def compute_indicators(self, df: pd.DataFrame):
-        if "chg" not in df:
-            df["chg"] = (df["close"] - df["close"].shift(1)).fillna(0).round(2)
+    def chg(self, close: IndSeries):
+        return (close - close.shift(1)).fillna(0).round(2)
 
-        if "pct_chg" not in df:
-            df["pct_chg"] = (100 * df["chg"] / df["close"].shift(1)).fillna(0).round(2)
-
-        return super().compute_indicators(df)
+    def pct_chg(self, chg: IndSeries, close: IndSeries):
+        return (100 * chg / close.shift(1)).fillna(0).round(2)

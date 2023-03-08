@@ -89,7 +89,7 @@ class GenericTicksDepot:
         raise NotImplementedError
 
     @classmethod
-    def load(cls, *args, **kwargs):
+    def load(cls, *args, **kwargs) -> pd.DataFrame:
         self = cls()
         return self._load(*args, **kwargs)
 

@@ -4,16 +4,14 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+import tradepy.trade_cal
 from tradepy.backtesting.account import TradeBook
-from tradepy.warehouse import TicksDepot, TradeCalendarDepot
+from tradepy.warehouse import BroadBasedIndexTicksDepot
 
 
 def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_date="3000-01-01"):
-    index_ticks_repo = TicksDepot('daily.index')
-
     index_df = (
-        index_ticks_repo
-        .load_index_ticks()
+        BroadBasedIndexTicksDepot.load()
         .loc["SSE"]
         .set_index("timestamp")
         .rename(columns={
@@ -67,15 +65,15 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
 
 
 def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
-    trade_cal_df = TradeCalendarDepot.load()
+    trade_cal = tradepy.trade_cal.trade_cal
 
     df = ticks_df.query("code == @code").reset_index().copy()
     df["ma60"] = talib.SMA(df["close"], 60).round(2)
     df["ma20"] = talib.SMA(df["close"], 20).round(2)
     df["ma5"] = talib.SMA(df["close"], 5).round(2)
 
-    sicne_date = trade_cal_df.index[max(trade_cal_df.index.get_loc(date) - window_size, 0)]
-    until_date = trade_cal_df.index[min(trade_cal_df.index.get_loc(date) + window_size, len(trade_cal_df) - 1)]
+    sicne_date = trade_cal[max(trade_cal.index(date) - window_size, 0)]
+    until_date = trade_cal[min(trade_cal.index(date) + window_size, len(trade_cal) - 1)]
 
     df = df.query('@sicne_date <= timestamp <= @until_date')
     df.dropna(inplace=True)

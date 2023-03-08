@@ -1,9 +1,12 @@
 import pathlib
+from tqdm import tqdm
 
 from tradepy.stocks import StocksPool
 from tradepy.client import AkShareClient
 from tradepy.conf import Config
 
+
+tqdm.pandas()
 
 ak_api = AkShareClient()
 

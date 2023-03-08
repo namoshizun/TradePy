@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import TypedDict, Iterable
 from typing_extensions import NotRequired
 
@@ -118,6 +118,12 @@ class Account:
             for _, pos in self.holdings
         ]
         self.sell(all_positions)
+
+    def clone(self):
+        return self.__class__(**{
+            k: v
+            for k, v in asdict(self).items()
+        })
 
     @round_val
     def add_buy_commissions(self, amount: float) -> float:

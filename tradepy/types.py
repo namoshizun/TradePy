@@ -1,5 +1,7 @@
 from typing import Literal
 
+import pandas as pd
+
 
 ExchangeType = Literal[
     "SZ",
@@ -44,3 +46,6 @@ class TradeActions:
     CLOSE = "平仓"
     STOP_LOSS = "止损"
     TAKE_PROFIT = "止盈"
+
+
+IndSeries = pd.Series

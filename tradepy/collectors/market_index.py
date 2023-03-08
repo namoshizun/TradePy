@@ -14,7 +14,7 @@ class EastMoneySectorIndexCollector(DataCollector):
                 "name": name,
             }
 
-    def run(self, batch_size: int = 20):
+    def run(self, since_date="1990-01-01", batch_size: int = 20):
         print("下载东财行业列表")
         listing_df = tradepy.ak_api.get_sectors_listing()
 
@@ -29,6 +29,7 @@ class EastMoneySectorIndexCollector(DataCollector):
         print("保存中")
         repo = SectorIndexTicksDepot()
         for args, ticks_df in results_gen:
+            ticks_df = ticks_df.query('timestamp >= @since_date').copy()
             name = args["name"]  # noqa
             code = listing_df.query('name == @name').iloc[0]["code"]
             ticks_df["code"] = code

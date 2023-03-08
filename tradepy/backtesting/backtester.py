@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.context import Context
+from tradepy.backtesting.dag import IndicatorsResolver
 
 if TYPE_CHECKING:
     from tradepy.backtesting.strategy import StrategyBase, TickDataType
@@ -26,14 +27,14 @@ class Backtester:
         else:
             self.adjust_factors_df = None
 
-    def adjust_prices(self, ticks_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
+    def _adjust_prices(self, bars_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
         adj_df = adj_df.reset_index(drop=True).set_index("timestamp")
-        ticks_df = ticks_df.join(adj_df, on="timestamp")
-        factor_vals = ticks_df["hfq_factor"].values
+        bars_df = bars_df.join(adj_df, on="timestamp")
+        factor_vals = bars_df["hfq_factor"].values
 
         if np.isnan(factor_vals[0]):
             # Patch the furtherest factor value, whose timestamp might be outside the ticks range
-            min_date = ticks_df.iloc[0]["timestamp"]
+            min_date = bars_df.iloc[0]["timestamp"]
             for w in adj_df.rolling(2):
                 if len(w) == 2:
                     _, until = w.iloc[0].name, w.iloc[1].name
@@ -42,45 +43,66 @@ class Backtester:
                         break
 
         # Assign each day a adjust factor
-        ticks_df["hfq_factor"] = factor_vals
-        factor_vals = ticks_df["hfq_factor"].reset_index(drop=True).interpolate(method="pad").values
+        bars_df["hfq_factor"] = factor_vals
+        factor_vals = bars_df["hfq_factor"].reset_index(drop=True).interpolate(method="pad").values
 
         # Adjust prices accordingly
-        ticks_df[["open", "close", "high", "low"]] *= factor_vals.reshape(-1, 1)
-        ticks_df["chg"] = ticks_df["close"] - ticks_df["close"].shift(1)
-        ticks_df["pct_chg"] = 100 * (ticks_df['chg'] / ticks_df['close'].shift(1))
+        bars_df[["open", "close", "high", "low"]] *= factor_vals.reshape(-1, 1)
+        bars_df["chg"] = bars_df["close"] - bars_df["close"].shift(1)
+        bars_df["pct_chg"] = 100 * (bars_df['chg'] / bars_df['close'].shift(1))
 
-        ticks_df.drop("hfq_factor", axis=1, inplace=True)
-        ticks_df.dropna(inplace=True)
-        return ticks_df.round(2)
+        bars_df.drop("hfq_factor", axis=1, inplace=True)
+        bars_df.dropna(inplace=True)
+        return bars_df.round(2)
 
     def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
-        def adjust_then_compute(code, ticks_df):
-            ticks_df.sort_values("timestamp", inplace=True)
+        def adjust_then_compute(bars_df, code, indicators, **kws):
+            bars_df.sort_values("timestamp", inplace=True)
+            bars_df = strategy.pre_process(bars_df)
+            # Pre-process before computing indicators
+            if bars_df.empty:
+                # Won't trade this stock
+                return bars_df
 
             if self.adjust_factors_df is not None:
+                # Adjust prices
                 with suppress(KeyError):
                     adjust_factors_df = self.adjust_factors_df.loc[code].sort_values("timestamp")
-                    ticks_df = self.adjust_prices(ticks_df, adjust_factors_df)
+                    bars_df = self._adjust_prices(bars_df, adjust_factors_df)
 
-            return strategy.compute_indicators(ticks_df)
+            # Compute indicators
+            for ind, predecessors in indicators.items():
+                if ind not in bars_df:  # double checked because preproc might add the needed indicators
+                    method = getattr(strategy, ind)
+                    bars_df[ind] = method(*[bars_df[col] for col in predecessors])
 
-        print('>>> Skip if indicators already exist')
-        all_indicators = strategy.buy_indicators + strategy.close_indicators
-        if set(all_indicators).issubset(set(df.columns)):
-            print(f'> found {all_indicators}')
+            # Post-process and done
+            return strategy.post_process(bars_df)
+
+        print('>>> 获取待计算因子')
+        ind_resolv = {
+            indicator: predecessors
+            for indicator, predecessors in IndicatorsResolver(strategy).get_compute_order().items()
+            if indicator not in df
+        }
+
+        if not ind_resolv:
+            print('- 所有因子已存在, 不用再计算')
             return df
+        print(f'- 待计算: {list(ind for ind in ind_resolv.keys())}')
 
-        print('>>> Index by code ...')
+        print('>>> 重建索引')
         if df.index.name != "code":
             df.reset_index(inplace=True)
             df.set_index("code", inplace=True)
 
-        print('>>> Computing indicators ...')
-        return pd.concat(
-            adjust_then_compute(code, ticks_df)
-            for code, ticks_df in tqdm(df.groupby(level="code"), file=sys.stdout)
+        print('>>> 计算每支个股的技术因子')
+        bars_df = pd.concat(
+            adjust_then_compute(bars_df, code, ind_resolv)
+            for code, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout)
         )
+
+        return bars_df
 
     def get_buy_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
         curr_positions = self.account.holdings.position_codes
@@ -115,14 +137,14 @@ class Backtester:
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
-            print('>>> Resetting indices ...')
+            print('>>> 重建索引 [timestamp, code]')
             # Index by timestamp: trade in the day order
             #          code: look up the current price for positions in holding
             df.reset_index(inplace=True)
             df.set_index(["timestamp", "code"], inplace=True)
             df.sort_index(inplace=True)
 
-        print('>>> Trading ...')
+        print('>>> 交易中 ...')
         trade_book = TradeBook()
 
         # Per day
@@ -188,7 +210,7 @@ class Backtester:
         # That was quite a long story :D
         return trade_book
 
-    def run(self, ticks_df: pd.DataFrame, strategy: "StrategyBase") -> tuple[pd.DataFrame, TradeBook]:
-        ind_df = self.get_indicators_df(ticks_df, strategy)
+    def run(self, bars_df: pd.DataFrame, strategy: "StrategyBase") -> tuple[pd.DataFrame, TradeBook]:
+        ind_df = self.get_indicators_df(bars_df, strategy)
         trade_book = self.trade(ind_df, strategy)
         return ind_df, trade_book

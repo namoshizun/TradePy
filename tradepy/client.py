@@ -9,8 +9,8 @@ from tradepy.convertion import (
     convert_code_to_exchange,
     convert_akshare_hist_data,
     convert_akshare_stock_info,
-    convert_akshare_industry_listing,
-    convert_akshare_industry_ticks,
+    convert_akshare_sector_listing,
+    convert_akshare_sector_ticks,
     convert_akshare_stock_index_ticks,
     convert_code_to_market
 )
@@ -102,12 +102,12 @@ class AkShareClient:
             end_date="20990101",
             period="日k"
         )
-        df = convert_akshare_industry_ticks(df)
+        df = convert_akshare_sector_ticks(df)
         df["name"] = name
         return df
 
     def get_sectors_listing(self) -> pd.DataFrame:
-        return convert_akshare_industry_listing(ak.stock_board_industry_name_em())
+        return convert_akshare_sector_listing(ak.stock_board_industry_name_em())
 
     def get_broad_based_index_ticks(self, code: str) -> pd.DataFrame:
         df = ak.stock_zh_index_daily(symbol=code)

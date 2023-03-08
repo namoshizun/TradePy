@@ -28,9 +28,6 @@ class DataCollector:
         _, _, macdhist = talib.MACD(df["close"])
         df["macd"] = (macdhist * 2)
 
-        # PPO
-        df["ppo"] = talib.PPO(df["close"])
-
         df.dropna(inplace=True)
         return df.round(2)
 

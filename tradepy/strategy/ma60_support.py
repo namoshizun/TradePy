@@ -1,19 +1,23 @@
 import talib
 import re
+import math
 import pandas as pd
-import numpy as np
 from typing import Any
 
 import tradepy
 from tradepy.backtesting.strategy import Strategy
-from tradepy.warehouse import TicksDepot
+from tradepy.warehouse import BroadBasedIndexTicksDepot, SectorIndexTicksDepot
 from tradepy.types import Markets
 
 
 class MA60SupportStrategy(Strategy):
 
-    def patch_index_data(self, df: pd.DataFrame, idx_df: pd.DataFrame, prefix: str):
-        indicator_cols = ["ema5", "ema20", "rsi6", "macd", "nmacd120"]
+    def __patch_index_data(self, df: pd.DataFrame, idx_df: pd.DataFrame, prefix: str):
+        def calculate_macd_degree(values):
+            tan = (values[-1] - values[0]) / 3
+            return math.degrees(math.atan(tan))
+
+        indicator_cols = ["ema5", "ema20", "rsi6", "macd"]
 
         ind_df = idx_df[indicator_cols + ["timestamp"]].copy()
         ind_df.set_index("timestamp", inplace=True)
@@ -22,10 +26,16 @@ class MA60SupportStrategy(Strategy):
             for col in indicator_cols
         }, inplace=True)
 
-        return df.join(ind_df, on="timestamp")
+        df = df.join(ind_df, on="timestamp")
+        df[f"{prefix}_macd_deg"] = df[f"{prefix}_macd"].rolling(3).apply(calculate_macd_degree)
+        return df
 
-    def compute_indicators(self, df: pd.DataFrame):
-        # Keep ones whose market's index data is available
+    def pre_process(self, bars_df: pd.DataFrame):
+        company = bars_df.iloc[0]["company"]
+        if re.match(r'^.*(ST|银行)', company, re.I):
+            return pd.DataFrame()
+
+        # Keep only if tis market's index data is available
         market_name_to_board = {
             Markets.SH_MAIN: "SSE",
             Markets.SZ_MAIN: "SZSE",
@@ -33,66 +43,77 @@ class MA60SupportStrategy(Strategy):
             Markets.CHI_NEXT: "ChiNext",
         }
 
-        board_name = market_name_to_board.get(df.iloc[0]["market"])
-
-        # Filtering
+        board_name = market_name_to_board.get(bars_df.iloc[0]["market"])
         if not board_name:
             return pd.DataFrame()
 
-        company = df.iloc[0]["company"]
-        if re.match(r'^.*(ST|银行)', company, re.I):
-            return pd.DataFrame()
+        # Skip if already patched index data
+        if all(f'{idx}_macd_deg' in bars_df for idx in ["sector", "board"]):
+            return bars_df
 
-        # Compute SMA60
-        df["ma60"] = talib.SMA(df["close"], 60).round(2)
-
-        # Compute the distances to SMA60 as pct change from the MA60
-        df["dist_ma60"] = (100 * (df["low"] - df["ma60"]) / df["ma60"]).round(2)
-
-        # Count number of ticks the price is below ma60 in the past few days
-        wsize = 4
-        df["n_below_ma60_past_4"] = [
-            np.nan if len(w) < wsize else (w < 0).sum()
-            for w in df["dist_ma60"].rolling(wsize, closed="left")  # excluding the current day
-        ]
-
-        # Count number of limit downs in the past 5 days
-        wsize = 5
-        df["n_limit_downs_past_5"] = [
-            np.nan if len(w) < wsize else (w <= -9.5).sum()
-            for w in df["pct_chg"].rolling(wsize)
-        ]
-
-        df.dropna(inplace=True)
-
-        # Get indicators from industry ticks data
+        # Patch index data
         try:
             industry = tradepy.listing.get_by_name(company).industry
         except IndexError:
             return pd.DataFrame()
 
-        ind_df = TicksDepot("daily.industry").load_industry_ticks(cache=True).loc[industry]
-        df = self.patch_index_data(df, ind_df, "industry")
+        sect_df = SectorIndexTicksDepot.load(cache=True).loc[industry]
+        bars_df = self.__patch_index_data(bars_df, sect_df, prefix="sector")
 
-        # Get indicators from the main board ticks data
-        board_df = TicksDepot("daily.index").load_index_ticks(cache=True).loc[board_name]
-        df = self.patch_index_data(df, board_df, "board")
+        # Get indicators from the main board bars
+        board_df = BroadBasedIndexTicksDepot.load(cache=True).loc[board_name]
+        return self.__patch_index_data(bars_df, board_df, prefix="board")
 
-        return df
+    def post_process(self, bars_df: pd.DataFrame):
+        bars_df.dropna(subset=[
+            "ma60",
+            "ma250",
+            "n_below_ma60_past_4",
+            "n_below_ma60_past_15",
+            "n_limit_downs_past_5"
+        ], inplace=True)
+        return bars_df
+
+    def ma60(self, close):
+        return talib.SMA(close, 60).round(2)
+
+    def ma250(self, close):
+        return talib.SMA(close, 250).round(2)
+
+    def dist_ma60(self, low, ma60):
+        return (100 * (low - ma60) / ma60).round(2)
+
+    def n_below_ma60_past_4(self, dist_ma60):
+        wsize = 4
+        return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
+
+    def n_below_ma60_past_15(self, dist_ma60):
+        wsize = 15
+        return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
+
+    def n_limit_downs_past_5(self, pct_chg):
+        wsize = 5
+        return pct_chg.rolling(wsize).apply(lambda w: (w <= -9.5).sum())
 
     def should_buy(self,
+                   mkt_cap_rank,
                    n_below_ma60_past_4,
                    n_limit_downs_past_5,
+                   n_below_ma60_past_15,
                    dist_ma60,
+                   ma250,
                    board_rsi6,
                    board_macd,
-                   board_nmacd120,
                    board_ema5,
                    board_ema20,
-                   industry_macd,
-                   industry_nmacd120,
-                   industry_ema5,
-                   industry_ema20) -> bool:
+                   board_macd_deg,
+                   sector_macd,
+                   sector_ema5,
+                   sector_ema20,
+                   sector_macd_deg) -> bool:
+
+        if mkt_cap_rank < 0.3:
+            return False
 
         reaching_ma60_from_above = (n_below_ma60_past_4 == 0) and \
             (abs(dist_ma60) <= self.ma60_dist_thres)
@@ -106,53 +127,28 @@ class MA60SupportStrategy(Strategy):
         if board_rsi6 < 15:
             return True
 
-        if np.isnan(industry_macd):
-            ref_macd = board_macd
-            ref_nmacd120 = board_nmacd120
-            ref_ema5 = board_ema5
-            ref_ema20 = board_ema20
-        else:
-            ref_macd = industry_macd
-            ref_nmacd120 = industry_nmacd120
-            ref_ema5 = industry_ema5
-            ref_ema20 = industry_ema20
+        if (board_ema5 > board_ema20) or (sector_ema5 > sector_ema20):
+            return (board_macd > 5) or (sector_macd > 0)
 
-        if ref_ema5 > ref_ema20:
-            return (ref_nmacd120 >= 0.15) or (ref_macd > 5)  # always prefer nmacd120
         return False
 
-    def should_close(self,
+    def _should_close(self,
+                     board_macd_deg,
+                     sector_macd_deg,
                      board_rsi6,
-                     board_macd,
-                     board_nmacd120,
-                     board_ema5,
-                     board_ema20,
-                     industry_macd,
-                     industry_nmacd120,
-                     industry_ema5,
-                     industry_ema20) -> bool:
+                     sector_ema5,
+                     sector_ema20) -> bool:
 
         if board_rsi6 > 85:
             return True
 
-        if np.isnan(industry_macd):
-            ref_macd = board_macd
-            ref_nmacd120 = board_nmacd120
-            ref_ema5 = board_ema5
-            ref_ema20 = board_ema20
-        else:
-            ref_macd = industry_macd
-            ref_nmacd120 = industry_nmacd120
-            ref_ema5 = industry_ema5
-            ref_ema20 = industry_ema20
-
-        if ref_ema5 < ref_ema20:
+        if sector_ema5 < sector_ema20:
             return True
 
-        if np.isnan(ref_nmacd120):
-            return ref_macd < -2  # use macd instead if nmacd not available
+        if (board_macd_deg < -20) or (sector_macd_deg < -20):
+            return True
 
-        return ref_nmacd120 <= -0.15  # otherwise we prefer nmacd120
+        return False
 
     def get_pool_and_budget(self, ticks_df: pd.DataFrame, buy_indices: list[Any], budget: float) -> tuple[pd.DataFrame, float]:
         n_total = len(ticks_df)
