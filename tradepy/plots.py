@@ -64,16 +64,17 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
     fig.show()
 
 
-def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
-    trade_cal = tradepy.trade_cal.trade_cal
+def plot_bars(bars_df, code: str, buy_date: str, window_size: tuple[int, int] = (200, 60)):
+    trade_cal = sorted(tradepy.trade_cal.trade_cal)
 
-    df = ticks_df.query("code == @code").reset_index().copy()
+    df = bars_df.query("code == @code").reset_index().copy()
     df["ma60"] = talib.SMA(df["close"], 60).round(2)
     df["ma20"] = talib.SMA(df["close"], 20).round(2)
     df["ma5"] = talib.SMA(df["close"], 5).round(2)
 
-    sicne_date = trade_cal[max(trade_cal.index(date) - window_size, 0)]
-    until_date = trade_cal[min(trade_cal.index(date) + window_size, len(trade_cal) - 1)]
+    mid_day_cal_idx = trade_cal.index(buy_date)
+    sicne_date = trade_cal[max(mid_day_cal_idx - window_size[0], 0)]
+    until_date = trade_cal[min(mid_day_cal_idx + window_size[1], len(trade_cal) - 1)]
 
     df = df.query('@sicne_date <= timestamp <= @until_date')
     df.dropna(inplace=True)
@@ -118,7 +119,9 @@ def plot_ticks(ticks_df, code: str, date: str, window_size: int = 80):
     )
     fig.update_layout(
         title=f'{code}: {sicne_date} => {until_date}',
-        shapes=[dict(x0=date, x1=date, y0=0, y1=1, xref='x', yref='paper', line_width=2)],
+        shapes=[
+            dict(x0=buy_date, x1=buy_date, y0=0, y1=1, xref='x', yref='paper', line_width=1),
+        ],
     )
     fig.show()
 
