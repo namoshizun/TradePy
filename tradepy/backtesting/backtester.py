@@ -115,13 +115,9 @@ class Backtester:
         curr_positions = self.account.holdings.position_codes
 
         return [
-            row.Index
-            for row in df.itertuples()
-            # won't increase existing positions
-            if (row.Index[1] not in curr_positions) and strategy.should_buy(*[
-                getattr(row, ind)
-                for ind in strategy.buy_indicators
-            ])
+            index
+            for index, *indicators in df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
+            if (index[1] not in curr_positions) and strategy.should_buy(*indicators)
         ]
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
@@ -133,13 +129,9 @@ class Backtester:
             return []
 
         return [
-            row.Index
-            for row in df.itertuples()
-            # only evaluate existing positions
-            if (row.Index[1] in curr_positions) and strategy.should_close(*[
-                getattr(row, ind)
-                for ind in strategy.close_indicators
-            ])
+            index
+            for index, *indicators in df[strategy.close_indicators].itertuples(name=None)
+            if (index[1] in curr_positions) and strategy.should_close(*indicators)
         ]
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:

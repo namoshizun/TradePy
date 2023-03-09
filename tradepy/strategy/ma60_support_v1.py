@@ -1,4 +1,3 @@
-import talib
 import re
 import math
 import pandas as pd
@@ -7,6 +6,7 @@ from typing import Any
 
 import tradepy
 from tradepy.backtesting.strategy import Strategy
+from tradepy.decorators import requirement
 from tradepy.warehouse import BroadBasedIndexTicksDepot, SectorIndexTicksDepot
 from tradepy.types import Markets
 
@@ -74,37 +74,29 @@ class MA60SupportStrategyV1(Strategy):
         board_df = BroadBasedIndexTicksDepot.load(cache=True).loc[board_name]
         return self.__patch_index_data(bars_df, board_df, prefix="board")
 
-    def post_process(self, bars_df: pd.DataFrame):
-        bars_df.dropna(subset=[
-            "dist_ma60",
-            "n_below_ma60_past_4",
-            "n_limit_downs_past_5",
-            "ma60_chg_20",
-        ], inplace=True)
-        return bars_df
-
-    def ma60(self, close):
-        return talib.SMA(close, 60).round(2)
-
+    @requirement(notna=True)  # type: ignore
     def ma60_chg_20(self, ma60):
         wsize = 20
         return ma60.rolling(wsize).apply(calc_chg_degree, **ROLL_USE_NUMBA).round(2)
 
-    def ma250(self, close):
-        return talib.SMA(close, 250).round(2)
-
+    @requirement(notna=True)  # type: ignore
     def dist_ma60(self, low, ma60):
         return (100 * (low - ma60) / ma60).round(2)
 
+    @requirement(notna=True)  # type: ignore
     def n_below_ma60_past_4(self, dist_ma60):
         wsize = 4
         return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
 
+    @requirement(notna=True)  # type: ignore
     def n_limit_downs_past_5(self, pct_chg):
         wsize = 5
         return pct_chg.rolling(wsize).apply(lambda w: (w <= -9.5).sum())
 
-    def should_buy(self,
+    def should_buy(self, ma5, ma20) -> bool:
+        return False
+
+    def _should_buy(self,
                    mkt_cap_rank,
                    n_below_ma60_past_4,
                    n_limit_downs_past_5,
@@ -145,15 +137,19 @@ class MA60SupportStrategyV1(Strategy):
 
         return False
 
-    def should_close(self,
+    def _should_close(self,
                      board_rsi6,
                      sector_ema5,
-                     sector_ema20) -> bool:
+                     sector_ema20,
+                     sector_macd) -> bool:
 
         if board_rsi6 > 85:
             return True
 
         if sector_ema5 < sector_ema20:
+            return True
+
+        if sector_macd < -15:
             return True
 
         return False

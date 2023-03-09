@@ -1,12 +1,15 @@
 import abc
 import inspect
+import talib
 import pandas as pd
+from collections import defaultdict
 from typing import Any, TypedDict, Generic, TypeVar
 
 from tradepy.backtesting.context import Context
 from tradepy.backtesting.backtester import Backtester
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.position import Position
+from tradepy.decorators import requirement
 from tradepy.types import IndSeries
 from tradepy.utils import calc_pct_chg
 
@@ -24,6 +27,10 @@ class TickData(TypedDict):
     pct_chg: float | None
 
 
+class IndicatorRequirement(TypedDict):
+    notna: bool
+
+
 TickDataType = TypeVar("TickDataType", bound=TickData)
 
 
@@ -33,6 +40,7 @@ class StrategyBase(Generic[TickDataType]):
         self.ctx = ctx
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[1:]
         self.close_indicators: list[str] = inspect.getfullargspec(self.should_close).args[1:]
+        self.indicator_requirements: dict[str, IndicatorRequirement] = defaultdict(dict)  # type: ignore
 
     def __getattr__(self, name: str):
         return getattr(self.ctx, name)
@@ -41,6 +49,15 @@ class StrategyBase(Generic[TickDataType]):
         return bars_df
 
     def post_process(self, bars_df: pd.DataFrame):
+        notna_indicators = [
+            ind
+            for ind, req in self.indicator_requirements.items()
+            if req.get("notna", False)
+        ]
+
+        if notna_indicators:
+            bars_df.dropna(subset=notna_indicators, inplace=True)
+
         return bars_df
 
     @abc.abstractmethod
@@ -139,3 +156,19 @@ class Strategy(StrategyBase[TickData]):
 
     def pct_chg(self, chg: IndSeries, close: IndSeries):
         return (100 * chg / close.shift(1)).fillna(0).round(2)
+
+    @requirement(notna=True)
+    def ma5(self, close):
+        return talib.SMA(close, 5).round(2)
+
+    @requirement(notna=True)
+    def ma20(self, close):
+        return talib.SMA(close, 20).round(2)
+
+    # @requirement(notna=True)
+    def ma60(self, close):
+        return talib.SMA(close, 60).round(2)
+
+    # @requirement(notna=True)
+    def ma250(self, close):
+        return talib.SMA(close, 250).round(2)
