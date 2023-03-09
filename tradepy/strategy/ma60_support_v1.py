@@ -2,6 +2,7 @@ import talib
 import re
 import math
 import pandas as pd
+import numba as nb
 from typing import Any
 
 import tradepy
@@ -10,13 +11,18 @@ from tradepy.warehouse import BroadBasedIndexTicksDepot, SectorIndexTicksDepot
 from tradepy.types import Markets
 
 
-class MA60SupportStrategy(Strategy):
+@nb.jit
+def calc_chg_degree(values):
+    tan = (values[-1] - values[0]) / len(values)
+    return math.degrees(math.atan(tan))
+
+
+ROLL_USE_NUMBA = dict(engine='numba', raw=True)
+
+
+class MA60SupportStrategyV1(Strategy):
 
     def __patch_index_data(self, df: pd.DataFrame, idx_df: pd.DataFrame, prefix: str):
-        def calculate_macd_degree(values):
-            tan = (values[-1] - values[0]) / 3
-            return math.degrees(math.atan(tan))
-
         indicator_cols = ["ema5", "ema20", "rsi6", "macd"]
 
         ind_df = idx_df[indicator_cols + ["timestamp"]].copy()
@@ -27,7 +33,11 @@ class MA60SupportStrategy(Strategy):
         }, inplace=True)
 
         df = df.join(ind_df, on="timestamp")
-        df[f"{prefix}_macd_deg"] = df[f"{prefix}_macd"].rolling(3).apply(calculate_macd_degree)
+        df[f"{prefix}_macd_deg"] = (
+            df[f"{prefix}_macd"]
+            .rolling(3)
+            .apply(calc_chg_degree, **ROLL_USE_NUMBA)
+        )
         return df
 
     def pre_process(self, bars_df: pd.DataFrame):
@@ -66,16 +76,19 @@ class MA60SupportStrategy(Strategy):
 
     def post_process(self, bars_df: pd.DataFrame):
         bars_df.dropna(subset=[
-            "ma60",
-            "ma250",
+            "dist_ma60",
             "n_below_ma60_past_4",
-            "n_below_ma60_past_15",
-            "n_limit_downs_past_5"
+            "n_limit_downs_past_5",
+            "ma60_chg_20",
         ], inplace=True)
         return bars_df
 
     def ma60(self, close):
         return talib.SMA(close, 60).round(2)
+
+    def ma60_chg_20(self, ma60):
+        wsize = 20
+        return ma60.rolling(wsize).apply(calc_chg_degree, **ROLL_USE_NUMBA).round(2)
 
     def ma250(self, close):
         return talib.SMA(close, 250).round(2)
@@ -87,10 +100,6 @@ class MA60SupportStrategy(Strategy):
         wsize = 4
         return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
 
-    def n_below_ma60_past_15(self, dist_ma60):
-        wsize = 15
-        return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
-
     def n_limit_downs_past_5(self, pct_chg):
         wsize = 5
         return pct_chg.rolling(wsize).apply(lambda w: (w <= -9.5).sum())
@@ -99,25 +108,28 @@ class MA60SupportStrategy(Strategy):
                    mkt_cap_rank,
                    n_below_ma60_past_4,
                    n_limit_downs_past_5,
-                   n_below_ma60_past_15,
                    dist_ma60,
-                   ma250,
+                   ma60_chg_20,
                    board_rsi6,
                    board_macd,
                    board_ema5,
                    board_ema20,
-                   board_macd_deg,
                    sector_macd,
                    sector_ema5,
-                   sector_ema20,
-                   sector_macd_deg) -> bool:
+                   sector_ema20) -> bool:
 
-        if mkt_cap_rank < 0.3:
+        # Good liquity
+        if mkt_cap_rank < 0.2:
+            return False
+
+        # Stock trend still not good
+        if ma60_chg_20 > 5:
             return False
 
         reaching_ma60_from_above = (n_below_ma60_past_4 == 0) and \
             (abs(dist_ma60) <= self.ma60_dist_thres)
 
+        # Must be testing the MA60 support from above
         if not reaching_ma60_from_above:
             return False
 
@@ -127,14 +139,13 @@ class MA60SupportStrategy(Strategy):
         if board_rsi6 < 15:
             return True
 
+        # The overal market mood is good
         if (board_ema5 > board_ema20) or (sector_ema5 > sector_ema20):
             return (board_macd > 5) or (sector_macd > 0)
 
         return False
 
-    def _should_close(self,
-                     board_macd_deg,
-                     sector_macd_deg,
+    def should_close(self,
                      board_rsi6,
                      sector_ema5,
                      sector_ema20) -> bool:
@@ -143,9 +154,6 @@ class MA60SupportStrategy(Strategy):
             return True
 
         if sector_ema5 < sector_ema20:
-            return True
-
-        if (board_macd_deg < -20) or (sector_macd_deg < -20):
             return True
 
         return False

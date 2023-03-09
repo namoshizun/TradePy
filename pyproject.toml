@@ -20,6 +20,7 @@ plotly = "^5.13.1"
 python-dateutil = "^2.8.2"
 matplotlib = "^3.7.1"
 networkx = "^3.0"
+numba = "^0.56.4"
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"

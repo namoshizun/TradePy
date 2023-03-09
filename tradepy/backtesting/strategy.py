@@ -102,21 +102,21 @@ class StrategyBase(Generic[TickDataType]):
 
         # Distribute that budget again, starting from the big guys
         pool_df.sort_values("trade_price", inplace=True, ascending=False)
-        for idx, stock in pool_df.iterrows():
-            if residual_shares := remaining_budget // stock["trade_price"]:
-                pool_df.at[idx, "trade_shares"] += residual_shares
-                remaining_budget -= residual_shares * stock["trade_price"]
+        for row in pool_df.itertuples():
+            if residual_shares := remaining_budget // row.trade_price:
+                pool_df.at[row.Index, "trade_shares"] += residual_shares
+                remaining_budget -= residual_shares * row.trade_price
 
         return [
             Position(
-                timestamp=timestamp,
-                code=code,
-                company=stock["company"],
-                price=stock["close"],
-                shares=stock["trade_shares"] * self.trading_unit,
+                timestamp=row.Index[0],
+                code=row.Index[1],
+                company=row.company,
+                price=row.close,
+                shares=row.trade_shares * self.trading_unit,
             )
-            for (timestamp, code), stock in pool_df.iterrows()
-            if stock["trade_shares"] > 0
+            for row in pool_df.itertuples()
+            if row.trade_shares > 0
         ]
 
     @classmethod

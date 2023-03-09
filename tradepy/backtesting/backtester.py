@@ -1,7 +1,7 @@
 import sys
+import numba as nb
 import numpy as np
 import pandas as pd
-from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
@@ -11,6 +11,20 @@ from tradepy.backtesting.dag import IndicatorsResolver
 
 if TYPE_CHECKING:
     from tradepy.backtesting.strategy import StrategyBase, TickDataType
+
+
+@nb.njit
+def assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
+    i = 0
+
+    factors = []
+    for ts in timestamps:
+        while True:
+            if fac_ts[i + 1] > ts:
+                break
+            i += 1
+        factors.append(fac_vals[i])
+    return factors
 
 
 class Backtester:
@@ -28,56 +42,49 @@ class Backtester:
             self.adjust_factors_df = None
 
     def _adjust_prices(self, bars_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
-        adj_df = adj_df.reset_index(drop=True).set_index("timestamp")
-        bars_df = bars_df.join(adj_df, on="timestamp")
-        factor_vals = bars_df["hfq_factor"].values
-
-        if np.isnan(factor_vals[0]):
-            # Patch the furtherest factor value, whose timestamp might be outside the ticks range
-            min_date = bars_df.iloc[0]["timestamp"]
-            for w in adj_df.rolling(2):
-                if len(w) == 2:
-                    _, until = w.iloc[0].name, w.iloc[1].name
-                    if until > min_date:
-                        factor_vals[0] = w.iloc[0]["hfq_factor"]
-                        break
-
-        # Assign each day a adjust factor
-        bars_df["hfq_factor"] = factor_vals
-        factor_vals = bars_df["hfq_factor"].reset_index(drop=True).interpolate(method="pad").values
+        # Find each day's adjust factor
+        factor_vals = assign_factor_value_to_day(
+            nb.typed.List(adj_df["timestamp"].tolist()),
+            nb.typed.List(adj_df["hfq_factor"].tolist()),
+            nb.typed.List(bars_df["timestamp"].tolist())
+        )
 
         # Adjust prices accordingly
-        bars_df[["open", "close", "high", "low"]] *= factor_vals.reshape(-1, 1)
-        bars_df["chg"] = bars_df["close"] - bars_df["close"].shift(1)
-        bars_df["pct_chg"] = 100 * (bars_df['chg'] / bars_df['close'].shift(1))
-
-        bars_df.drop("hfq_factor", axis=1, inplace=True)
-        bars_df.dropna(inplace=True)
+        bars_df[["open", "close", "high", "low"]] *= np.array(factor_vals).reshape(-1, 1)
+        bars_df["chg"] = (bars_df["close"] - bars_df["close"].shift(1)).fillna(0)
+        bars_df["pct_chg"] = (100 * (bars_df['chg'] / bars_df['close'].shift(1))).fillna(0)
         return bars_df.round(2)
 
+    def _adjust_then_compute(self, bars_df, indicators, strategy: "StrategyBase"):
+        code = bars_df.index[0]
+        bars_df.sort_values("timestamp", inplace=True)
+        bars_df = strategy.pre_process(bars_df)
+        # Pre-process before computing indicators
+        if bars_df.empty:
+            # Won't trade this stock
+            return bars_df
+
+        if self.adjust_factors_df is not None:
+            # Adjust prices
+            try:
+                adjust_factors_df = self.adjust_factors_df.loc[code].sort_values("timestamp")
+                bars_df = self._adjust_prices(bars_df, adjust_factors_df)
+                if bars_df["pct_chg"].abs().max() > 21:
+                    # Either adjust factor is missing or incorrect...
+                    return pd.DataFrame()
+            except KeyError:
+                return pd.DataFrame()
+
+        # Compute indicators
+        for ind, predecessors in indicators.items():
+            if ind not in bars_df:  # double checked because preproc might add the needed indicators
+                method = getattr(strategy, ind)
+                bars_df[ind] = method(*[bars_df[col] for col in predecessors])
+
+        # Post-process and done
+        return strategy.post_process(bars_df)
+
     def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
-        def adjust_then_compute(bars_df, code, indicators, **kws):
-            bars_df.sort_values("timestamp", inplace=True)
-            bars_df = strategy.pre_process(bars_df)
-            # Pre-process before computing indicators
-            if bars_df.empty:
-                # Won't trade this stock
-                return bars_df
-
-            if self.adjust_factors_df is not None:
-                # Adjust prices
-                with suppress(KeyError):
-                    adjust_factors_df = self.adjust_factors_df.loc[code].sort_values("timestamp")
-                    bars_df = self._adjust_prices(bars_df, adjust_factors_df)
-
-            # Compute indicators
-            for ind, predecessors in indicators.items():
-                if ind not in bars_df:  # double checked because preproc might add the needed indicators
-                    method = getattr(strategy, ind)
-                    bars_df[ind] = method(*[bars_df[col] for col in predecessors])
-
-            # Post-process and done
-            return strategy.post_process(bars_df)
 
         print('>>> 获取待计算因子')
         ind_resolv = {
@@ -98,8 +105,8 @@ class Backtester:
 
         print('>>> 计算每支个股的技术因子')
         bars_df = pd.concat(
-            adjust_then_compute(bars_df, code, ind_resolv)
-            for code, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout)
+            self._adjust_then_compute(bars_df.copy(), ind_resolv, strategy)
+            for _, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout)
         )
 
         return bars_df
@@ -155,11 +162,8 @@ class Backtester:
             price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]
             self.account.tick(price_lookup)
 
-            # Signals
-            buy_indices = self.get_buy_signals(sub_df, strategy)
-            close_indices = self.get_close_signals(sub_df, strategy)
-
             # Sell
+            close_indices = self.get_close_signals(sub_df, strategy)
             sell_positions = []
             for code, pos in self.account.holdings:
                 index = (timestamp, code)
@@ -191,6 +195,7 @@ class Backtester:
                 self.account.sell(sell_positions)
 
             # Buy
+            buy_indices = self.get_buy_signals(sub_df, strategy)
             if buy_indices:
                 pool_df, budget = strategy.get_pool_and_budget(sub_df, buy_indices, self.account.cash_amount)
                 buy_positions = strategy.generate_positions(pool_df, budget)
