@@ -28,3 +28,6 @@ def _init_dataset_dir(path: str | pathlib.Path):
 
 def initialize(dataset_dir: str | pathlib.Path):
     _init_dataset_dir(dataset_dir)
+
+
+from tradepy.logging import LOG  # noqa

@@ -8,12 +8,13 @@ from typing import Any, Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
+import tradepy
 from tradepy.utils import chunks
 
 
 class DataCollector:
 
-    def precompute_indicators(self, df, nmacd_period=120):
+    def precompute_indicators(self, df):
         # Moving averages
         df["ma5"] = talib.SMA(df["close"], 5)
         df["ma20"] = talib.SMA(df["close"], 20)
@@ -41,7 +42,7 @@ class DataCollector:
         tempd = tempfile.TemporaryDirectory()
 
         kls = self.__class__.__name__
-        print(f'''
+        tradepy.LOG.info(f'''
 [{kls}]:
     {len(jobs)} 下载任务
     批大小 = {batch_size}

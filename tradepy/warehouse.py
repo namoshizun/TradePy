@@ -10,7 +10,7 @@ import tradepy
 from tradepy.convertion import convert_code_to_market
 
 
-class GenericTicksDepot:
+class GenericBarsDepot:
 
     folder_name: str
     caches: dict[str, Any] = dict()
@@ -57,7 +57,7 @@ class GenericTicksDepot:
                     if should_load:
                         yield load(path)
 
-    def _generic_load_ticks(self,
+    def _generic_load_bars(self,
                             index_by: str | list[str] = "code",
                             cache_key=None,
                             cache=False) -> pd.DataFrame:
@@ -94,7 +94,7 @@ class GenericTicksDepot:
         return self._load(*args, **kwargs)
 
 
-class StocksDailyTicksDepot(GenericTicksDepot):
+class StocksDailyBarsDepot(GenericBarsDepot):
 
     folder_name = "daily.stocks"
     default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap_rank"
@@ -116,11 +116,14 @@ class StocksDailyTicksDepot(GenericTicksDepot):
                 if not tradepy.listing.has_code(code):
                     continue
 
-                company = tradepy.listing.get_by_code(code).name
-                market = convert_code_to_market(code)
-
                 df = source_iter.send(True)
-                df[["company", "code", "market"]] = company, code, market
+                assert isinstance(df, pd.DataFrame)
+                df["code"] = code
+
+                if not set(["company", "market"]).issubset(df.columns):
+                    company = tradepy.listing.get_by_code(code).name
+                    market = convert_code_to_market(code)
+                    df[["company", "market"]] = company, market
 
                 if since_date:
                     yield df.query(f'timestamp >= "{since_date}"')
@@ -146,20 +149,20 @@ class StocksDailyTicksDepot(GenericTicksDepot):
         return df
 
 
-class BroadBasedIndexTicksDepot(GenericTicksDepot):
+class BroadBasedIndexBarsDepot(GenericBarsDepot):
 
     folder_name = "daily.broad-based"
 
     def _load(self, index_by: str | list[str] = "code", cache=True) -> pd.DataFrame:
-        return self._generic_load_ticks(index_by, cache_key=self.folder_name, cache=cache)
+        return self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
 
 
-class SectorIndexTicksDepot(GenericTicksDepot):
+class SectorIndexBarsDepot(GenericBarsDepot):
 
     folder_name = "daily.sectors"
 
     def _load(self, index_by: str | list[str] = "name", cache=True) -> pd.DataFrame:
-        df = self._generic_load_ticks(index_by, cache_key=self.folder_name, cache=cache)
+        df = self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
         assert isinstance(df, pd.DataFrame)
 
         # Optimize memory consumption

@@ -5,6 +5,7 @@ import akshare as ak
 from typing import Any, Literal
 from functools import wraps
 
+import tradepy
 from tradepy.convertion import (
     convert_code_to_exchange,
     convert_akshare_hist_data,
@@ -25,7 +26,7 @@ def retry(max_retries=3, wait_interval=5):
                 try:
                     return fun(*args, **kwargs)
                 except Exception:
-                    print(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次')
+                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次')
                     time.sleep(wait_interval)
         return inner
     return decor
@@ -70,7 +71,11 @@ class AkShareClient:
             start_date=start_date.strftime('%Y%m%d'),
             period="daily"
         )
+
         assert isinstance(df, pd.DataFrame)
+        if df.empty:
+            return df
+
         df = convert_akshare_hist_data(df)
 
         indicators_df = retry()(ak.stock_a_lg_indicator)(symbol=code)
@@ -81,8 +86,7 @@ class AkShareClient:
         }, inplace=True)
         indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
         indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
-        indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
-
+        indicators_df['timestamp'] = indicators_df['timestamp'].astype(str) 
         return pd.merge(df, indicators_df, on="timestamp")
 
     def get_stock_info(self, code: str) -> dict[str, Any]:
@@ -109,6 +113,9 @@ class AkShareClient:
     def get_sectors_listing(self) -> pd.DataFrame:
         return convert_akshare_sector_listing(ak.stock_board_industry_name_em())
 
-    def get_broad_based_index_ticks(self, code: str) -> pd.DataFrame:
+    def get_broad_based_index_ticks(self,
+                                    code: str,
+                                    start_date: str = "2000-01-01") -> pd.DataFrame:
         df = ak.stock_zh_index_daily(symbol=code)
-        return convert_akshare_stock_index_ticks(df)
+        df = convert_akshare_stock_index_ticks(df)
+        return df.query('timestamp >= @start_date')

@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import tradepy
+from tradepy import LOG
 from tradepy.collectors import DataCollector
 from tradepy.warehouse import AdjustFactorDepot
 
@@ -38,26 +39,26 @@ class AdjustFactorCollector(DataCollector):
     def run(self, batch_size: int = 50):
         jobs = list(self._jobs_generator())
 
-        print('下载中')
+        LOG.info('=============== 开始更新个股复权因子 ===============')
+        LOG.info('下载中')
         results_gen = self.run_batch_jobs(
             jobs,
             batch_size,
             fun=tradepy.ak_api.get_adjust_factor,
-            iteration_pause=3,
+            iteration_pause=2,
         )
 
         df = pd.concat(
             adjust_factors_df
             for _, adjust_factors_df in results_gen
         )
-        df = df.round(7)
         df.rename(columns={"date": "timestamp"}, inplace=True)
 
-        print('添加头尾时间边界1900, 3000')
+        LOG.info('添加头尾时间边界1900, 3000')
         df = self._add_period_padding(df)
         df.set_index("code", inplace=True)
 
         df.sort_values(["code", "timestamp"], inplace=True)
-        df.to_csv(out_path := AdjustFactorDepot.file_path())
-        print(f'已下载至 {out_path}')
+        df.round(4).to_csv(out_path := AdjustFactorDepot.file_path())
+        LOG.info(f'已下载至 {out_path}')
         return df

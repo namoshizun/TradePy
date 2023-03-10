@@ -24,6 +24,7 @@ class Context:
     max_position_opens: float = np.inf
 
     # Misc
+    signals_percent_range = (0, 100)  # in percentage
     hfq_adjust_factors: pd.DataFrame | None = None
 
     def __post_init__(self):

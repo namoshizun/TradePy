@@ -6,12 +6,12 @@ from plotly.subplots import make_subplots
 
 import tradepy.trade_cal
 from tradepy.backtesting.account import TradeBook
-from tradepy.warehouse import BroadBasedIndexTicksDepot
+from tradepy.warehouse import BroadBasedIndexBarsDepot
 
 
 def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_date="3000-01-01"):
     index_df = (
-        BroadBasedIndexTicksDepot.load()
+        BroadBasedIndexBarsDepot.load()
         .loc["SSE"]
         .set_index("timestamp")
         .rename(columns={

@@ -1,9 +1,7 @@
 import tradepy
+from tradepy import LOG
 from tradepy.collectors import DataCollector
-from tradepy.warehouse import BroadBasedIndexTicksDepot, SectorIndexTicksDepot
-
-
-# TODO: avoid duplication
+from tradepy.warehouse import BroadBasedIndexBarsDepot, SectorIndexBarsDepot
 
 
 class EastMoneySectorIndexCollector(DataCollector):
@@ -15,10 +13,11 @@ class EastMoneySectorIndexCollector(DataCollector):
             }
 
     def run(self, since_date="1990-01-01", batch_size: int = 20):
-        print("下载东财行业列表")
+        LOG.info('=============== 开始更新行业指数 ===============')
+        LOG.info("下载东财行业列表")
         listing_df = tradepy.ak_api.get_sectors_listing()
 
-        print("下载行业指数日K数据")
+        LOG.info("下载行业指数日K数据")
         results_gen = self.run_batch_jobs(
             list(self._jobs_generator(listing_df)),
             batch_size,
@@ -26,16 +25,15 @@ class EastMoneySectorIndexCollector(DataCollector):
             iteration_pause=3,
         )
 
-        print("保存中")
-        repo = SectorIndexTicksDepot()
-        for args, ticks_df in results_gen:
-            ticks_df = ticks_df.query('timestamp >= @since_date').copy()
+        repo = SectorIndexBarsDepot()
+        for args, bars_df in results_gen:
+            bars_df = bars_df.query('timestamp >= @since_date').copy()
             name = args["name"]  # noqa
             code = listing_df.query('name == @name').iloc[0]["code"]
-            ticks_df["code"] = code
+            bars_df["code"] = code
 
-            repo.append(
-                self.precompute_indicators(ticks_df.copy()),
+            repo.save(
+                self.precompute_indicators(bars_df.copy()),
                 f'{code}.csv'
             )
 
@@ -54,10 +52,12 @@ class BroadBasedIndexCollector(DataCollector):
     }
 
     def run(self):
-        repo = BroadBasedIndexTicksDepot()
+        LOG.info('=============== 开始更新宽基指数 ===============')
+        repo = BroadBasedIndexBarsDepot()
         for code, name in self.code_to_index_name.items():
+            LOG.info(f'下载 {name}')
             df = tradepy.ak_api.get_broad_based_index_ticks(code)
-            repo.append(
+            repo.save(
                 self.precompute_indicators(df.copy()),
                 f'{name}.csv'
             )

@@ -5,6 +5,7 @@ import pandas as pd
 from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
+from tradepy import LOG
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.context import Context
 from tradepy.backtesting.dag import IndicatorsResolver
@@ -77,7 +78,7 @@ class Backtester:
 
         # Compute indicators
         for ind, predecessors in indicators.items():
-            if ind not in bars_df:  # double checked because preproc might add the needed indicators
+            if ind not in bars_df:  # double check because preproc might add the needed indicators
                 method = getattr(strategy, ind)
                 bars_df[ind] = method(*[bars_df[col] for col in predecessors])
 
@@ -85,8 +86,7 @@ class Backtester:
         return strategy.post_process(bars_df)
 
     def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
-
-        print('>>> 获取待计算因子')
+        LOG.info('>>> 获取待计算因子')
         ind_resolv = {
             indicator: predecessors
             for indicator, predecessors in IndicatorsResolver(strategy).get_compute_order().items()
@@ -94,16 +94,16 @@ class Backtester:
         }
 
         if not ind_resolv:
-            print('- 所有因子已存在, 不用再计算')
+            LOG.info('- 所有因子已存在, 不用再计算')
             return df
-        print(f'- 待计算: {list(ind for ind in ind_resolv.keys())}')
+        LOG.info(f'- 待计算: {list(ind for ind in ind_resolv.keys())}')
 
-        print('>>> 重建索引')
+        LOG.info('>>> 重建索引')
         if df.index.name != "code":
             df.reset_index(inplace=True)
             df.set_index("code", inplace=True)
 
-        print('>>> 计算每支个股的技术因子')
+        LOG.info('>>> 计算每支个股的技术因子')
         bars_df = pd.concat(
             self._adjust_then_compute(bars_df.copy(), ind_resolv, strategy)
             for _, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout)
@@ -111,13 +111,13 @@ class Backtester:
 
         return bars_df
 
-    def get_buy_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
+    def get_buy_options(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[tuple[Any, float]]:
         curr_positions = self.account.holdings.position_codes
 
         return [
-            index
+            (index, price)
             for index, *indicators in df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
-            if (index[1] not in curr_positions) and strategy.should_buy(*indicators)
+            if (index[1] not in curr_positions) and (price := strategy.should_buy(*indicators))
         ]
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
@@ -136,14 +136,14 @@ class Backtester:
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
-            print('>>> 重建索引 [timestamp, code]')
+            LOG.info('>>> 重建索引 [timestamp, code]')
             # Index by timestamp: trade in the day order
             #          code: look up the current price for positions in holding
             df.reset_index(inplace=True)
             df.set_index(["timestamp", "code"], inplace=True)
             df.sort_index(inplace=True)
 
-        print('>>> 交易中 ...')
+        LOG.info('>>> 交易中 ...')
         trade_book = TradeBook()
 
         # Per day
@@ -187,17 +187,17 @@ class Backtester:
                 self.account.sell(sell_positions)
 
             # Buy
-            buy_indices = self.get_buy_signals(sub_df, strategy)
-            if buy_indices:
-                pool_df, budget = strategy.get_pool_and_budget(sub_df, buy_indices, self.account.cash_amount)
-                buy_positions = strategy.generate_positions(pool_df, budget)
+            buy_options = self.get_buy_options(sub_df, strategy)  # list[DF_Index, BuyPrice]
+            if buy_options:
+                port_df, budget = strategy.get_portfolio_and_budget(sub_df, buy_options, self.account.cash_amount)
+                buy_positions = strategy.allocate_positions(port_df, budget)
 
                 self.account.buy(buy_positions)
                 for pos in buy_positions:
                     trade_book.buy(timestamp, pos)
 
             # Log this action day
-            if buy_indices or close_indices:
+            if buy_options or close_indices:
                 trade_book.log_capitals(
                     timestamp,
                     self.account.cash_amount,

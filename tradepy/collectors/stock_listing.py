@@ -1,6 +1,7 @@
 import pandas as pd
 
 import tradepy
+from tradepy import LOG
 from tradepy.collectors import DataCollector
 from tradepy.warehouse import ListingDepot
 
@@ -14,10 +15,10 @@ class StocksListingCollector(DataCollector):
             }
 
     def run(self, batch_size: int = 50):
-        print("下载当前A股上市公司列表")
+        LOG.info('=============== 开始更新A股上市公司列表 ===============')
         listing_df = tradepy.ak_api.get_a_stocks_list()
 
-        print("获取个股的东财行业分类信息")
+        LOG.info("获取个股的东财行业分类信息")
         # NOTE: We adopt EM's sector tags so that it is easier to look up stock's related sector index data
         results_gen = self.run_batch_jobs(
             list(self._jobs_generator(listing_df)),
@@ -34,4 +35,4 @@ class StocksListingCollector(DataCollector):
         )
 
         listing_df.to_csv(out_path := ListingDepot.file_path())
-        print(f'已下载至 {out_path}')
+        LOG.info(f'已下载至 {out_path}')
