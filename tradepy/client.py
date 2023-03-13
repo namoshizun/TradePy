@@ -86,7 +86,7 @@ class AkShareClient:
         }, inplace=True)
         indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
         indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
-        indicators_df['timestamp'] = indicators_df['timestamp'].astype(str) 
+        indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
         return pd.merge(df, indicators_df, on="timestamp")
 
     def get_stock_info(self, code: str) -> dict[str, Any]:
@@ -115,7 +115,7 @@ class AkShareClient:
 
     def get_broad_based_index_ticks(self,
                                     code: str,
-                                    start_date: str = "2000-01-01") -> pd.DataFrame:
+                                    start_date: str = "1900-01-01") -> pd.DataFrame:
         df = ak.stock_zh_index_daily(symbol=code)
         df = convert_akshare_stock_index_ticks(df)
         return df.query('timestamp >= @start_date')

@@ -3,6 +3,8 @@ import inspect
 import talib
 import random
 import pandas as pd
+from functools import cache, cached_property
+from itertools import chain
 from collections import defaultdict
 from typing import Any, TypedDict, Generic, TypeVar
 
@@ -10,9 +12,10 @@ from tradepy.backtesting.context import Context
 from tradepy.backtesting.backtester import Backtester
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.position import Position
-from tradepy.decorators import requirement
-from tradepy.types import IndSeries
+from tradepy.core.dag import IndicatorsResolver
+from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
+from tradepy.core import Indicator
 
 
 class TickData(TypedDict):
@@ -28,20 +31,47 @@ class TickData(TypedDict):
     pct_chg: float | None
 
 
-class IndicatorRequirement(TypedDict):
-    notna: bool
-
-
 TickDataType = TypeVar("TickDataType", bound=TickData)
 
 
+class IndicatorsRegistry:
+
+    def __init__(self) -> None:
+        self.registry: dict[str, set[Indicator]] = defaultdict(set)
+
+    def register(self, strategy_class_name: str, indicator: Indicator):
+        self.registry[strategy_class_name].add(indicator)
+
+    @cache
+    def get_specs(self, strategy: "StrategyBase") -> list[Indicator]:
+        ind_iter = chain.from_iterable(
+            self.registry[kls.__name__]
+            for kls in strategy.__class__.__mro__
+        )
+        return list(ind_iter)
+
+    @cache
+    def resolve_execute_order(self, strategy: "StrategyBase") -> list[Indicator]:
+        resolv = IndicatorsResolver(strategy.all_indicators)
+        return resolv.sort_by_execute_order(strategy._required_indicators)
+
+    def __str__(self) -> str:
+        return str(self.registry)
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
 class StrategyBase(Generic[TickDataType]):
+
+    indicators_registry: IndicatorsRegistry = IndicatorsRegistry()
 
     def __init__(self, ctx: Context) -> None:
         self.ctx = ctx
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[1:]
         self.close_indicators: list[str] = inspect.getfullargspec(self.should_close).args[1:]
-        self.indicator_requirements: dict[str, IndicatorRequirement] = defaultdict(dict)  # type: ignore
+
+        self._required_indicators: list[str] = list(self.buy_indicators + self.close_indicators)
 
     def __getattr__(self, name: str):
         return getattr(self.ctx, name)
@@ -50,16 +80,20 @@ class StrategyBase(Generic[TickDataType]):
         return bars_df
 
     def post_process(self, bars_df: pd.DataFrame):
-        notna_indicators = [
-            ind
-            for ind, req in self.indicator_requirements.items()
-            if req.get("notna", False)
+        notna_indicators: list[str] = [
+            ind.name
+            for ind in self.all_indicators
+            if ind.name in self._required_indicators and ind.notna
         ]
 
         if notna_indicators:
             bars_df.dropna(subset=notna_indicators, inplace=True)
 
         return bars_df
+
+    @cached_property
+    def all_indicators(self) -> list[Indicator]:
+        return self.indicators_registry.get_specs(self)
 
     @abc.abstractmethod
     def should_buy(self, *indicators) -> bool | float:
@@ -164,24 +198,18 @@ class StrategyBase(Generic[TickDataType]):
 
 class Strategy(StrategyBase[TickData]):
 
-    def chg(self, close: IndSeries):
-        return (close - close.shift(1)).fillna(0).round(2)
-
-    def pct_chg(self, chg: IndSeries, close: IndSeries):
-        return (100 * chg / close.shift(1)).fillna(0).round(2)
-
-    @requirement(notna=True)
+    @tag(notna=True)
     def ma5(self, close):
         return talib.SMA(close, 5).round(2)
 
-    @requirement(notna=True)
+    @tag(notna=True)
     def ma20(self, close):
         return talib.SMA(close, 20).round(2)
 
-    # @requirement(notna=True)
+    @tag(notna=True)
     def ma60(self, close):
         return talib.SMA(close, 60).round(2)
 
-    # @requirement(notna=True)
+    @tag(notna=True)
     def ma250(self, close):
         return talib.SMA(close, 250).round(2)

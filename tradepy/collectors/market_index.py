@@ -12,7 +12,7 @@ class EastMoneySectorIndexCollector(DataCollector):
                 "name": name,
             }
 
-    def run(self, since_date="1990-01-01", batch_size: int = 20):
+    def run(self, since_date="2000-01-01", batch_size: int = 20):
         LOG.info('=============== 开始更新行业指数 ===============')
         LOG.info("下载东财行业列表")
         listing_df = tradepy.ak_api.get_sectors_listing()
@@ -51,12 +51,12 @@ class BroadBasedIndexCollector(DataCollector):
         "sh000016": "SSE-50",
     }
 
-    def run(self):
+    def run(self, start_date: str = "2000-01-01"):
         LOG.info('=============== 开始更新宽基指数 ===============')
         repo = BroadBasedIndexBarsDepot()
         for code, name in self.code_to_index_name.items():
             LOG.info(f'下载 {name}')
-            df = tradepy.ak_api.get_broad_based_index_ticks(code)
+            df = tradepy.ak_api.get_broad_based_index_ticks(code, start_date)
             repo.save(
                 self.precompute_indicators(df.copy()),
                 f'{name}.csv'

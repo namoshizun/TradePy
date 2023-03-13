@@ -58,9 +58,9 @@ class GenericBarsDepot:
                         yield load(path)
 
     def _generic_load_bars(self,
-                            index_by: str | list[str] = "code",
-                            cache_key=None,
-                            cache=False) -> pd.DataFrame:
+                           index_by: str | list[str] = "code",
+                           cache_key=None,
+                           cache=False) -> pd.DataFrame:
 
         if cache:
             assert cache_key
@@ -102,6 +102,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
     def _load(self,
              index_by: str | list[str] = "code",
              since_date: str | None = None,
+             until_date: str | None = None,
              fields: str = default_loaded_fields) -> pd.DataFrame:
 
         def loader() -> Generator[pd.DataFrame, None, None]:
@@ -125,8 +126,10 @@ class StocksDailyBarsDepot(GenericBarsDepot):
                     market = convert_code_to_market(code)
                     df[["company", "market"]] = company, market
 
-                if since_date:
-                    yield df.query(f'timestamp >= "{since_date}"')
+                if since_date or until_date:
+                    _since_date = since_date or "2000-01-01"  # noqa
+                    _until_date = until_date or "3000-01-01"  # noqa
+                    yield df.query('@_until_date >= timestamp >= @_since_date')
                 else:
                     yield df
 

@@ -1,4 +1,5 @@
 import sys
+import random
 import numba as nb
 import numpy as np
 import pandas as pd
@@ -8,7 +9,7 @@ from tqdm import tqdm
 from tradepy import LOG
 from tradepy.backtesting.account import TradeBook
 from tradepy.backtesting.context import Context
-from tradepy.backtesting.dag import IndicatorsResolver
+from tradepy.core.indicator import Indicator
 
 if TYPE_CHECKING:
     from tradepy.backtesting.strategy import StrategyBase, TickDataType
@@ -56,7 +57,7 @@ class Backtester:
         bars_df["pct_chg"] = (100 * (bars_df['chg'] / bars_df['close'].shift(1))).fillna(0)
         return bars_df.round(2)
 
-    def _adjust_then_compute(self, bars_df, indicators, strategy: "StrategyBase"):
+    def _adjust_then_compute(self, bars_df, indicators: list[Indicator], strategy: "StrategyBase"):
         code = bars_df.index[0]
         bars_df.sort_values("timestamp", inplace=True)
         bars_df = strategy.pre_process(bars_df)
@@ -77,26 +78,35 @@ class Backtester:
                 return pd.DataFrame()
 
         # Compute indicators
-        for ind, predecessors in indicators.items():
-            if ind not in bars_df:  # double check because preproc might add the needed indicators
-                method = getattr(strategy, ind)
-                bars_df[ind] = method(*[bars_df[col] for col in predecessors])
+        for ind in indicators:
+            if ind.name in bars_df:
+                # double check because a multi-output indicator might yield other indicators
+                continue
+
+            method = getattr(strategy, ind.name)
+            result = method(*[bars_df[col] for col in ind.predecessors])
+
+            if ind.is_multi_output:
+                for idx, out_col in enumerate(ind.outputs):
+                    bars_df[out_col] = result[idx]
+            else:
+                bars_df[ind.outputs[0]] = result
 
         # Post-process and done
         return strategy.post_process(bars_df)
 
     def get_indicators_df(self, df: pd.DataFrame, strategy: "StrategyBase") -> pd.DataFrame:
         LOG.info('>>> 获取待计算因子')
-        ind_resolv = {
-            indicator: predecessors
-            for indicator, predecessors in IndicatorsResolver(strategy).get_compute_order().items()
-            if indicator not in df
-        }
+        indicators = [
+            ind
+            for ind in strategy.indicators_registry.resolve_execute_order(strategy)
+            if not set(ind.outputs).issubset(set(df.columns))
+        ]
 
-        if not ind_resolv:
+        if not indicators:
             LOG.info('- 所有因子已存在, 不用再计算')
             return df
-        LOG.info(f'- 待计算: {list(ind for ind in ind_resolv.keys())}')
+        LOG.info(f'- 待计算: {indicators}')
 
         LOG.info('>>> 重建索引')
         if df.index.name != "code":
@@ -105,7 +115,7 @@ class Backtester:
 
         LOG.info('>>> 计算每支个股的技术因子')
         bars_df = pd.concat(
-            self._adjust_then_compute(bars_df.copy(), ind_resolv, strategy)
+            self._adjust_then_compute(bars_df.copy(), indicators, strategy)
             for _, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout)
         )
 
@@ -113,9 +123,10 @@ class Backtester:
 
     def get_buy_options(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[tuple[Any, float]]:
         curr_positions = self.account.holdings.position_codes
+        jitter_price = lambda p: p * random.uniform(1 - 1e-4 * 5, 1 + 1e-4 * 5)  # 0.05% slip
 
         return [
-            (index, price)
+            (index, jitter_price(price))
             for index, *indicators in df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
             if (index[1] not in curr_positions) and (price := strategy.should_buy(*indicators))
         ]

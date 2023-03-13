@@ -6,7 +6,7 @@ import talib
 
 import tradepy
 from tradepy.backtesting.strategy import Strategy
-from tradepy.decorators import requirement
+from tradepy.decorators import tag
 from tradepy.warehouse import BroadBasedIndexBarsDepot, SectorIndexBarsDepot
 from tradepy.types import Markets
 
@@ -23,22 +23,10 @@ ROLL_USE_NUMBA = dict(engine='numba', raw=True)
 class MA60SupportStrategy(Strategy):
 
     def __patch_index_data(self, df: pd.DataFrame, idx_df: pd.DataFrame, prefix: str):
-        indicator_cols = ["ema5", "ema20", "rsi6", "macd"]
-
-        # Rename columns
-        ind_df = idx_df[indicator_cols + ["timestamp"]].copy()
+        ind_df = idx_df[["close", "timestamp"]].copy()
+        ind_df.rename(columns={"close": f'{prefix}_close'}, inplace=True)
         ind_df.set_index("timestamp", inplace=True)
-
-        for col in indicator_cols:
-            ind_df[f'{prefix}_{col}_ref1'] = ind_df[col].shift(1).values
-        ind_df.rename(columns={
-            col: f"{prefix}_{col}"
-            for col in indicator_cols
-        }, inplace=True)
-
         ind_df.dropna(inplace=True)
-
-        # Patch the index bars
         return df.join(ind_df, on="timestamp")
 
     def pre_process(self, bars_df: pd.DataFrame):
@@ -75,37 +63,68 @@ class MA60SupportStrategy(Strategy):
         board_df = BroadBasedIndexBarsDepot.load(cache=True).loc[board_name]
         return self.__patch_index_data(bars_df, board_df, prefix="board")
 
-    @requirement(notna=True)  # type: ignore
+    @tag(notna=True)
     def ma59_ref1(self, close):
         return talib.SMA(close, 59).shift(1).round(2)
 
-    @requirement(notna=True)  # type: ignore
-    def ref1_ma59_chg_20(self, ma59_ref1):
+    @tag(notna=True)
+    def ma60_observed(self, open, ma59_ref1):
+        return (ma59_ref1 * 59 + open) / 60
+
+    @tag(notna=True)
+    def ma59_ref1_chg_20(self, ma59_ref1):
         wsize = 20
         return ma59_ref1.rolling(wsize).apply(calc_chg_degree, **ROLL_USE_NUMBA).round(2)
 
-    @requirement(notna=True)  # type: ignore
+    @tag(notna=True)
     def n_below_ma60_past_4(self, low, ma60):
         wsize = 4
         dist_ma60 = (100 * (low - ma60) / ma60).round(2)
         return dist_ma60.rolling(wsize, closed="left").apply(lambda w: (w < 0).sum())
 
-    @requirement(notna=True)  # type: ignore
+    @tag(notna=True)
     def n_limit_downs_past_5(self, pct_chg):
         wsize = 5
         return pct_chg.rolling(wsize, closed="left").apply(lambda w: (w <= -9.5).sum())
 
-    def __price_within_ma60_support(self, ma59_ref1, open, low, high) -> float | None:
-        open_ma60 = (ma59_ref1 * 59 + open) / 60
+    @tag(notna=True, outputs=["board_ema5", "board_ema20", "board_macd", "board_rsi6"])
+    def board_index_indicators(self, board_close: pd.Series):
+        ema5 = talib.EMA(board_close, 5)
+        ema20 = talib.EMA(board_close, 20)
+        _, _, macdhist = talib.MACD(board_close)
+        rsi6 = talib.RSI(board_close, 6)
+        return ema5, ema20, macdhist * 2, rsi6
 
-        upper_thres = open_ma60 * (1 + self.ma60_dist_thres * 1e-2)
-        lower_thres = open_ma60 * (1 - self.ma60_dist_thres * 1e-2)
+    @tag(outputs=["sector_ema5", "sector_ema20", "sector_macd"])
+    def sector_index_indicators(self, sector_close):
+        ema5 = talib.EMA(sector_close, 5)
+        ema20 = talib.EMA(sector_close, 20)
+        _, _, macdhist = talib.MACD(sector_close)
+        rsi6 = talib.RSI(sector_close, 6)
+        return ema5, ema20, macdhist * 2, rsi6
+
+    @tag(notna=True, outputs=["board_ema5_ref1", "board_ema20_ref1", "board_macd_ref1", "board_rsi6_ref1"])
+    def board_index_indicators_ref1(self, board_ema5, board_ema20, board_macd, board_rsi6):
+        return board_ema5.shift(1), \
+            board_ema20.shift(1), \
+            board_macd.shift(1), \
+            board_rsi6.shift(1)
+
+    @tag(outputs=["sector_ema5_ref1", "sector_ema20_ref1", "sector_macd_ref1"])  # type: ignore
+    def sector_index_indicators_ref1(self, sector_ema5, sector_ema20, sector_macd):
+        return sector_ema5.shift(1), \
+            sector_ema20.shift(1), \
+            sector_macd.shift(1)
+
+    def __price_within_ma60_support(self, ma60_observed, open, low, high) -> float | None:
+        upper_thres = ma60_observed * (1 + self.ma60_dist_thres * 1e-2)
+        lower_thres = ma60_observed * (1 - self.ma60_dist_thres * 1e-2)
 
         if lower_thres < open < upper_thres:
             return open
-        elif (open > upper_thres) and (low < upper_thres):
+        elif (open > upper_thres) and (low <= upper_thres):
             return upper_thres
-        elif (open < lower_thres) and (high > lower_thres):
+        elif (open < lower_thres) and (high >= lower_thres):
             return lower_thres
 
         return None
@@ -114,7 +133,8 @@ class MA60SupportStrategy(Strategy):
                    mkt_cap_rank,
                    n_below_ma60_past_4,
                    n_limit_downs_past_5,
-                   ma59_ref1, ref1_ma59_chg_20,
+                   ma59_ref1_chg_20,
+                   ma60_observed,
                    open, low, high,
                    board_rsi6_ref1,
                    board_macd_ref1,
@@ -129,7 +149,7 @@ class MA60SupportStrategy(Strategy):
             return False
 
         # Stock trend still not good
-        if ref1_ma59_chg_20 > 5:
+        if ma59_ref1_chg_20 > 5:
             return False
 
         # Avoid limit downs
@@ -140,7 +160,7 @@ class MA60SupportStrategy(Strategy):
         if n_below_ma60_past_4 > 0:
             return False
 
-        if buy_price := self.__price_within_ma60_support(ma59_ref1, open, low, high):
+        if buy_price := self.__price_within_ma60_support(ma60_observed, open, low, high):
             # The exchange price is within the MA60 support, but we still need to
             # check for Beta signals
             if board_rsi6_ref1 < 15:
