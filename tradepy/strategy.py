@@ -8,10 +8,10 @@ from itertools import chain
 from collections import defaultdict
 from typing import Any, TypedDict, Generic, TypeVar
 
-from tradepy.backtesting.context import Context
-from tradepy.backtesting.backtester import Backtester
-from tradepy.backtesting.account import TradeBook
-from tradepy.backtesting.position import Position
+from tradepy.core.context import Context
+from tradepy.backtester import Backtester
+from tradepy.core.trade_book import TradeBook
+from tradepy.core.position import Position
 from tradepy.core.dag import IndicatorsResolver
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg

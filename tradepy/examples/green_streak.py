@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-from tradepy.backtesting.strategy import Strategy
+from tradepy.strategy import Strategy
 
 
 class GreenStreakStrategy(Strategy):

@@ -9,6 +9,7 @@
 token.txt
 *.ipynb
 datasets/
+database/
 results/
 backup/
 .ipynb_checkpoints/

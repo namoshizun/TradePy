@@ -3,7 +3,7 @@ from tradepy.core.indicator import Indicator
 
 
 def tag(outputs=list(), notna=False):
-    from tradepy.backtesting.strategy import StrategyBase
+    from tradepy.strategy import StrategyBase
     assert isinstance(outputs, list)
 
     def inner(ind_fun):

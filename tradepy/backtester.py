@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
 from tradepy import LOG
-from tradepy.backtesting.account import TradeBook
-from tradepy.backtesting.context import Context
+from tradepy.core.trade_book import TradeBook
+from tradepy.core.context import Context
 from tradepy.core.indicator import Indicator
 
 if TYPE_CHECKING:
-    from tradepy.backtesting.strategy import StrategyBase, TickDataType
+    from tradepy.strategy import StrategyBase, TickDataType
 
 
 @nb.njit
@@ -163,7 +163,7 @@ class Backtester:
 
             # Opening
             price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]
-            self.account.tick(price_lookup)
+            self.account.update(price_lookup)
 
             # Sell
             close_indices = self.get_close_signals(sub_df, strategy)

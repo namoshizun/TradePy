@@ -1,5 +1,5 @@
 import pandas as pd
-from tradepy.backtesting.strategy import GreenStreakStrategy
+from tradepy.strategy import GreenStreakStrategy
 
 df = pd.read_csv("/Users/dilu/Desktop/Software/Stock/datasets/daily/000001.SZ.csv")
 df["code"] = "000001"

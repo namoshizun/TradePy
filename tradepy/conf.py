@@ -5,5 +5,4 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-
-    dataset_dir: pathlib.Path = pathlib.Path(os.getcwd()) / "datasets"
+    database_dir: pathlib.Path = pathlib.Path(os.getcwd()) / "database"

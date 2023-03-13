@@ -2,7 +2,7 @@ import pathlib
 from tqdm import tqdm
 
 from tradepy.stocks import StocksPool
-from tradepy.client import AkShareClient
+from tradepy.vendors.akshare import AkShareClient
 from tradepy.conf import Config
 
 
@@ -23,7 +23,7 @@ def _init_dataset_dir(path: str | pathlib.Path):
 
     if not _path.exists():
         raise FileNotFoundError(f'Dataset directory {path} does not exist')
-    config.dataset_dir = _path
+    config.database_dir = _path
 
 
 def initialize(dataset_dir: str | pathlib.Path):

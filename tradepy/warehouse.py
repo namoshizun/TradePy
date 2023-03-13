@@ -18,7 +18,7 @@ class GenericBarsDepot:
 
     def __init__(self) -> None:
         assert isinstance(self.folder_name, str)
-        self.folder = tradepy.config.dataset_dir / self.folder_name
+        self.folder = tradepy.config.database_dir / self.folder_name
         self.folder.mkdir(parents=True, exist_ok=True)
 
     def size(self) -> int:
@@ -160,14 +160,14 @@ class StockMinuteBarsDepot(GenericBarsDepot):
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.dataset_dir / AdjustFactorDepot.file_name
+        return tradepy.config.database_dir / AdjustFactorDepot.file_name
 
     def _load(self, index_by: str | list[str] = "timestamp", date: str | None = None,) -> pd.DataFrame:
         date = date or str(get_latest_trade_date())
         if not self.exists(date):
             raise FileNotFoundError(f'Minute bars data not found for date: {date}')
 
-        path = tradepy.config.dataset_dir / self.folder_name / f'{date}.csv'
+        path = tradepy.config.database_dir / self.folder_name / f'{date}.csv'
         df = pd.read_csv(path, index_col=index_by, dtype={"code": str})
         df.sort_index(inplace=True)
         return df
@@ -207,7 +207,7 @@ class AdjustFactorDepot:
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.dataset_dir / AdjustFactorDepot.file_name
+        return tradepy.config.database_dir / AdjustFactorDepot.file_name
 
     @staticmethod
     def load() -> pd.DataFrame:
@@ -226,7 +226,7 @@ class ListingDepot:
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.dataset_dir / ListingDepot.file_name
+        return tradepy.config.database_dir / ListingDepot.file_name
 
     @staticmethod
     def load() -> pd.DataFrame:

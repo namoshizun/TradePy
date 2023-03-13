@@ -1,5 +1,5 @@
 import pandas as pd
-from tradepy.backtesting.strategy import GreenStreakStrategy
+from tradepy.strategy import GreenStreakStrategy
 
 
 df = pd.DataFrame(

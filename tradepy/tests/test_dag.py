@@ -1,4 +1,4 @@
-from tradepy.backtesting.context import china_market_context
+from tradepy.core.context import china_market_context
 from tradepy.strategy.ma60_support import MA60SupportStrategy
 from tradepy.core.dag import IndicatorsResolver
 

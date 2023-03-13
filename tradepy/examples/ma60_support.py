@@ -5,7 +5,7 @@ import numba as nb
 import talib
 
 import tradepy
-from tradepy.backtesting.strategy import Strategy
+from tradepy.strategy import Strategy
 from tradepy.decorators import tag
 from tradepy.warehouse import BroadBasedIndexBarsDepot, SectorIndexBarsDepot
 from tradepy.types import Markets
