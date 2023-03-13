@@ -130,3 +130,16 @@ def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:
 
     df["timestamp"] = df["timestamp"].astype(str)
     return df
+
+
+def convert_akshare_minute_bar(df: pd.DataFrame) -> pd.DataFrame:
+    mappings = {
+        '时间': 'timestamp',
+        '开盘': 'open',
+        '收盘': 'close',
+        '最高': 'high',
+        '最低': 'low',
+        '成交量': 'vol',
+    }
+    df.rename(columns=mappings, inplace=True)
+    return df[list(mappings.values())]

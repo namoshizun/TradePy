@@ -10,7 +10,7 @@ def get_latest_trade_date() -> date:
     today_str = str(today)
 
     for idx, trade_date in enumerate(tradepy.trade_cal.trade_cal):
-        if trade_date == today:
+        if trade_date == today_str:
             return today
         elif trade_date < today_str:
             return date_parser.parse(tradepy.trade_cal.trade_cal[idx]).date()

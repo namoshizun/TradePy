@@ -10,7 +10,7 @@ from tradepy.warehouse import StocksDailyBarsDepot
 from tradepy.collectors import DataCollector
 
 
-class StockPricesCollector(DataCollector):
+class StockDayBarsCollector(DataCollector):
 
     def __init__(self, since_date: str | date | None = None) -> None:
         if not since_date:
@@ -22,7 +22,7 @@ class StockPricesCollector(DataCollector):
         self.repo = StocksDailyBarsDepot()
 
     def _jobs_generator(self):
-        LOG.info("检查本地个股数据是否需要更新")
+        LOG.info(f"检查本地个股数据是否需要更新. 起始日期 {self.since_date}")
         repo_iter = self.repo.traverse(always_load=True)
         curr_codes = list()
 

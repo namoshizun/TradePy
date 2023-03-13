@@ -8,6 +8,7 @@ from typing import Any, Generator
 
 import tradepy
 from tradepy.convertion import convert_code_to_market
+from tradepy.utils import get_latest_trade_date
 
 
 class GenericBarsDepot:
@@ -121,7 +122,8 @@ class StocksDailyBarsDepot(GenericBarsDepot):
                 assert isinstance(df, pd.DataFrame)
                 df["code"] = code
 
-                if not set(["company", "market"]).issubset(df.columns):
+                if not set(["company", "market"]).issubset(df.columns) or \
+                    df[["company", "market"]].isna().any(axis=1).any():
                     company = tradepy.listing.get_by_code(code).name
                     market = convert_code_to_market(code)
                     df[["company", "market"]] = company, market
@@ -149,6 +151,25 @@ class StocksDailyBarsDepot(GenericBarsDepot):
             else:
                 _fields = list(set(_fields) - set(index_by))
             return df[_fields]
+        return df
+
+
+class StockMinuteBarsDepot(GenericBarsDepot):
+
+    folder_name = "daily.stocks.minutes"
+
+    @staticmethod
+    def file_path() -> Path:
+        return tradepy.config.dataset_dir / AdjustFactorDepot.file_name
+
+    def _load(self, index_by: str | list[str] = "timestamp", date: str | None = None,) -> pd.DataFrame:
+        date = date or str(get_latest_trade_date())
+        if not self.exists(date):
+            raise FileNotFoundError(f'Minute bars data not found for date: {date}')
+
+        path = tradepy.config.dataset_dir / self.folder_name / f'{date}.csv'
+        df = pd.read_csv(path, index_col=index_by, dtype={"code": str})
+        df.sort_index(inplace=True)
         return df
 
 

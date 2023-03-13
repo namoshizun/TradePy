@@ -7,6 +7,7 @@ from functools import wraps
 
 import tradepy
 from tradepy.convertion import (
+    convert_akshare_minute_bar,
     convert_code_to_exchange,
     convert_akshare_hist_data,
     convert_akshare_stock_info,
@@ -88,6 +89,17 @@ class AkShareClient:
         indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
         indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
         return pd.merge(df, indicators_df, on="timestamp")
+
+    def get_minute_bar(self,
+                       code: str,
+                       start_date: datetime.date | str,
+                       period="1") -> pd.DataFrame:
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+
+        df = ak.stock_zh_a_hist_min_em(symbol=code, start_date=str(start_date), period=period)
+        df = convert_akshare_minute_bar(df)
+        return df
 
     def get_stock_info(self, code: str) -> dict[str, Any]:
         df = ak.stock_individual_info_em(symbol=code)

@@ -110,7 +110,7 @@ class MA60SupportStrategy(Strategy):
             board_macd.shift(1), \
             board_rsi6.shift(1)
 
-    @tag(outputs=["sector_ema5_ref1", "sector_ema20_ref1", "sector_macd_ref1"])  # type: ignore
+    @tag(outputs=["sector_ema5_ref1", "sector_ema20_ref1", "sector_macd_ref1"])
     def sector_index_indicators_ref1(self, sector_ema5, sector_ema20, sector_macd):
         return sector_ema5.shift(1), \
             sector_ema20.shift(1), \
