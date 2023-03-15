@@ -12,7 +12,7 @@ from tradepy.core.context import Context
 from tradepy.core.indicator import Indicator
 
 if TYPE_CHECKING:
-    from tradepy.strategy import StrategyBase, TickDataType
+    from tradepy.core.strategy import StrategyBase, BarDataType
 
 
 @nb.njit
@@ -163,7 +163,7 @@ class Backtester:
 
             # Opening
             price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]
-            self.account.update(price_lookup)
+            self.account.update_holdings(price_lookup)
 
             # Sell
             close_indices = self.get_close_signals(sub_df, strategy)
@@ -174,7 +174,7 @@ class Backtester:
                     # Not a tradable day, so nothing to do
                     continue
 
-                bar: TickDataType = sub_df.loc[index].to_dict()  # type: ignore
+                bar: BarDataType = sub_df.loc[index].to_dict()  # type: ignore
 
                 # [1] Take profit
                 if take_profit_price := strategy.should_take_profit(bar, pos):

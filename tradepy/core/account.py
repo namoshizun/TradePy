@@ -1,8 +1,8 @@
 from dataclasses import asdict, dataclass, field
 from typing import Iterable
-
 from tradepy.core.holdings import Holdings
 from tradepy.core.position import Position
+from tradepy.decorators import require_mode
 from tradepy.utils import round_val
 
 
@@ -15,18 +15,29 @@ class Account:
     cash_amount: float = 0
     holdings: Holdings = field(default_factory=Holdings)
 
-    def update(self, price_lookup: Holdings.PriceLookupFun):
-        if any(self.holdings):
-            self.holdings.tick(price_lookup)
+    @classmethod
+    def from_dict(cls, data) -> "Account":
+        holdings = Holdings.from_list(data["holdings"])
+        return cls(
+            cash_amount=data["cash_amount"],
+            holdings=holdings
+        )
 
+    def update_holdings(self, price_lookup: Holdings.PriceLookupFun):
+        if any(self.holdings):
+            self.holdings.update_price(price_lookup)
+
+    @require_mode("backtest")
     def buy(self, positions: Iterable[Position]):
         if cost_total := self.holdings.buy(positions):
             self.cash_amount -= self.add_buy_commissions(cost_total)
 
+    @require_mode("backtest")
     def sell(self, positions: Iterable[Position]):
         if close_total := self.holdings.sell(positions):
             self.cash_amount += self.take_sell_commissions(close_total)
 
+    @require_mode("backtest")
     def clear(self):
         all_positions = [
             pos

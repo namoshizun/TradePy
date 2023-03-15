@@ -1,5 +1,5 @@
 import pandas as pd
-from tradepy.strategy import GreenStreakStrategy
+from tradepy.core.strategy import GreenStreakStrategy
 
 
 df = pd.DataFrame(

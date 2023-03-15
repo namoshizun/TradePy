@@ -1,9 +1,12 @@
 import inspect
+import tradepy
+from tradepy.core.conf import ModeType
+from tradepy.core.exceptions import OperationForbiddne
 from tradepy.core.indicator import Indicator
 
 
 def tag(outputs=list(), notna=False):
-    from tradepy.strategy import StrategyBase
+    from tradepy.core.strategy import StrategyBase
     assert isinstance(outputs, list)
 
     def inner(ind_fun):
@@ -46,4 +49,14 @@ def tag(outputs=list(), notna=False):
             StrategyBase.indicators_registry.register(strategy_class_name, out_ind)
 
         return dec
+    return inner
+
+
+def require_mode(mode: ModeType):
+    def inner(fun):
+        def decor(*args, **kwargs):
+            if tradepy.config.mode != mode:
+                raise OperationForbiddne(f'Method {fun} is not allowed in {mode} mode')
+            return fun(*args, **kwargs)
+        return decor
     return inner

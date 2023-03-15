@@ -1,6 +1,7 @@
 from typing import Callable, Iterable
 from contextlib import suppress
 from tradepy.core.position import Position
+from tradepy.decorators import require_mode
 
 
 class Holdings:
@@ -14,11 +15,36 @@ class Holdings:
     def position_codes(self) -> set[str]:
         return set(code for code, _ in self)
 
-    def tick(self, price_lookup: PriceLookupFun):
+    def as_list(self):
+        return [
+            pos.as_dict()
+            for pos in self.positions.values()
+        ]
+
+    @classmethod
+    def from_list(cls, data) -> "Holdings":
+        positions = {
+            pos["code"]: Position(
+                id=pos["id"],
+                latest_price=pos["latest_price"],
+                timestamp=pos["timestamp"],
+                code=pos["code"],
+                company=pos["company"],
+                price=pos["price"],
+                shares=pos["shares"],
+            )
+            for pos in data
+        }
+        instance = cls()
+        instance.positions = positions
+        return instance
+
+    def update_price(self, price_lookup: PriceLookupFun):
         for _, pos in self:
             with suppress(KeyError):
-                pos.tick(price_lookup(pos.code))
+                pos.update_price(price_lookup(pos.code))
 
+    @require_mode("backtest")
     def buy(self, positions: Iterable[Position]) -> float:
         total = 0
 
@@ -31,6 +57,7 @@ class Holdings:
 
         return total
 
+    @require_mode("backtest")
     def sell(self, positions: Iterable[Position]) -> float:
         total = 0
 

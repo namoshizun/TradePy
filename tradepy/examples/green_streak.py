@@ -1,6 +1,7 @@
 import re
 import pandas as pd
-from tradepy.strategy import Strategy
+from tradepy.core.strategy import Strategy
+from tradepy.decorators import tag
 
 
 class GreenStreakStrategy(Strategy):
@@ -12,12 +13,9 @@ class GreenStreakStrategy(Strategy):
 
         return bars_df
 
-    def post_process(self, bars_df: pd.DataFrame):
-        bars_df.dropna(inplace=True)
-        return bars_df
-
+    @tag(notna=True)
     def n_greens(self, chg):
         return (chg < 0).rolling(window=self.streak_window).sum()
 
-    def should_buy(self, n_greens, company):
+    def should_buy(self, n_greens):
         return n_greens >= self.green_streaks_threshold

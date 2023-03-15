@@ -18,7 +18,7 @@ from tradepy.utils import calc_pct_chg
 from tradepy.core import Indicator
 
 
-class TickData(TypedDict):
+class BarData(TypedDict):
     code: str
     timestamp: str
     open: float
@@ -31,7 +31,7 @@ class TickData(TypedDict):
     pct_chg: float | None
 
 
-TickDataType = TypeVar("TickDataType", bound=TickData)
+BarDataType = TypeVar("BarDataType", bound=BarData)
 
 
 class IndicatorsRegistry:
@@ -62,7 +62,7 @@ class IndicatorsRegistry:
         return str(self)
 
 
-class StrategyBase(Generic[TickDataType]):
+class StrategyBase(Generic[BarDataType]):
 
     indicators_registry: IndicatorsRegistry = IndicatorsRegistry()
 
@@ -102,7 +102,7 @@ class StrategyBase(Generic[TickDataType]):
     def should_close(self, *indicators) -> bool:
         return False
 
-    def should_stop_loss(self, tick: TickDataType, position: Position) -> float | None:
+    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
         # During opening
         open_pct_chg = calc_pct_chg(position.price, tick["open"])
         if open_pct_chg <= -self.stop_loss:
@@ -113,7 +113,7 @@ class StrategyBase(Generic[TickDataType]):
         if low_pct_chg <= -self.stop_loss:
             return position.price_at_pct_change(-self.stop_loss)
 
-    def should_take_profit(self, tick: TickDataType, position: Position) -> float | None:
+    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
         # During opening
         open_pct_chg = calc_pct_chg(position.price, tick["open"])
         if open_pct_chg >= self.take_profit:
@@ -184,19 +184,19 @@ class StrategyBase(Generic[TickDataType]):
         ]
 
     @classmethod
-    def backtest(cls, ticks_data: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
+    def backtest(cls, bars_df: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
         instance = cls(ctx)
         bt = Backtester(ctx)
-        return bt.run(ticks_data.copy(), instance)
+        return bt.run(bars_df.copy(), instance)
 
     @classmethod
-    def get_indicators_df(cls, ticks_data: pd.DataFrame, ctx: Context) -> pd.DataFrame:
+    def get_indicators_df(cls, bars_df: pd.DataFrame, ctx: Context) -> pd.DataFrame:
         bt = Backtester(ctx)
         strategy = cls(ctx)
-        return bt.get_indicators_df(ticks_data.copy(), strategy)
+        return bt.get_indicators_df(bars_df.copy(), strategy)
 
 
-class Strategy(StrategyBase[TickData]):
+class Strategy(StrategyBase[BarData]):
 
     @tag(notna=True)
     def ma5(self, close):

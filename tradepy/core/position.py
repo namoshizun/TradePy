@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from tradepy.utils import calc_pct_chg, round_val
 
@@ -13,15 +13,30 @@ class Position:
     price: float
     shares: int
 
-    latest_price: float = field(init=False)
-    id: str = field(init=False)
-    days_held = 0
+    latest_price: float = 0
+    id: str = ""
 
     def __post_init__(self):
-        self.latest_price = self.price
+        if not self.latest_price:
+            self.latest_price = self.price
 
-        uuid_piece = str(uuid.uuid4()).split('-')[1]
-        self.id = f'{self.company}-{uuid_piece}'
+        if not self.id:
+            uuid_piece = str(uuid.uuid4()).split('-')[1]
+            self.id = f'{self.company}-{uuid_piece}'
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp,
+            "code": self.code,
+            "company": self.company,
+            "shares": self.shares,
+            "cost_price": self.price,
+            "latest_price": self.latest_price,
+            "profit": self.profit_or_loss_at(self.latest_price),
+            "value": self.total_value_at(self.latest_price),
+            "pct_chg": self.pct_chg_at(self.latest_price)
+        }
 
     @property
     @round_val
@@ -48,8 +63,7 @@ class Position:
     def price_at_pct_change(self, pct: float):
         return self.price * (1 + pct * 1e-2)
 
-    def tick(self, price: float):
-        self.days_held += 1
+    def update_price(self, price: float):
         self.latest_price = price
 
     def close(self, price: float):
@@ -62,7 +76,7 @@ class Position:
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f'[{self.timestamp} + {self.days_held or 0}] {self.code}: {self.price} ({pct_chg}%) * {self.shares}'
+        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.shares}'
         return msg
 
     def __repr__(self):
