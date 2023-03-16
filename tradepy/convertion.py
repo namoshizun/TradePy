@@ -143,3 +143,20 @@ def convert_akshare_minute_bar(df: pd.DataFrame) -> pd.DataFrame:
     }
     df.rename(columns=mappings, inplace=True)
     return df[list(mappings.values())]
+
+
+def convert_akshare_current_quotation(df: pd.DataFrame) -> pd.DataFrame:
+    mappings = {
+        "代码": "code",
+        "名称": "company",
+        "涨跌幅": "pct_chg",
+        "涨跌额": "chg",
+        "成交量": "vol",
+        "最新价": "price",
+        "最高": "high",
+        "最低": "low",
+        "今开": "open",
+        "换手率": "turnover",
+    }
+    df.rename(columns=mappings, inplace=True)
+    return df[list(mappings.values())]

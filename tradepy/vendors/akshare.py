@@ -7,6 +7,7 @@ from functools import wraps
 
 import tradepy
 from tradepy.convertion import (
+    convert_akshare_current_quotation,
     convert_akshare_minute_bar,
     convert_code_to_exchange,
     convert_akshare_hist_data,
@@ -108,6 +109,10 @@ class AkShareClient:
             row["item"]: row["value"]
             for _, row in df.iterrows()
         })
+
+    def get_current_quote(self) -> pd.DataFrame:
+        df = ak.stock_zh_a_spot_em()
+        return convert_akshare_current_quotation(df)
 
     # -----
     # Index

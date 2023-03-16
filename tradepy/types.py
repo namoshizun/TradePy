@@ -49,3 +49,13 @@ class TradeActions:
 
 
 IndSeries = pd.Series
+
+
+class MarketPhase:
+    CLOSED = "closed"
+    LUNCHBREAK = "lunchbreak"
+    PRE_OPEN = "pre-open"
+    PRE_OPEN_BID_P1 = "pre-open-bidding-phase-1"
+    PRE_OPEN_BID_P2 = "pre-open-bidding-phase-2"
+    INDAY_BID = "intraday-bidding"
+    PRE_CLOSE_BID = "pre-close-bidding"

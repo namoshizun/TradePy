@@ -1,5 +1,11 @@
+import os
+import time
+import errno
+import signal
 import inspect
 import tradepy
+import functools
+from contextlib import contextmanager
 from tradepy.core.conf import ModeType
 from tradepy.core.exceptions import OperationForbiddne
 from tradepy.core.indicator import Indicator
@@ -60,3 +66,33 @@ def require_mode(mode: ModeType):
             return fun(*args, **kwargs)
         return decor
     return inner
+
+
+def timeout(seconds, error_message=os.strerror(errno.ETIMEDOUT)):
+    def decor(func):
+        def _handle_timeout(signum, frame):
+            raise TimeoutError(error_message)
+
+        @functools.wraps(func)
+        def inner(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return inner
+
+    return decor
+
+
+@contextmanager
+def timeit():
+    timer = dict()
+    timer["start"] = start = time.time()
+    yield timer
+    timer["end"] = end = time.time()
+    timer["seconds"] = round(end - start, 2)
+    timer["millseconds"] = round(100 * (end - start), 1)

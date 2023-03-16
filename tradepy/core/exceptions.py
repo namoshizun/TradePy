@@ -1,2 +1,6 @@
 class OperationForbiddne(Exception):
     ...
+
+
+class TimeoutException(Exception):
+    ...
