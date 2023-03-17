@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
 from tradepy import LOG
+from tradepy.core.position import Position
 from tradepy.core.trade_book import TradeBook
 from tradepy.core.context import Context
 from tradepy.core.indicator import Indicator
@@ -121,14 +122,18 @@ class Backtester:
 
         return bars_df
 
-    def get_buy_options(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[tuple[Any, float]]:
-        curr_positions = self.account.holdings.position_codes
+    def get_buy_options(self,
+                        df: pd.DataFrame,
+                        strategy: "StrategyBase",
+                        sell_positions: list[Position]) -> list[tuple[Any, float]]:
+        sold_or_holding_codes = self.account.holdings.position_codes | \
+            set(pos.code for pos in sell_positions)
         jitter_price = lambda p: p * random.uniform(1 - 1e-4 * 5, 1 + 1e-4 * 5)  # 0.05% slip
 
         return [
             (index, jitter_price(price))
             for index, *indicators in df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
-            if (index[1] not in curr_positions) and (price := strategy.should_buy(*indicators))
+            if (index[1] not in sold_or_holding_codes) and (price := strategy.should_buy(*indicators))
         ]
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
@@ -198,7 +203,7 @@ class Backtester:
                 self.account.sell(sell_positions)
 
             # Buy
-            buy_options = self.get_buy_options(sub_df, strategy)  # list[DF_Index, BuyPrice]
+            buy_options = self.get_buy_options(sub_df, strategy, sell_positions)  # list[DF_Index, BuyPrice]
             if buy_options:
                 port_df, budget = strategy.get_portfolio_and_budget(sub_df, buy_options, self.account.cash_amount)
                 buy_positions = strategy.allocate_positions(port_df, budget)

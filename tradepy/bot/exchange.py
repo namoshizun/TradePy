@@ -1,5 +1,5 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from celery import shared_task
 
 import tradepy
@@ -22,24 +22,27 @@ class AStockExchange:
             if minute < 15:
                 return _.PRE_OPEN
             if minute < 25:
-                return _.PRE_OPEN_BID_P1
+                return _.PRE_OPEN_CALL_P1
             elif minute < 30:
-                return _.PRE_OPEN_BID_P2
+                return _.PRE_OPEN_CALL_P2
             else:
-                return _.INDAY_BID
+                return _.CONT_TRADE
 
         elif 9 < hour <= 11:
             if hour == 11 and minute >= 30:
                 return _.LUNCHBREAK
-            return _.INDAY_BID
+            return _.CONT_TRADE
 
         elif 11 < hour < 13:
             return _.LUNCHBREAK
 
         elif 13 <= hour < 15:
-            if hour == 14 and minute >= 57:
-                return _.PRE_CLOSE_BID
-            return _.INDAY_BID
+            if hour == 14:
+                if 52 <= minute < 57:
+                    return _.CONT_TRADE_PRE_CLOSE
+                if minute >= 57:
+                    return _.PRE_CLOSE_CALL
+            return _.CONT_TRADE
 
         return _.CLOSED
 
@@ -51,10 +54,16 @@ class AStockExchange:
         return df[selector]
 
 
-@shared_task(name="tradepy.fetch_market_quote")
+@shared_task(
+    name="tradepy.fetch_market_quote",
+    expires=tradepy.config.tick_fetch_interval * 0.95)
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()
-    if phase not in (MarketPhase.PRE_OPEN_BID_P2, MarketPhase.INDAY_BID, MarketPhase.PRE_CLOSE_BID):
+    if phase not in (
+        MarketPhase.PRE_OPEN,
+        MarketPhase.PRE_OPEN_CALL_P2,
+        MarketPhase.INDAY_BID,
+        MarketPhase.PRE_CLOSE_CALL):
         return
 
     with timeit() as timer:

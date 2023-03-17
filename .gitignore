@@ -12,6 +12,7 @@ datasets/
 database/
 results/
 backup/
+playground/
 .ipynb_checkpoints/
 
 

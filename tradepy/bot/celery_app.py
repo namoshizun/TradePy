@@ -20,9 +20,6 @@ app.conf.task_queues = (Queue("tradepy.tasks"),)
 
 app.conf.task_acks_late = True
 app.conf.worker_prefetch_multiplier = 1
-app.conf.broker_transport_options = {
-    'visibility_timeout': 10  # default task visibility
-}
 app.conf.timezone = 'Asia/Shanghai'
 
 app.autodiscover_tasks(packages=["tradepy"], related_name="bot")
