@@ -1,13 +1,18 @@
 import abc
+import sys
 import inspect
 import talib
 import random
 import pandas as pd
+import numpy as np
+import numba as nb
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
 from typing import Any, TypedDict, Generic, TypeVar
+from tqdm import tqdm
 
+from tradepy import LOG
 from tradepy.core.context import Context
 from tradepy.backtester import Backtester
 from tradepy.core.trade_book import TradeBook
@@ -16,6 +21,20 @@ from tradepy.core.dag import IndicatorsResolver
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
 from tradepy.core import Indicator
+
+
+@nb.njit
+def assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
+    i = 0
+
+    factors = []
+    for ts in timestamps:
+        while True:
+            if fac_ts[i + 1] > ts:
+                break
+            i += 1
+        factors.append(fac_vals[i])
+    return factors
 
 
 class BarData(TypedDict):
@@ -96,33 +115,19 @@ class StrategyBase(Generic[BarDataType]):
         return self.indicators_registry.get_specs(self)
 
     @abc.abstractmethod
+    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def should_buy(self, *indicators) -> bool | float:
         raise NotImplementedError
 
     def should_close(self, *indicators) -> bool:
         return False
-
-    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
-        # During opening
-        open_pct_chg = calc_pct_chg(position.price, tick["open"])
-        if open_pct_chg <= -self.stop_loss:
-            return tick["open"]
-
-        # During exchange
-        low_pct_chg = calc_pct_chg(position.price, tick["low"])
-        if low_pct_chg <= -self.stop_loss:
-            return position.price_at_pct_change(-self.stop_loss)
-
-    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
-        # During opening
-        open_pct_chg = calc_pct_chg(position.price, tick["open"])
-        if open_pct_chg >= self.take_profit:
-            return tick["open"]
-
-        # During exchange
-        high_pct_chg = calc_pct_chg(position.price, tick["high"])
-        if high_pct_chg >= self.take_profit:
-            return position.price_at_pct_change(self.take_profit)
 
     def get_portfolio_and_budget(self,
                                  bar_df: pd.DataFrame,
@@ -183,14 +188,111 @@ class StrategyBase(Generic[BarDataType]):
             if row.trade_units > 0
         ]
 
-    @classmethod
-    def get_indicators_df(cls, bars_df: pd.DataFrame, ctx: Context) -> pd.DataFrame:
-        bt = Backtester(ctx)  # TODO: should not rely on Backtester to do this
-        strategy = cls(ctx)
-        return bt.get_indicators_df(bars_df.copy(), strategy)
+    def _adjust_then_compute(self, bars_df: pd.DataFrame, indicators: list[Indicator]):
+
+        def _adjust_prices(bars_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
+            # Find each day's adjust factor
+            factor_vals = assign_factor_value_to_day(
+                nb.typed.List(adj_df["timestamp"].tolist()),
+                nb.typed.List(adj_df["hfq_factor"].tolist()),
+                nb.typed.List(bars_df["timestamp"].tolist())
+            )
+
+            # Adjust prices accordingly
+            bars_df[["open", "close", "high", "low"]] *= np.array(factor_vals).reshape(-1, 1)
+            bars_df["chg"] = (bars_df["close"] - bars_df["close"].shift(1)).fillna(0)
+            bars_df["pct_chg"] = (100 * (bars_df['chg'] / bars_df['close'].shift(1))).fillna(0)
+            return bars_df.round(2)
+
+        code = bars_df.index[0]
+        bars_df.sort_values("timestamp", inplace=True)
+        bars_df = self.pre_process(bars_df)
+        # Pre-process before computing indicators
+        if bars_df.empty:
+            # Won't trade this stock
+            return bars_df
+
+        adj_df = self.hfq_adjust_factors.copy()
+        if adj_df is not None:
+            assert isinstance(adj_df, pd.DataFrame)
+            # Adjust prices
+            try:
+                adjust_factors_df = adj_df.loc[code].sort_values("timestamp")
+                bars_df = _adjust_prices(bars_df, adjust_factors_df)
+                if bars_df["pct_chg"].abs().max() > 21:
+                    # Either adjust factor is missing or incorrect...
+                    return pd.DataFrame()
+            except KeyError:
+                return pd.DataFrame()
+
+        # Compute indicators
+        for ind in indicators:
+            if ind.name in bars_df:
+                # double check because a multi-output indicator might yield other indicators
+                continue
+
+            method = getattr(self, ind.name)
+            result = method(*[bars_df[col] for col in ind.predecessors])
+
+            if ind.is_multi_output:
+                for idx, out_col in enumerate(ind.outputs):
+                    bars_df[out_col] = result[idx]
+            else:
+                bars_df[ind.outputs[0]] = result
+
+        # Post-process and done
+        return self.post_process(bars_df)
+
+    def compute_indicators_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        LOG.info('>>> 获取待计算因子')
+        indicators = [
+            ind
+            for ind in self.indicators_registry.resolve_execute_order(self)
+            if not set(ind.outputs).issubset(set(df.columns))
+        ]
+
+        if not indicators:
+            LOG.info('- 所有因子已存在, 不用再计算')
+            return df
+        LOG.info(f'- 待计算: {indicators}')
+
+        LOG.info('>>> 重建索引')
+        if df.index.name != "code":
+            df.reset_index(inplace=True)
+            df.set_index("code", inplace=True)
+
+        LOG.info('>>> 计算每支个股的技术因子')
+        n_codes = df.index.nunique()
+        miniters = n_codes // 20  # print progress every 5%
+        return pd.concat(
+            self._adjust_then_compute(bars_df.copy(), indicators)
+            for _, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout, miniters=miniters)
+        )
 
 
 class BacktestStrategy(StrategyBase[BarData]):
+
+    def should_stop_loss(self, tick: BarData, position: Position) -> float | None:
+        # During opening
+        open_pct_chg = calc_pct_chg(position.price, tick["open"])
+        if open_pct_chg <= -self.stop_loss:
+            return tick["open"]
+
+        # During exchange
+        low_pct_chg = calc_pct_chg(position.price, tick["low"])
+        if low_pct_chg <= -self.stop_loss:
+            return position.price_at_pct_change(-self.stop_loss)
+
+    def should_take_profit(self, tick: BarData, position: Position) -> float | None:
+        # During opening
+        open_pct_chg = calc_pct_chg(position.price, tick["open"])
+        if open_pct_chg >= self.take_profit:
+            return tick["open"]
+
+        # During exchange
+        high_pct_chg = calc_pct_chg(position.price, tick["high"])
+        if high_pct_chg >= self.take_profit:
+            return position.price_at_pct_change(self.take_profit)
 
     @tag(notna=True)
     def ma5(self, close):
@@ -216,6 +318,16 @@ class BacktestStrategy(StrategyBase[BarData]):
 
 
 class LiveStrategy(StrategyBase[BarDataType]):
+
+    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, tick["close"])
+        if pct_chg <= -self.stop_loss:
+            return tick["close"]  # TODO: may be slightly lower to improve the chance of selling
+
+    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, tick["close"])
+        if pct_chg >= self.take_profit:
+            return tick["close"]  # TODO: may be slightly higher to improve the chance of buying
 
     def pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()

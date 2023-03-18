@@ -48,8 +48,12 @@ class GenericBarsDepot:
 
     def traverse(self, always_load=False):
         load = partial(pd.read_csv)
+        if (total := sum(1 for _ in self.folder.iterdir())) > 1000:
+            miniters = total // 20  # to console per 5%
+        else:
+            miniters = 0  # auto
 
-        for path in tqdm(self.folder.iterdir()):
+        for path in tqdm(self.folder.iterdir(), miniters=miniters):
             if str(path).endswith('.csv'):
                 if always_load:
                     yield path.stem, load(path)

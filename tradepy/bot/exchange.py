@@ -90,4 +90,4 @@ def fetch_market_quote():
         }),
     )
 
-    tradepy.LOG.info(f'fetch quote API took: {timer["seconds"]}s')
+    tradepy.LOG.info(f'行情获取API 耗时: {timer["seconds"]}s')

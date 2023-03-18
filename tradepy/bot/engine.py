@@ -31,6 +31,8 @@ class TradingEngine:
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
+            max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),
+            max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
             hfq_adjust_factors=AdjustFactorDepot.load(),
         )
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
@@ -51,14 +53,14 @@ class TradingEngine:
 
         try:
             self.redis_client.get(cache_key)
-            raise Exception(f'Should not reach here!!! Fetching cache key "{cache_key}" whose value is expected to be bytes.')
+            raise Exception("不应该到这里!缓存中的dataframe应该是bytes类型的。")
         except UnicodeDecodeError as e:
             return pickle.loads(e.object)
 
     def _pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
         lock_key = CacheKeys.compute_indicators
         if self.redis_client.get(lock_key):
-            LOG.info("Another process is computing indicators, skip this time.")
+            LOG.info("已经有其他进程在计算指标了，不再重复计算。")
             return
 
         with self.redis_client.lock(lock_key, timeout=Timeouts.pre_compute_indicators, sleep=1):
@@ -70,7 +72,7 @@ class TradingEngine:
                 quote_df.to_pickle(self.workspace / f"{cache_key}.pkl")
                 return quote_df
             else:
-                LOG.info("Indicators has been computed. Won't compute again and the trade actions will probably the same.")
+                LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
                 val = self._read_dataframe_from_cache(cache_key)
                 assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
                 return val
@@ -79,7 +81,7 @@ class TradingEngine:
         assert isinstance(self.ctx.hfq_adjust_factors, pd.DataFrame)
 
         if not (adj_df := self._read_dataframe_from_cache(CacheKeys.latest_adjust_factors)):
-            LOG.info('Compute and cache the latest adjustment factor for each stock.')
+            LOG.info("计算并缓存每个股票的最新复权因子。")
             adj_df = (
                 self.ctx.hfq_adjust_factors
                 .groupby("code")
@@ -99,7 +101,7 @@ class TradingEngine:
 
     @timeout(Timeouts.handle_pre_market_open_call)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
-        ind_df = self._pre_compute_indicators(quote_df)
+        ind_df = self._pre_compute_indicators(quote_df)  # NOTE: price adjustment will be done there as well
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
             self._trade(ind_df)
 
@@ -134,5 +136,5 @@ def handle_tick(payload):
 
     TradingEngine().handle_tick(
         market_phase=payload["market_phase"],
-        quote_df=pd.read_csv(quote_df_reader, index_col="code"),
+        quote_df=pd.read_csv(quote_df_reader, index_col="code", dtype={"code": str}),
     )
