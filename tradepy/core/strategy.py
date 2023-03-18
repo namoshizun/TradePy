@@ -184,19 +184,13 @@ class StrategyBase(Generic[BarDataType]):
         ]
 
     @classmethod
-    def backtest(cls, bars_df: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
-        instance = cls(ctx)
-        bt = Backtester(ctx)
-        return bt.run(bars_df.copy(), instance)
-
-    @classmethod
     def get_indicators_df(cls, bars_df: pd.DataFrame, ctx: Context) -> pd.DataFrame:
-        bt = Backtester(ctx)
+        bt = Backtester(ctx)  # TODO: should not rely on Backtester to do this
         strategy = cls(ctx)
         return bt.get_indicators_df(bars_df.copy(), strategy)
 
 
-class Strategy(StrategyBase[BarData]):
+class BacktestStrategy(StrategyBase[BarData]):
 
     @tag(notna=True)
     def ma5(self, close):
@@ -213,3 +207,15 @@ class Strategy(StrategyBase[BarData]):
     @tag(notna=True)
     def ma250(self, close):
         return talib.SMA(close, 250).round(2)
+
+    @classmethod
+    def backtest(cls, bars_df: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
+        instance = cls(ctx)
+        bt = Backtester(ctx)
+        return bt.run(bars_df.copy(), instance)
+
+
+class LiveStrategy(StrategyBase[BarDataType]):
+
+    def pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
+        raise NotImplementedError()

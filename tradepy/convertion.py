@@ -152,7 +152,7 @@ def convert_akshare_current_quotation(df: pd.DataFrame) -> pd.DataFrame:
         "涨跌幅": "pct_chg",
         "涨跌额": "chg",
         "成交量": "vol",
-        "最新价": "price",
+        "最新价": "close",  # kinda weird..
         "最高": "high",
         "最低": "low",
         "今开": "open",

@@ -1,12 +1,20 @@
 import os
 import pathlib
+import importlib
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, Type
+from dotenv import load_dotenv
+from redis import Redis
 
 from tradepy.types import MarketType, Markets
 
+if TYPE_CHECKING:
+    from tradepy.core.strategy import LiveStrategy
+
+
 ModeType = Literal["backtest", "trading"]
 
+load_dotenv()
 getenv = os.environ.get
 
 
@@ -27,7 +35,23 @@ class Config:
     redis_host: str = getenv("REDIS_HOST", "localhost")
     redis_port: int = int(getenv("REDIS_PORT", 6379))
     redis_db: int = int(getenv("REDIS_DB", 0))
-    redis_password: str = getenv("REDIS_PASSWORD", "password")
+    redis_password: str = getenv("REDIS_PASSWORD", "")
+    strategy_class: str = getenv("TRADE_CLASS", "")
+
+    def get_strategy_class(self) -> Type["LiveStrategy"]:
+        assert self.strategy_class
+        *module_path, class_name = self.strategy_class.split('.')
+        module_path = '.'.join(module_path)
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
+
+    def get_redis_client(self) -> Redis:
+        return Redis(
+            host=self.redis_host,
+            port=self.redis_port,
+            password=self.redis_password,
+            decode_responses=True
+        )
 
     def set_database_dir(self, path: str | pathlib.Path):
         if isinstance(path, str):

@@ -1,8 +1,11 @@
+import io
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from celery import shared_task
 
 import tradepy
+from tradepy.trade_cal import trade_cal
+from tradepy.constants import Timeouts
 from tradepy.convertion import convert_code_to_market
 from tradepy.decorators import timeit, timeout
 from tradepy.types import MarketPhase
@@ -13,11 +16,14 @@ class AStockExchange:
 
     @staticmethod
     def market_phase_now():
-        now = datetime.now()
-        hour, minute = now.hour, now.minute
-
         _ = MarketPhase
+        # return _.PRE_OPEN_CALL_P2
 
+        now = datetime.now()
+        if str(now.date()) not in trade_cal:
+            return _.CLOSED
+
+        hour, minute = now.hour, now.minute
         if hour == 9:
             if minute < 15:
                 return _.PRE_OPEN
@@ -47,10 +53,11 @@ class AStockExchange:
         return _.CLOSED
 
     @staticmethod
-    @timeout(seconds=3)
+    @timeout(seconds=Timeouts.download_quote)
     def get_quote() -> pd.DataFrame:
         df = tradepy.ak_api.get_current_quote()
-        selector = df["code"].map(lambda code: convert_code_to_market(code) in tradepy.config.market_types)
+        df["market"] = df.index.map(convert_code_to_market)
+        selector = df["market"].map(lambda market: market in tradepy.config.market_types)
         return df[selector]
 
 
@@ -62,18 +69,25 @@ def fetch_market_quote():
     if phase not in (
         MarketPhase.PRE_OPEN,
         MarketPhase.PRE_OPEN_CALL_P2,
-        MarketPhase.INDAY_BID,
+        MarketPhase.CONT_TRADE,
         MarketPhase.PRE_CLOSE_CALL):
         return
 
     with timeit() as timer:
         df = AStockExchange.get_quote()
 
-    payload = {
-        "timestamp": datetime.now(),
-        "market_phase": phase,
-        "market_quote": df.to_json()
-    }
-    celery_app.send_task("tradepy.handle_tick", kwargs=dict(payload=payload))
+    # Serialize the quote frame to a string and send it to the trading engine
+    content_buff = io.StringIO()
+    df.to_csv(content_buff)
+    content_buff.seek(0)
+
+    celery_app.send_task(
+        "tradepy.handle_tick",
+        kwargs=dict(payload={
+            "timestamp": datetime.now(),
+            "market_phase": phase,
+            "market_quote": content_buff.read()
+        }),
+    )
 
     tradepy.LOG.info(f'fetch quote API took: {timer["seconds"]}s')

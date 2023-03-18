@@ -3,9 +3,10 @@ import time
 import errno
 import signal
 import inspect
-import tradepy
 import functools
 from contextlib import contextmanager
+
+import tradepy
 from tradepy.core.conf import ModeType
 from tradepy.core.exceptions import OperationForbiddne
 from tradepy.core.indicator import Indicator

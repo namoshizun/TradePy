@@ -1,5 +1,6 @@
 import datetime
 import time
+import traceback
 import pandas as pd
 import akshare as ak
 from typing import Any, Literal
@@ -28,7 +29,7 @@ def retry(max_retries=3, wait_interval=5):
                 try:
                     return fun(*args, **kwargs)
                 except Exception:
-                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次')
+                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次. \n\n {traceback.format_exc()}')
                     time.sleep(wait_interval)
         return inner
     return decor
@@ -112,7 +113,9 @@ class AkShareClient:
 
     def get_current_quote(self) -> pd.DataFrame:
         df = ak.stock_zh_a_spot_em()
-        return convert_akshare_current_quotation(df)
+        df = convert_akshare_current_quotation(df)
+        df.set_index("code", inplace=True)
+        return df
 
     # -----
     # Index

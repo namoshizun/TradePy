@@ -3,10 +3,10 @@ from pathlib import Path
 import pandas as pd
 from contextlib import suppress
 from tqdm import tqdm
-from functools import partial
 from typing import Any, Generator
 
 import tradepy
+from functools import cache, partial
 from tradepy.convertion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
 
@@ -210,6 +210,7 @@ class AdjustFactorDepot:
         return tradepy.config.database_dir / AdjustFactorDepot.file_name
 
     @staticmethod
+    @cache
     def load() -> pd.DataFrame:
         path = AdjustFactorDepot.file_path()
         df = pd.read_csv(path, dtype={
