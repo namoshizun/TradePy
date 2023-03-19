@@ -1,4 +1,5 @@
 import functools
+import json
 import tradepy
 
 from tradepy.constants import CacheKeys
@@ -57,16 +58,17 @@ def get_or_set_source_cache(key: str, refetch_fun):
         @functools.wraps(fun)
         def decor(*args, **kwargs):
             redis_client = tradepy.config.get_redis_client()
-            if result := redis_client.get(key):
-                return fun(result, *args, **kwargs)
+            if value := redis_client.get(key):
+                return fun(json.loads(value), *args, **kwargs)
 
             result = refetch_fun()
             if not redis_client.exists(key):
                 # In case the data is updated by the broker service in the meantime
-                redis_client.set(key, result)
+                redis_client.set(key, json.dumps(result))
             else:
                 # Oops there it is, the broker service has updated the data
-                result = redis_client.get(key)
+                value = redis_client.get(key)
+                result = json.loads(value)  # type: ignore
 
             return fun(result, *args, **kwargs)
         return decor
@@ -118,6 +120,5 @@ def get_positions(positions, available_only: bool = False) -> list[Position]:
 
 
 def place_orders(orders: list[Order]):
-    message = '\n'.join([str(o) for o in orders])
-    LOG.info(f"下单: \n{message}")
     # TODO
+    ...

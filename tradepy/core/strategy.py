@@ -153,7 +153,13 @@ class StrategyBase(Generic[BarDataType]):
 
         # Generate the order frame and annotate the actual price to price
         indices, prices = zip(*buy_options)
-        port_df = bar_df.loc[list(indices), ["company"]].copy()
+
+        # FIXME: This is a hack to get the dataframe look right...
+        if "timestamp" in bar_df.index:
+            port_df = bar_df.loc[list(indices), ["company"]].copy()
+        else:
+            port_df = bar_df.loc[list(indices), ["company", "timestamp"]].copy()
+
         port_df["order_price"] = prices
         return port_df, budget
 

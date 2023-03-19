@@ -48,7 +48,6 @@ class Context:
 
     def get_trade_date(self) -> date:
         return get_latest_trade_date()
-        # return date(2023, 3, 10)
 
     @classmethod
     def build(cls, **kwargs):

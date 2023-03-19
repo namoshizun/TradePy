@@ -101,7 +101,7 @@ class GenericBarsDepot:
 
 class StocksDailyBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.stocks"
+    folder_name = "daily-stocks"
     default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap_rank"
 
     def _load(self,
@@ -160,7 +160,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
 class StockMinuteBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.stocks.minutes"
+    folder_name = "daily-stocks-minutes"
 
     @staticmethod
     def file_path() -> Path:
@@ -179,7 +179,7 @@ class StockMinuteBarsDepot(GenericBarsDepot):
 
 class BroadBasedIndexBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.broad-based"
+    folder_name = "daily-broad-based"
 
     def _load(self, index_by: str | list[str] = "code", cache=True) -> pd.DataFrame:
         return self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
@@ -187,7 +187,7 @@ class BroadBasedIndexBarsDepot(GenericBarsDepot):
 
 class SectorIndexBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.sectors"
+    folder_name = "daily-sectors"
 
     def _load(self, index_by: str | list[str] = "name", cache=True) -> pd.DataFrame:
         df = self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)

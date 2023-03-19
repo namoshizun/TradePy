@@ -23,13 +23,27 @@ from tradepy.warehouse import AdjustFactorDepot
 LOG = tradepy.LOG
 
 
+def _load_ctx_vars_from_env():
+    def deserialize_value(v):
+        try:
+            return float(v)
+        except ValueError:
+            return v
+
+    def read_var_name(k):
+        return k.replace("CTX_", "").lower()
+
+    return {
+        read_var_name(key): deserialize_value(val)
+        for key, val in os.environ.items()
+        if key.startswith("CTX_")
+    }
+
+
 class TradingEngine:
 
     def __init__(self) -> None:
-        self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
-        self.workspace.mkdir(exist_ok=True, parents=True)
-
-        self.ctx = Context(
+        ctx_args = dict(
             cash_amount=broker.get_account_free_cash_amount(),  # type: ignore
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
@@ -38,15 +52,22 @@ class TradingEngine:
             max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
             hfq_adjust_factors=AdjustFactorDepot.load(),
         )
+        ctx_args.update(_load_ctx_vars_from_env())
+
+        self.ctx = Context.build(**ctx_args)
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
         self.latest_adjust_factors_df: pd.DataFrame = self._get_latest_adjust_factors()
+
+        self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
+        self.workspace.mkdir(exist_ok=True, parents=True)
 
     @cached_property
     def redis_client(self):
         return tradepy.config.get_redis_client()
 
     def _get_latest_adjust_factors(self) -> pd.DataFrame:
-        if not (adj_df := self._read_dataframe_from_cache(CacheKeys.latest_adjust_factors)):
+        adj_df = self._read_dataframe_from_cache(CacheKeys.latest_adjust_factors)
+        if adj_df is None:
             assert isinstance(self.ctx.hfq_adjust_factors, pd.DataFrame)
             adj_df = (
                 self.ctx.hfq_adjust_factors
@@ -103,7 +124,7 @@ class TradingEngine:
 
     def _to_real_price(self, price: float, code: str) -> float:
         factor = self.latest_adjust_factors_df.loc[code, "hfq_factor"]
-        return price / factor  # type: ignore
+        return round(price / factor, 2)  # type: ignore
 
     def get_buy_options(self,
                         ind_df: pd.DataFrame,
@@ -117,7 +138,7 @@ class TradingEngine:
 
     def _trade(self, ind_df: pd.DataFrame):
         positions: list[Position] = broker.get_positions(available_only=True)  # type: ignore
-        trade_date = str(self.ctx.get_trade_date())
+        trade_date = ind_df.iloc[0]["timestamp"]
 
         # [1] Sell existing positions
         sell_orders = []
@@ -178,6 +199,9 @@ class TradingEngine:
         raise NotImplementedError("TODO")
 
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
+        trade_date = str(self.ctx.get_trade_date())
+        quote_df["timestamp"] = trade_date
+
         match market_phase:
             case MarketPhase.PRE_OPEN_CALL_P2:
                 self.on_pre_market_open_call_p2(quote_df)
