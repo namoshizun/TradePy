@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from tradepy.core.order import Order
 
 from tradepy.utils import calc_pct_chg, round_val
 
@@ -37,6 +38,18 @@ class Position:
             "value": self.total_value_at(self.latest_price),
             "pct_chg": self.pct_chg_at(self.latest_price)
         }
+
+    def to_sell_order(self, timestamp) -> Order:
+        assert self.latest_price, f'Position is not yet closed: {self}'
+        return Order(
+            timestamp=timestamp,
+            code=self.code,
+            company=self.company,
+            price=self.latest_price,
+            shares=self.shares,
+            direction="sell",
+            status="pending"
+        )
 
     @property
     @round_val

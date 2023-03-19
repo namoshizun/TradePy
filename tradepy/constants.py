@@ -16,9 +16,12 @@ class classproperty:
 class CacheKeys:
     _prefix = f'tradepy:{date.today()}'
 
-    cash_amount = f"{_prefix}:account-free-cash-amount"
-    indicators_df = f'{_prefix}:indicators-dataframe'
-    latest_adjust_factors = f'{_prefix}:latest-adjust-factors'
+    cash_amount = f"{_prefix}:broker:account-free-cash-amount"
+    orders = f"{_prefix}:broker:orders"
+    positions = f"{_prefix}:broker:positions"
+
+    indicators_df = f'{_prefix}:dataset:indicators-dataframe'
+    latest_adjust_factors = f'{_prefix}:dataset:latest-adjust-factors'
 
     compute_indicators = f'{_prefix}:lock:compute-indicators'
 

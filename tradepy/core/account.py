@@ -9,8 +9,8 @@ from tradepy.utils import round_val
 @dataclass
 class Account:
 
-    buy_commission_rate: float = 0
-    sell_commission_rate: float = 0
+    broker_commission_rate: float = 0
+    stamp_duty_rate: float = 0
 
     cash_amount: float = 0
     holdings: Holdings = field(default_factory=Holdings)
@@ -23,6 +23,7 @@ class Account:
             holdings=holdings
         )
 
+    @require_mode("backtest")
     def update_holdings(self, price_lookup: Holdings.PriceLookupFun):
         if any(self.holdings):
             self.holdings.update_price(price_lookup)
@@ -53,11 +54,12 @@ class Account:
 
     @round_val
     def add_buy_commissions(self, amount: float) -> float:
-        return amount * (1 + self.buy_commission_rate * 1e-2)
+        return amount * (1 + self.broker_commission_rate * 1e-2)
 
     @round_val
     def take_sell_commissions(self, amount: float) -> float:
-        return amount * (1 - self.sell_commission_rate * 1e-2)
+        rate = self.broker_commission_rate + self.stamp_duty_rate
+        return amount * (1 - rate * 1e-2)
 
     def get_total_asset_value(self) -> float:
         return self.holdings.get_total_worth() + self.cash_amount

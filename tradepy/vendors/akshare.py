@@ -47,7 +47,8 @@ class AkShareClient:
         exchange = convert_code_to_exchange(code)
         symbol = f'{exchange.lower()}{code}'
 
-        df = ak.stock_zh_a_daily(symbol=symbol, adjust=f"{adjust}-factor")
+        df = retry()(ak.stock_zh_a_daily)(symbol=symbol, adjust=f"{adjust}-factor")
+        assert isinstance(df, pd.DataFrame)
         df.rename(columns={"date": "timestamp"}, inplace=True)
 
         df["code"] = code

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
 from tradepy import LOG
+from tradepy.core.order import Order
 from tradepy.core.position import Position
 from tradepy.core.trade_book import TradeBook
 from tradepy.core.context import Context
@@ -26,6 +27,18 @@ class Backtester:
             self.adjust_factors_df = _adf
         else:
             self.adjust_factors_df = None
+
+    def __orders_to_positions(self, orders: list[Order]) -> list[Position]:
+        return [
+            Position(
+                code=o.code,
+                company=o.company,
+                price=o.price,
+                timestamp=o.timestamp,
+                shares=o.shares,
+            )
+            for o in orders
+        ]
 
     def get_buy_options(self,
                         df: pd.DataFrame,
@@ -111,7 +124,8 @@ class Backtester:
             buy_options = self.get_buy_options(sub_df, strategy, sell_positions)  # list[DF_Index, BuyPrice]
             if buy_options:
                 port_df, budget = strategy.get_portfolio_and_budget(sub_df, buy_options, self.account.cash_amount)
-                buy_positions = strategy.allocate_positions(port_df, budget)
+                buy_orders = strategy.generate_buy_orders(port_df, budget)
+                buy_positions = self.__orders_to_positions(buy_orders)
 
                 self.account.buy(buy_positions)
                 for pos in buy_positions:

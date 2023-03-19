@@ -17,8 +17,8 @@ class Context:
     # Account settings
     cash_amount: float
     trading_unit: int
-    buy_commission_rate: float = 0
-    sell_commission_rate: float = 0
+    broker_commission_rate: float = 0
+    stamp_duty_rate: float = 0
     account: Account = field(init=False)
 
     # Position sizing
@@ -42,8 +42,8 @@ class Context:
 
         self.account = Account(
             cash_amount=self.cash_amount,
-            buy_commission_rate=self.buy_commission_rate,
-            sell_commission_rate=self.sell_commission_rate
+            broker_commission_rate=self.broker_commission_rate,
+            stamp_duty_rate=self.stamp_duty_rate
         )
 
     def get_trade_date(self) -> date:
@@ -73,8 +73,8 @@ class Context:
 def china_market_context(**kwargs) -> Context:
     data_args = {
         "trading_unit": 100,
-        "buy_commission_rate": 0,
-        "sell_commission_rate": 1e-3,
+        "broker_commission_rate": 0.025,  # percent
+        "stamp_duty_rate": 0.1,  # percent
     }
     data_args.update(kwargs)
     return Context.build(**data_args)

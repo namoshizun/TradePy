@@ -15,6 +15,7 @@ from tqdm import tqdm
 from tradepy import LOG
 from tradepy.core.context import Context
 from tradepy.backtester import Backtester
+from tradepy.core.order import Order
 from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position
 from tradepy.core.dag import IndicatorsResolver
@@ -156,7 +157,11 @@ class StrategyBase(Generic[BarDataType]):
         port_df["order_price"] = prices
         return port_df, budget
 
-    def allocate_positions(self, port_df: pd.DataFrame, budget: float) -> list[Position]:
+    def generate_buy_orders(self, port_df: pd.DataFrame, budget: float) -> list[Order]:
+        """
+        port_df: portfolio dataframe
+        budget: total budget to allocate
+        """
         if port_df.empty or budget <= 0:
             return []
 
@@ -177,14 +182,16 @@ class StrategyBase(Generic[BarDataType]):
                 remaining_budget -= residual_shares * row.trade_unit_price
 
         return [
-            Position(
-                timestamp=row.Index[0],
-                code=row.Index[1],
+            Order(
+                timestamp=row.timestamp,
+                code=row.code,
                 company=row.company,
                 price=row.order_price,
                 shares=row.trade_units * self.trading_unit,
+                direction="buy",
+                status="pending"
             )
-            for row in port_df.itertuples()
+            for row in port_df.reset_index().itertuples()
             if row.trade_units > 0
         ]
 
@@ -329,5 +336,10 @@ class LiveStrategy(StrategyBase[BarDataType]):
         if pct_chg >= self.take_profit:
             return tick["close"]  # TODO: may be slightly higher to improve the chance of buying
 
+    @abc.abstractmethod
     def pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def update_indicators(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()
