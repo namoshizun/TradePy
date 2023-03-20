@@ -66,7 +66,6 @@ class AStockExchange:
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()
     if phase not in (
-        MarketPhase.PRE_OPEN,
         MarketPhase.PRE_OPEN_CALL_P2,
         MarketPhase.CONT_TRADE,
         MarketPhase.PRE_CLOSE_CALL):

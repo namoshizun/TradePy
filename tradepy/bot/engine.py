@@ -43,6 +43,9 @@ def _load_ctx_vars_from_env():
 class TradingEngine:
 
     def __init__(self) -> None:
+        self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
+        self.workspace.mkdir(exist_ok=True, parents=True)
+
         ctx_args = dict(
             cash_amount=broker.get_account_free_cash_amount(),  # type: ignore
             trading_unit=int(os.environ["TRADE_UNIT"]),
@@ -57,9 +60,6 @@ class TradingEngine:
         self.ctx = Context.build(**ctx_args)
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
         self.latest_adjust_factors_df: pd.DataFrame = self._get_latest_adjust_factors()
-
-        self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
-        self.workspace.mkdir(exist_ok=True, parents=True)
 
     @cached_property
     def redis_client(self):
@@ -103,11 +103,11 @@ class TradingEngine:
         with self.redis_client.lock(lock_key, timeout=Timeouts.pre_compute_indicators, sleep=1):
             cache_key = CacheKeys.indicators_df
             if not self.redis_client.exists(cache_key):
-                quote_df = self.strategy.pre_compute_indicators(quote_df)
+                ind_df = self.strategy.pre_compute_indicators(quote_df)
 
-                self.redis_client.set(cache_key, pickle.dumps(quote_df))
-                quote_df.to_pickle(self.workspace / f"{cache_key}.pkl")
-                return quote_df
+                self.redis_client.set(cache_key, pickle.dumps(ind_df))
+                ind_df.to_pickle(self.workspace / f"{cache_key}.pkl")
+                return ind_df
             else:
                 LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
                 val = self._read_dataframe_from_cache(cache_key)
@@ -186,6 +186,10 @@ class TradingEngine:
 
     @timeout(Timeouts.handle_cont_trade)
     def on_cont_trade(self, quote_df: pd.DataFrame):
+        if self.redis_client.get(CacheKeys.compute_indicators):
+            LOG.warn("已进入盘中交易, 但指标计算仍在进行中!")
+            return
+
         quote_df = self._backward_adjust_prices(quote_df)
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
         assert isinstance(ind_df, pd.DataFrame)

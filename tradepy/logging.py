@@ -25,10 +25,10 @@ class TradePyLogger:
         self.error = logger.error
 
     def log_orders(self, orders: list[Order]):
-        self.info('\n'.join([str(o) for o in orders]))
+        self.info('\n' + '\n'.join([str(o) for o in orders]))
 
     def log_positions(self, positions: list[Position]):
-        self.info('\n'.join([str(p) for p in positions]))
+        self.info('\n' + '\n'.join([str(p) for p in positions]))
 
 
 class Logging:
