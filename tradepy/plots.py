@@ -25,7 +25,7 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
     # -----
     cap_df = pd.DataFrame(trade_book.capital_logs).set_index("timestamp")
     cap_df["total"] = cap_df["positions_value"] + cap_df["free_cash_amount"]
-    cap_df = index_df.join(cap_df)
+    cap_df = cap_df.join(index_df, on="timestamp")
 
     for col in ["total", "positions_value", "free_cash_amount"]:
         cap_df[col] = cap_df[col].reset_index()[col].interpolate(method="pad").values

@@ -88,7 +88,7 @@ class StockDayBarsCollector(DataCollector):
             fun=tradepy.ak_api.get_daily)
         for args, ticks_df in results_gen:
             if ticks_df.empty:
-                LOG.info(f"找不到{args['code']}日K数据")
+                LOG.info(f"找不到{args['code']}日K数据. Args = {args}")
             else:
                 code = args["code"]
                 self.repo.append(ticks_df, f'{code}.csv')

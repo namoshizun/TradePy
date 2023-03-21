@@ -113,6 +113,7 @@ class TradeBook:
         wins = total_outcomes["止盈"] + (close_wins := close_outcomes["盈利平仓"].sum())
         loses = total_outcomes["止损"] + (close_lose := (~close_outcomes["盈利平仓"]).sum())
 
+        pct_chgs = df["pct_chg"].dropna()
         print(f'''
 ===========
 开仓 = {total_outcomes["开仓"]}
@@ -121,7 +122,9 @@ class TradeBook:
 平仓亏损 = {close_lose}
 平仓盈利 = {close_wins}
 
-胜率 {100 * round(wins / (wins + loses), 4)}%
+胜率 {round(100 * wins / (wins + loses), 2)}%
+平均收益:\n
+{pct_chgs.describe()}%
 ===========
         ''')
 

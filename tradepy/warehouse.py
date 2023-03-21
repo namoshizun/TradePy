@@ -3,10 +3,10 @@ from pathlib import Path
 import pandas as pd
 from contextlib import suppress
 from tqdm import tqdm
-from functools import partial
 from typing import Any, Generator
 
 import tradepy
+from functools import cache, partial
 from tradepy.convertion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
 
@@ -48,8 +48,12 @@ class GenericBarsDepot:
 
     def traverse(self, always_load=False):
         load = partial(pd.read_csv)
+        if (total := sum(1 for _ in self.folder.iterdir())) > 1000:
+            miniters = total // 20  # to console per 5%
+        else:
+            miniters = 0  # auto
 
-        for path in tqdm(self.folder.iterdir()):
+        for path in tqdm(self.folder.iterdir(), miniters=miniters):
             if str(path).endswith('.csv'):
                 if always_load:
                     yield path.stem, load(path)
@@ -63,10 +67,11 @@ class GenericBarsDepot:
                            cache_key=None,
                            cache=False) -> pd.DataFrame:
 
-        if cache:
+        if cache_key in self.caches:
             assert cache_key
-            if cache_key in self.caches:
+            if cache:
                 return self.caches[cache_key]
+            del self.caches[cache_key]
 
         def loader() -> Generator[pd.DataFrame, None, None]:
             for code, df in self.traverse(always_load=True):
@@ -97,7 +102,7 @@ class GenericBarsDepot:
 
 class StocksDailyBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.stocks"
+    folder_name = "daily-stocks"
     default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap_rank"
 
     def _load(self,
@@ -156,7 +161,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
 class StockMinuteBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.stocks.minutes"
+    folder_name = "daily-stocks-minutes"
 
     @staticmethod
     def file_path() -> Path:
@@ -175,7 +180,7 @@ class StockMinuteBarsDepot(GenericBarsDepot):
 
 class BroadBasedIndexBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.broad-based"
+    folder_name = "daily-broad-based"
 
     def _load(self, index_by: str | list[str] = "code", cache=True) -> pd.DataFrame:
         return self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
@@ -183,7 +188,7 @@ class BroadBasedIndexBarsDepot(GenericBarsDepot):
 
 class SectorIndexBarsDepot(GenericBarsDepot):
 
-    folder_name = "daily.sectors"
+    folder_name = "daily-sectors"
 
     def _load(self, index_by: str | list[str] = "name", cache=True) -> pd.DataFrame:
         df = self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
@@ -210,6 +215,7 @@ class AdjustFactorDepot:
         return tradepy.config.database_dir / AdjustFactorDepot.file_name
 
     @staticmethod
+    @cache
     def load() -> pd.DataFrame:
         path = AdjustFactorDepot.file_path()
         df = pd.read_csv(path, dtype={

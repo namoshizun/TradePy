@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
+from datetime import date
 from copy import deepcopy
 from dataclasses import dataclass, field
 
 from tradepy.core.account import Account
+from tradepy.utils import get_latest_trade_date
 
 
 @dataclass
@@ -15,8 +17,8 @@ class Context:
     # Account settings
     cash_amount: float
     trading_unit: int
-    buy_commission_rate: float
-    sell_commission_rate: float
+    broker_commission_rate: float = 0
+    stamp_duty_rate: float = 0
     account: Account = field(init=False)
 
     # Position sizing
@@ -31,11 +33,21 @@ class Context:
         if self.hfq_adjust_factors is not None:
             adj_fac_cols = ["code", "timestamp", "hfq_factor"]
             assert set(cols := self.hfq_adjust_factors.columns).issubset(set(adj_fac_cols)), cols
+
+            _adf = self.hfq_adjust_factors.copy()
+            _adf.reset_index(inplace=True)
+            _adf.set_index("code", inplace=True)
+            _adf.sort_values(["code", "timestamp"], inplace=True)
+            self.hfq_adjust_factors = _adf
+
         self.account = Account(
             cash_amount=self.cash_amount,
-            buy_commission_rate=self.buy_commission_rate,
-            sell_commission_rate=self.sell_commission_rate
+            broker_commission_rate=self.broker_commission_rate,
+            stamp_duty_rate=self.stamp_duty_rate
         )
+
+    def get_trade_date(self) -> date:
+        return get_latest_trade_date()
 
     @classmethod
     def build(cls, **kwargs):
@@ -60,8 +72,8 @@ class Context:
 def china_market_context(**kwargs) -> Context:
     data_args = {
         "trading_unit": 100,
-        "buy_commission_rate": 0,
-        "sell_commission_rate": 1e-3,
+        "broker_commission_rate": 0.02,  # percent
+        "stamp_duty_rate": 0.1,  # percent
     }
     data_args.update(kwargs)
     return Context.build(**data_args)

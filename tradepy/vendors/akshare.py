@@ -1,5 +1,6 @@
 import datetime
 import time
+import traceback
 import pandas as pd
 import akshare as ak
 from typing import Any, Literal
@@ -7,15 +8,20 @@ from functools import wraps
 
 import tradepy
 from tradepy.convertion import (
+    convert_akshare_broad_based_index_current_quote,
+    convert_akshare_current_quotation,
     convert_akshare_minute_bar,
+    convert_broad_based_index_name_to_code,
     convert_code_to_exchange,
     convert_akshare_hist_data,
     convert_akshare_stock_info,
     convert_akshare_sector_listing,
-    convert_akshare_sector_ticks,
+    convert_akshare_sector_day_bars,
     convert_akshare_stock_index_ticks,
-    convert_code_to_market
+    convert_code_to_market,
+    convert_akshare_sector_current_quote,
 )
+from tradepy.utils import get_latest_trade_date
 
 
 def retry(max_retries=3, wait_interval=5):
@@ -27,7 +33,7 @@ def retry(max_retries=3, wait_interval=5):
                 try:
                     return fun(*args, **kwargs)
                 except Exception:
-                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次')
+                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次. \n\n {traceback.format_exc()}')
                     time.sleep(wait_interval)
         return inner
     return decor
@@ -45,7 +51,8 @@ class AkShareClient:
         exchange = convert_code_to_exchange(code)
         symbol = f'{exchange.lower()}{code}'
 
-        df = ak.stock_zh_a_daily(symbol=symbol, adjust=f"{adjust}-factor")
+        df = retry()(ak.stock_zh_a_daily)(symbol=symbol, adjust=f"{adjust}-factor")
+        assert isinstance(df, pd.DataFrame)
         df.rename(columns={"date": "timestamp"}, inplace=True)
 
         df["code"] = code
@@ -75,6 +82,7 @@ class AkShareClient:
 
         assert isinstance(df, pd.DataFrame)
         if df.empty:
+            print(f'未找到{code}日K数据. 起始日期{start_date}')
             return df
 
         df = convert_akshare_hist_data(df)
@@ -109,25 +117,46 @@ class AkShareClient:
             for _, row in df.iterrows()
         })
 
+    def get_current_quote(self) -> pd.DataFrame:
+        df = ak.stock_zh_a_spot_em()
+        df = convert_akshare_current_quotation(df)
+        df.set_index("code", inplace=True)
+        return df
+
     # -----
     # Index
-    def get_sector_index_ticks(self, name: str) -> pd.DataFrame:
+    def get_sector_index_day_bars(self, name: str) -> pd.DataFrame:
         df = ak.stock_board_industry_hist_em(
             symbol=name,
             start_date="20000101",
             end_date="20990101",
             period="日k"
         )
-        df = convert_akshare_sector_ticks(df)
+        df = convert_akshare_sector_day_bars(df)
         df["name"] = name
         return df
+
+    def get_sector_index_current_quote(self, name_or_code: str) -> pd.Series:
+        series = ak.stock_board_industry_current_em(name_or_code)
+        series = convert_akshare_sector_current_quote(series)
+        series["timestamp"] = str(get_latest_trade_date())
+        return series
 
     def get_sectors_listing(self) -> pd.DataFrame:
         return convert_akshare_sector_listing(ak.stock_board_industry_name_em())
 
-    def get_broad_based_index_ticks(self,
-                                    code: str,
-                                    start_date: str = "1900-01-01") -> pd.DataFrame:
+    def get_broad_based_index_day_bars(self,
+                                       code: str,
+                                       start_date: str = "1900-01-01") -> pd.DataFrame:
         df = ak.stock_zh_index_daily(symbol=code)
         df = convert_akshare_stock_index_ticks(df)
         return df.query('timestamp >= @start_date')
+
+    def get_broad_based_index_current_quote(self, *names: str):
+        df = ak.stock_zh_index_spot()
+        df = convert_akshare_broad_based_index_current_quote(df).set_index("code")
+
+        codes = list(map(convert_broad_based_index_name_to_code, names))
+        df = df.loc[codes].copy()
+        df["timestamp"] = str(get_latest_trade_date())
+        return df

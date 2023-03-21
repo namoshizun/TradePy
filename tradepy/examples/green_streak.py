@@ -1,10 +1,10 @@
 import re
 import pandas as pd
-from tradepy.core.strategy import Strategy
+from tradepy.core.strategy import BacktestStrategy
 from tradepy.decorators import tag
 
 
-class GreenStreakStrategy(Strategy):
+class GreenStreakStrategy(BacktestStrategy):
 
     def pre_process(self, bars_df: pd.DataFrame):
         company = bars_df.iloc[0]["company"]

@@ -1,3 +1,2 @@
 # flake8: noqa
-from .indicator import Indicator
-from .dag import IndicatorsResolver
+from .indicator import Indicator, IndicatorSet

@@ -23,6 +23,7 @@ numba = "^0.56.4"
 colorlog = "^6.7.0"
 pygraphviz = "^1.10"
 celery = {extras = ["redis"], version = "^5.2.7"}
+python-dotenv = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"

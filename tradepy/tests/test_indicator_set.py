@@ -1,6 +1,6 @@
 from tradepy.core.context import china_market_context
-from tradepy.strategy.ma60_support import MA60SupportStrategy
-from tradepy.core.dag import IndicatorsResolver
+from tradepy.core.indicator import IndicatorSet
+from playground.ma60_support import MA60SupportStrategy
 
 ctx = ctx = china_market_context(
     stop_loss=2.5,
@@ -14,6 +14,5 @@ ctx = ctx = china_market_context(
 stra = MA60SupportStrategy(ctx)
 
 indicators = MA60SupportStrategy.indicators_registry.get_specs(stra)
-r = IndicatorsResolver(indicators)
-r.sort_by_execute_order(stra._required_indicators)
-# r.get_compute_order()
+r = IndicatorSet(*indicators)
+print(r.sort_by_execute_order(stra._required_indicators))
