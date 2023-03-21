@@ -18,10 +18,9 @@ from tradepy.backtester import Backtester
 from tradepy.core.order import Order
 from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position
-from tradepy.core.dag import IndicatorsResolver
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
-from tradepy.core import Indicator
+from tradepy.core import Indicator, IndicatorSet
 
 
 @nb.njit
@@ -57,7 +56,7 @@ BarDataType = TypeVar("BarDataType", bound=BarData)
 class IndicatorsRegistry:
 
     def __init__(self) -> None:
-        self.registry: dict[str, set[Indicator]] = defaultdict(set)
+        self.registry: dict[str, IndicatorSet] = defaultdict(IndicatorSet)
 
     def register(self, strategy_class_name: str, indicator: Indicator):
         self.registry[strategy_class_name].add(indicator)
@@ -72,8 +71,8 @@ class IndicatorsRegistry:
 
     @cache
     def resolve_execute_order(self, strategy: "StrategyBase") -> list[Indicator]:
-        resolv = IndicatorsResolver(strategy.all_indicators)
-        return resolv.sort_by_execute_order(strategy._required_indicators)
+        indicator_set = IndicatorSet(*strategy.all_indicators)
+        return indicator_set.sort_by_execute_order(strategy._required_indicators)
 
     def __str__(self) -> str:
         return str(self.registry)
@@ -155,7 +154,7 @@ class StrategyBase(Generic[BarDataType]):
         indices, prices = zip(*buy_options)
 
         # FIXME: This is a hack to get the dataframe look right...
-        if "timestamp" in bar_df.index:
+        if "timestamp" in bar_df.index.names:
             port_df = bar_df.loc[list(indices), ["company"]].copy()
         else:
             port_df = bar_df.loc[list(indices), ["company", "timestamp"]].copy()
@@ -256,7 +255,7 @@ class StrategyBase(Generic[BarDataType]):
         # Post-process and done
         return self.post_process(bars_df)
 
-    def compute_indicators_df(self, df: pd.DataFrame) -> pd.DataFrame:
+    def compute_all_indicators_df(self, df: pd.DataFrame) -> pd.DataFrame:
         LOG.info('>>> 获取待计算因子')
         indicators = [
             ind
@@ -343,9 +342,13 @@ class LiveStrategy(StrategyBase[BarDataType]):
             return tick["close"]  # TODO: may be slightly higher to improve the chance of buying
 
     @abc.abstractmethod
-    def pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def update_indicators(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_close_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def compute_intraday_indicators(self, ind_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()

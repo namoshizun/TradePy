@@ -143,6 +143,6 @@ class Backtester:
         return trade_book
 
     def run(self, bars_df: pd.DataFrame, strategy: "StrategyBase") -> tuple[pd.DataFrame, TradeBook]:
-        ind_df = strategy.compute_indicators_df(bars_df)
+        ind_df = strategy.compute_all_indicators_df(bars_df)
         trade_book = self.trade(ind_df, strategy)
         return ind_df, trade_book

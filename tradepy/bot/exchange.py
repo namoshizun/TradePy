@@ -17,6 +17,7 @@ class AStockExchange:
     @staticmethod
     def market_phase_now():
         _ = MarketPhase
+        # return _.PRE_CLOSE_CALL
 
         now = datetime.now()
         if str(now.date()) not in trade_cal:

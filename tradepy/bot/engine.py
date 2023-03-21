@@ -94,26 +94,6 @@ class TradingEngine:
         except UnicodeDecodeError as e:
             return pickle.loads(e.object)
 
-    def _pre_compute_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
-        lock_key = CacheKeys.compute_indicators
-        if self.redis_client.get(lock_key):
-            LOG.info("已经有其他进程在计算指标了，不再重复计算。")
-            return
-
-        with self.redis_client.lock(lock_key, timeout=Timeouts.pre_compute_indicators, sleep=1):
-            cache_key = CacheKeys.indicators_df
-            if not self.redis_client.exists(cache_key):
-                ind_df = self.strategy.pre_compute_indicators(quote_df)
-
-                self.redis_client.set(cache_key, pickle.dumps(ind_df))
-                ind_df.to_pickle(self.workspace / f"{cache_key}.pkl")
-                return ind_df
-            else:
-                LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
-                val = self._read_dataframe_from_cache(cache_key)
-                assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
-                return val
-
     def _backward_adjust_prices(self, quote_df: pd.DataFrame):
         adj_df = self.latest_adjust_factors_df
         quote_df["close"] *= adj_df["hfq_factor"]
@@ -126,7 +106,7 @@ class TradingEngine:
         factor = self.latest_adjust_factors_df.loc[code, "hfq_factor"]
         return round(price / factor, 2)  # type: ignore
 
-    def get_buy_options(self,
+    def _get_buy_options(self,
                         ind_df: pd.DataFrame,
                         orders: list[Order]) -> list[tuple[Any, float]]:
         already_ordered = set(o.code for o in orders)
@@ -136,7 +116,48 @@ class TradingEngine:
             if (code not in already_ordered) and (price := self.strategy.should_buy(*indicators))
         ]
 
-    def _trade(self, ind_df: pd.DataFrame):
+    def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:
+        if not self.strategy.close_indicators:
+            return []
+
+        return [
+            code
+            for code, *indicators in ind_df[self.strategy.close_indicators].itertuples(name=None)
+            if self.strategy.should_close(*indicators)
+        ]
+
+    def _compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
+        lock_key = CacheKeys.compute_open_indicators
+        if self.redis_client.get(lock_key):
+            LOG.info("已经有其他进程在计算开盘指标了，不再重复计算。")
+            return
+
+        with self.redis_client.lock(lock_key, timeout=Timeouts.pre_compute_indicators, sleep=1):
+            cache_key = CacheKeys.indicators_df
+            if not self.redis_client.exists(cache_key):
+                ind_df = self.strategy.compute_open_indicators(quote_df)
+
+                self.redis_client.set(cache_key, pickle.dumps(ind_df))
+                ind_df.to_pickle(self.workspace / f"{cache_key}.pkl")
+                return ind_df
+            else:
+                LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
+                val = self._read_dataframe_from_cache(cache_key)
+                assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
+                return val
+
+    def _compute_close_indicators(self, ind_df: pd.DataFrame) -> pd.DataFrame | None:
+        lock_key = CacheKeys.compute_close_indicators
+        if self.redis_client.get(lock_key):
+            LOG.info("已经有其他进程在计算收盘指标了，不再重复计算。")
+            return
+
+        positions = broker.get_positions(available_only=True)  # type: ignore
+        holding_codes = [pos.code for pos in positions]
+        ind_df = ind_df.loc[holding_codes].copy()
+        return self.strategy.compute_close_indicators(ind_df)
+
+    def _inday_trade(self, ind_df: pd.DataFrame):
         positions: list[Position] = broker.get_positions(available_only=True)  # type: ignore
         trade_date = ind_df.iloc[0]["timestamp"]
 
@@ -167,7 +188,7 @@ class TradingEngine:
 
         # [2] Buy stocks
         orders = broker.get_orders()  # type: ignore
-        buy_options = self.get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
+        buy_options = self._get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
         if buy_options:
             free_cash_amount = broker.get_account_free_cash_amount()  # type: ignore
             port_df, budget = self.strategy.get_portfolio_and_budget(ind_df, buy_options, free_cash_amount)
@@ -178,15 +199,39 @@ class TradingEngine:
                 LOG.info('发送买入指令')
                 LOG.log_orders(buy_orders)
 
+    def _pre_close_trade(self, ind_df: pd.DataFrame):
+        close_codes = self._get_close_codes(ind_df)
+        if not close_codes:
+            LOG.info("没有需要平仓的股票")
+            return
+
+        positions: list[Position] = [
+            pos
+            for pos in broker.get_positions(available_only=True)  # type: ignore
+            if pos.code in close_codes
+        ]
+        sell_orders, trade_date = [], ind_df.iloc[0]["timestamp"]
+
+        for pos in positions:
+            bar = ind_df.loc[pos.code].to_dict()  # type: ignore
+            bar["close"] = self._to_real_price(bar["close"], pos.code)
+            pos.close(bar["close"] * 0.99)
+            sell_orders.append(pos.to_sell_order(trade_date))
+
+        if sell_orders:
+            LOG.info('发送卖出指令')
+            LOG.log_orders(sell_orders)
+            broker.place_orders(sell_orders)
+
     @timeout(Timeouts.handle_pre_market_open_call)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
-        ind_df = self._pre_compute_indicators(quote_df)  # NOTE: price adjustment will be done there as well
+        ind_df = self._compute_open_indicators(quote_df)  # NOTE: price adjustment will be done there as well
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
-            self._trade(ind_df)
+            self._inday_trade(ind_df)
 
     @timeout(Timeouts.handle_cont_trade)
     def on_cont_trade(self, quote_df: pd.DataFrame):
-        if self.redis_client.get(CacheKeys.compute_indicators):
+        if self.redis_client.get(CacheKeys.compute_open_indicators):
             LOG.warn("已进入盘中交易, 但指标计算仍在进行中!")
             return
 
@@ -194,13 +239,25 @@ class TradingEngine:
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
         assert isinstance(ind_df, pd.DataFrame)
 
-        ind_df = self.strategy.update_indicators(ind_df, quote_df)
-        self._trade(ind_df)
+        ind_df.update(quote_df)
+        ind_df = self.strategy.compute_intraday_indicators(ind_df)
+        self._inday_trade(ind_df)
 
     @timeout(Timeouts.handle_cont_trade_pre_close)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):
+        if not broker.get_positions(available_only=True):  # type: ignore
+            LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")
+            return
+
         quote_df = self._backward_adjust_prices(quote_df)
-        raise NotImplementedError("TODO")
+        ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
+        assert isinstance(ind_df, pd.DataFrame)
+
+        ind_df.update(quote_df)
+        ind_df = self.strategy.compute_intraday_indicators(ind_df)
+        ind_df = self._compute_close_indicators(ind_df)
+        if isinstance(ind_df, pd.DataFrame):
+            self._pre_close_trade(ind_df)
 
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
         trade_date = str(self.ctx.get_trade_date())

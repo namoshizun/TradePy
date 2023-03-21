@@ -72,7 +72,7 @@ class Context:
 def china_market_context(**kwargs) -> Context:
     data_args = {
         "trading_unit": 100,
-        "broker_commission_rate": 0.025,  # percent
+        "broker_commission_rate": 0.02,  # percent
         "stamp_duty_rate": 0.1,  # percent
     }
     data_args.update(kwargs)

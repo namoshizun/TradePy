@@ -23,7 +23,8 @@ class CacheKeys:
     indicators_df = f'{_prefix}:dataset:indicators-dataframe'
     latest_adjust_factors = f'{_prefix}:dataset:latest-adjust-factors'
 
-    compute_indicators = f'{_prefix}:lock:compute-indicators'
+    compute_open_indicators = f'{_prefix}:lock:compute-open-indicators'
+    compute_close_indicators = f'{_prefix}:lock:compute-close-indicators'
 
 
 class Timeouts:
@@ -31,4 +32,4 @@ class Timeouts:
     handle_pre_market_open_call = 60 * 4
     pre_compute_indicators = 60 * 3.55
     handle_cont_trade = 2
-    handle_cont_trade_pre_close = 60 * 3
+    handle_cont_trade_pre_close = 60 * 2

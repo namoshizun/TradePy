@@ -107,7 +107,7 @@ def convert_akshare_sector_listing(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=mapping)[list(mapping.values())]
 
 
-def convert_akshare_sector_ticks(df: pd.DataFrame) -> pd.DataFrame:
+def convert_akshare_sector_day_bars(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
         "日期": "timestamp",
         "开盘": "open",
@@ -120,6 +120,21 @@ def convert_akshare_sector_ticks(df: pd.DataFrame) -> pd.DataFrame:
         "换手率": "turnover",
     }
     return df.rename(columns=mapping)[list(mapping.values())]
+
+
+def convert_akshare_sector_current_quote(data: pd.Series) -> pd.Series:
+    mapping = {
+        "最新": "close",
+        "最高": "high",
+        "最低": "low",
+        "开盘": "open",
+        "成交量": "vol",
+        "换手率": "turnover",
+        "涨跌额": "chg",
+        "涨跌幅": "pct_chg",
+        "代码": "code",
+    }
+    return data.rename(mapping)[list(mapping.values())]
 
 
 def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:
@@ -160,3 +175,42 @@ def convert_akshare_current_quotation(df: pd.DataFrame) -> pd.DataFrame:
     }
     df.rename(columns=mappings, inplace=True)
     return df[list(mappings.values())]
+
+
+broad_index_code_name_mapping = {
+    "sh000001": "SSE",
+    "sz399001": "SZSE",
+    "sz399006": "ChiNext",
+    "sh000688": "STAR",
+    "sh000300": "CSI-300",
+    "sh000905": "CSI-500",
+    "sh000852": "CSI-1000",
+    "sh000016": "SSE-50",
+}
+
+
+def convert_broad_based_index_code_to_name(code: str) -> str:
+    return broad_index_code_name_mapping[code]
+
+
+def convert_broad_based_index_name_to_code(name: str) -> str:
+    for code, index_name in broad_index_code_name_mapping.items():
+        if index_name == name:
+            return code
+    raise ValueError(f'Unknown index name {name}')
+
+
+def convert_akshare_broad_based_index_current_quote(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "最新价": "close",
+        "最高": "high",
+        "最低": "low",
+        "今开": "open",
+        "成交量": "vol",
+        "代码": "code",
+        "名称": "name",
+        "涨跌额": "chg",
+        "涨跌幅": "pct_chg",
+    }
+    df.rename(columns=mapping, inplace=True)
+    return df[list(mapping.values())]

@@ -1,7 +1,9 @@
 import tradepy
+import pandas as pd
 from tradepy import LOG
 from tradepy.collectors import DataCollector
 from tradepy.warehouse import BroadBasedIndexBarsDepot, SectorIndexBarsDepot
+from tradepy.convertion import broad_index_code_name_mapping
 
 
 class EastMoneySectorIndexCollector(DataCollector):
@@ -21,7 +23,7 @@ class EastMoneySectorIndexCollector(DataCollector):
         results_gen = self.run_batch_jobs(
             list(self._jobs_generator(listing_df)),
             batch_size,
-            fun=tradepy.ak_api.get_sector_index_ticks,
+            fun=tradepy.ak_api.get_sector_index_day_bars,
             iteration_pause=3,
         )
 
@@ -40,23 +42,23 @@ class EastMoneySectorIndexCollector(DataCollector):
 
 class BroadBasedIndexCollector(DataCollector):
 
-    code_to_index_name = {
-        "sh000001": "SSE",
-        "sz399001": "SZSE",
-        "sz399006": "ChiNext",
-        "sh000688": "STAR",
-        "sh000300": "CSI-300",
-        "sh000905": "CSI-500",
-        "sh000852": "CSI-1000",
-        "sh000016": "SSE-50",
-    }
-
     def run(self, start_date: str = "2000-01-01"):
         LOG.info('=============== 开始更新宽基指数 ===============')
         repo = BroadBasedIndexBarsDepot()
-        for code, name in self.code_to_index_name.items():
+        index_names = list(broad_index_code_name_mapping.values())
+
+        curr_quote_df = tradepy.ak_api.get_broad_based_index_current_quote(*index_names)
+        latest_ts = curr_quote_df["timestamp"].values[0]
+
+        for code, name in broad_index_code_name_mapping.items():
             LOG.info(f'下载 {name}')
-            df = tradepy.ak_api.get_broad_based_index_ticks(code, start_date)
+            df = tradepy.ak_api.get_broad_based_index_day_bars(code, start_date)
+
+            if df["timestamp"].max() < latest_ts:
+                # The day bars does not include the curren day if the market is still open.
+                latest = curr_quote_df.query('code == @code').copy()
+                df = pd.concat([df, latest[df.columns]])
+
             repo.save(
                 self.precompute_indicators(df.copy()),
                 f'{name}.csv'

@@ -57,6 +57,6 @@ class MarketPhase:
     PRE_OPEN = "pre-open"  # 0900 - 0915
     PRE_OPEN_CALL_P1 = "pre-open-call-phase-1"  # 0915 - 0925
     PRE_OPEN_CALL_P2 = "pre-open-call-phase-2"  # 0925 - 0930
-    CONT_TRADE = "continuous-trading"  # 0930 - 1130, 1300 - 1450
-    CONT_TRADE_PRE_CLOSE = "continuous-trading-pre-close"  # 1452 - 1457
+    CONT_TRADE = "continuous-trading"  # 0930 - 1130, 1300 - 1455
+    CONT_TRADE_PRE_CLOSE = "continuous-trading-pre-close"  # 1455 - 1457
     PRE_CLOSE_CALL = "pre-close-bidding"  # 1457 - 1500

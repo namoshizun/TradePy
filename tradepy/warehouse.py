@@ -67,10 +67,11 @@ class GenericBarsDepot:
                            cache_key=None,
                            cache=False) -> pd.DataFrame:
 
-        if cache:
+        if cache_key in self.caches:
             assert cache_key
-            if cache_key in self.caches:
+            if cache:
                 return self.caches[cache_key]
+            del self.caches[cache_key]
 
         def loader() -> Generator[pd.DataFrame, None, None]:
             for code, df in self.traverse(always_load=True):
