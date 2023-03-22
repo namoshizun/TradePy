@@ -1,5 +1,5 @@
-from functools import cached_property
 import pandas as pd
+from functools import cached_property
 from typing import TypedDict
 from typing_extensions import NotRequired
 

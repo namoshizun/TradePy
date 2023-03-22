@@ -22,8 +22,12 @@ networkx = "^3.0"
 numba = "^0.56.4"
 colorlog = "^6.7.0"
 pygraphviz = "^1.10"
-celery = {extras = ["redis"], version = "^5.2.7"}
 python-dotenv = "^1.0.0"
+redis = "^4.5.2"
+celery = {extras = ["redis"], version = "^5.2.7"}
+
+[tool.poetry.extras]
+bot = ["celery"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"

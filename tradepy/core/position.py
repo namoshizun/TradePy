@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass
-from tradepy.core.order import Order
 
+from tradepy.core.order import Order
 from tradepy.utils import calc_pct_chg, round_val
 
 

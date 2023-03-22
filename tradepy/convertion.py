@@ -5,18 +5,6 @@ from dateutil import parser as date_parse
 from tradepy.types import ExchangeType, MarketType, Markets
 
 
-TickFields = [
-    'timestamp',  # datetime
-    'open',  # float, 开盘价
-    'high',  # float 最高
-    'low',  # float 最低
-    'close',  # float 收盘价
-    'vol',  # float (> 0) 量能
-    'chg',  # float (...), 价格变化
-    'pct_chg',  # float (-100, 100), 涨跌幅
-]
-
-
 def convert_code_to_market(code: str) -> MarketType:
     mapping: dict[tuple, MarketType] = {
         ("688",): "科创板",
@@ -57,7 +45,7 @@ def convert_ts_date_to_iso_format(value: str) -> str:
 
 
 def convert_akshare_hist_data(df: pd.DataFrame):
-    return df.rename(columns={
+    fields_map = {
         "日期": "timestamp",
         "开盘": "open",
         "收盘": "close",
@@ -66,7 +54,10 @@ def convert_akshare_hist_data(df: pd.DataFrame):
         "成交量": "vol",
         "涨跌幅": "pct_chg",
         "涨跌额": "chg",
-    })[TickFields]
+        "换手率": "turnover",
+    }
+    df.rename(columns=fields_map, inplace=True)
+    return df[list(fields_map.values())]
 
 
 def convert_akshare_stock_info(data: dict) -> dict:

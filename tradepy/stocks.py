@@ -18,8 +18,6 @@ def _fuzzy_match(target, texts) -> str:
 
 class StocksPool:
 
-    filename = "listing.csv"
-
     @cached_property
     def df(self):
         from tradepy.warehouse import ListingDepot

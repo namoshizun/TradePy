@@ -17,7 +17,6 @@ config: Config = Config()
 
 listing: StocksPool = StocksPool()
 
-
 redis_client: Redis | None = None
 
 
