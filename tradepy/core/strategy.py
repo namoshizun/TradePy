@@ -4,8 +4,6 @@ import inspect
 import talib
 import random
 import pandas as pd
-import numpy as np
-import numba as nb
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
@@ -20,21 +18,7 @@ from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
-from tradepy.core import Indicator, IndicatorSet
-
-
-@nb.njit
-def assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
-    i = 0
-
-    factors = []
-    for ts in timestamps:
-        while True:
-            if fac_ts[i + 1] > ts:
-                break
-            i += 1
-        factors.append(fac_vals[i])
-    return factors
+from tradepy.core import Indicator, IndicatorSet, adjust_factors
 
 
 class BarData(TypedDict):
@@ -200,23 +184,18 @@ class StrategyBase(Generic[BarDataType]):
             if row.trade_units > 0
         ]
 
+    def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
+        assert isinstance(self.hfq_adjust_factors, pd.DataFrame)
+        adj = adjust_factors.AdjustFactors(self.hfq_adjust_factors.loc[code])
+        return adj.backward_adjust_history_prices(bars_df)
+
+    def adjust_stocks_latest_prices(self, bars_df: pd.DataFrame):
+        assert isinstance(self.hfq_adjust_factors, pd.DataFrame)
+        adj = adjust_factors.AdjustFactors(self.hfq_adjust_factors)
+        return adj.backward_adjust_stocks_latest_prices(bars_df)
+
     def _adjust_then_compute(self, bars_df: pd.DataFrame, indicators: list[Indicator]):
-
-        def _adjust_prices(bars_df: pd.DataFrame, adj_df: pd.DataFrame) -> pd.DataFrame:
-            # Find each day's adjust factor
-            factor_vals = assign_factor_value_to_day(
-                nb.typed.List(adj_df["timestamp"].tolist()),
-                nb.typed.List(adj_df["hfq_factor"].tolist()),
-                nb.typed.List(bars_df["timestamp"].tolist())
-            )
-
-            # Adjust prices accordingly
-            bars_df[["open", "close", "high", "low"]] *= np.array(factor_vals).reshape(-1, 1)
-            bars_df["chg"] = (bars_df["close"] - bars_df["close"].shift(1)).fillna(0)
-            bars_df["pct_chg"] = (100 * (bars_df['chg'] / bars_df['close'].shift(1))).fillna(0)
-            return bars_df.round(2)
-
-        code = bars_df.index[0]
+        code: str = bars_df.index[0]  # type: ignore
         bars_df.sort_values("timestamp", inplace=True)
         bars_df = self.pre_process(bars_df)
         # Pre-process before computing indicators
@@ -229,8 +208,7 @@ class StrategyBase(Generic[BarDataType]):
             assert isinstance(adj_df, pd.DataFrame)
             # Adjust prices
             try:
-                adjust_factors_df = adj_df.loc[code].sort_values("timestamp")
-                bars_df = _adjust_prices(bars_df, adjust_factors_df)
+                bars_df = self.adjust_stock_history_prices(code, bars_df)
                 if bars_df["pct_chg"].abs().max() > 21:
                     # Either adjust factor is missing or incorrect...
                     return pd.DataFrame()
@@ -346,9 +324,9 @@ class LiveStrategy(StrategyBase[BarDataType]):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def compute_close_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_close_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def compute_intraday_indicators(self, ind_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_intraday_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()

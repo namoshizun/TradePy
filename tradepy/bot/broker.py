@@ -18,9 +18,9 @@ class BrokerAPI:
             {
                 "id": "10086",
                 "timestamp": "2021-01-01 09:30:00",
-                "code": "000001",
-                "company": "平安银行",
-                "price": 10.0,
+                "code": "000333",
+                "company": "美的集团",
+                "price": 50,
                 "filled_price": None,
                 "shares": 1000,
                 "status": "pending",
@@ -34,9 +34,9 @@ class BrokerAPI:
             {
                 "id": "10086",
                 "timestamp": "2021-01-01 09:30:00",
-                "code": "000001",
-                "company": "平安银行",
-                "price": 10.0,
+                "code": "000333",
+                "company": "美的集团",
+                "price": 50.0,
                 "shares": 1000,
             }
         ]

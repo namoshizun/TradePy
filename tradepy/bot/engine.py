@@ -10,6 +10,7 @@ from celery import shared_task
 
 import tradepy
 from tradepy.constants import CacheKeys, Timeouts
+from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
 from tradepy.core.order import Order
 from tradepy.core.position import Position
@@ -46,6 +47,7 @@ class TradingEngine:
         self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
         self.workspace.mkdir(exist_ok=True, parents=True)
 
+        factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
             cash_amount=broker.get_account_free_cash_amount(),  # type: ignore
             trading_unit=int(os.environ["TRADE_UNIT"]),
@@ -53,30 +55,17 @@ class TradingEngine:
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
             max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),
             max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
-            hfq_adjust_factors=AdjustFactorDepot.load(),
+            hfq_adjust_factors=factors_df,
         )
         ctx_args.update(_load_ctx_vars_from_env())
-
         self.ctx = Context.build(**ctx_args)
+
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
-        self.latest_adjust_factors_df: pd.DataFrame = self._get_latest_adjust_factors()
+        self.adjust_factors: AdjustFactors = AdjustFactors(factors_df)
 
     @cached_property
     def redis_client(self):
         return tradepy.config.get_redis_client()
-
-    def _get_latest_adjust_factors(self) -> pd.DataFrame:
-        adj_df = self._read_dataframe_from_cache(CacheKeys.latest_adjust_factors)
-        if adj_df is None:
-            assert isinstance(self.ctx.hfq_adjust_factors, pd.DataFrame)
-            adj_df = (
-                self.ctx.hfq_adjust_factors
-                .groupby("code")
-                .apply(lambda x: x.sort_values("timestamp").iloc[-2])
-            )
-            serialized = pickle.dumps(adj_df)
-            self.redis_client.set(CacheKeys.latest_adjust_factors, serialized)
-        return adj_df
 
     def _read_dataframe_from_cache(self, cache_key: str) -> pd.DataFrame | None:
         if not self.redis_client.exists(cache_key):
@@ -94,24 +83,12 @@ class TradingEngine:
         except UnicodeDecodeError as e:
             return pickle.loads(e.object)
 
-    def _backward_adjust_prices(self, quote_df: pd.DataFrame):
-        adj_df = self.latest_adjust_factors_df
-        quote_df["close"] *= adj_df["hfq_factor"]
-        quote_df["low"] *= adj_df["hfq_factor"]
-        quote_df["high"] *= adj_df["hfq_factor"]
-        quote_df["open"] *= adj_df["hfq_factor"]
-        return quote_df.round(2)
-
-    def _to_real_price(self, price: float, code: str) -> float:
-        factor = self.latest_adjust_factors_df.loc[code, "hfq_factor"]
-        return round(price / factor, 2)  # type: ignore
-
     def _get_buy_options(self,
-                        ind_df: pd.DataFrame,
-                        orders: list[Order]) -> list[tuple[Any, float]]:
+                         ind_df: pd.DataFrame,
+                         orders: list[Order]) -> list[tuple[Any, float]]:
         already_ordered = set(o.code for o in orders)
         return [
-            (code, self._to_real_price(price, code))
+            (code, self.adjust_factors.to_real_price(code, price))
             for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
             if (code not in already_ordered) and (price := self.strategy.should_buy(*indicators))
         ]
@@ -132,7 +109,7 @@ class TradingEngine:
             LOG.info("已经有其他进程在计算开盘指标了，不再重复计算。")
             return
 
-        with self.redis_client.lock(lock_key, timeout=Timeouts.pre_compute_indicators, sleep=1):
+        with self.redis_client.lock(lock_key, timeout=Timeouts.compute_open_indicators, sleep=1):
             cache_key = CacheKeys.indicators_df
             if not self.redis_client.exists(cache_key):
                 ind_df = self.strategy.compute_open_indicators(quote_df)
@@ -146,16 +123,27 @@ class TradingEngine:
                 assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
                 return val
 
-    def _compute_close_indicators(self, ind_df: pd.DataFrame) -> pd.DataFrame | None:
+    def _compute_close_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame | None:
         lock_key = CacheKeys.compute_close_indicators
         if self.redis_client.get(lock_key):
             LOG.info("已经有其他进程在计算收盘指标了，不再重复计算。")
             return
 
-        positions = broker.get_positions(available_only=True)  # type: ignore
-        holding_codes = [pos.code for pos in positions]
-        ind_df = ind_df.loc[holding_codes].copy()
-        return self.strategy.compute_close_indicators(ind_df)
+        with self.redis_client.lock(lock_key, timeout=Timeouts.compute_close_indicators, sleep=1):
+            positions = broker.get_positions(available_only=True)  # type: ignore
+            closable_positions_codes = [
+                pos.code
+                for pos in positions
+                if pos.code in ind_df.index
+            ]
+
+            if not closable_positions_codes:
+                LOG.info("当前没有可平仓位。")
+                return
+
+            ind_df = ind_df.loc[closable_positions_codes].copy()
+            df = self.strategy.compute_close_indicators(quote_df, ind_df)
+            return df
 
     def _inday_trade(self, ind_df: pd.DataFrame):
         positions: list[Position] = broker.get_positions(available_only=True)  # type: ignore
@@ -169,7 +157,7 @@ class TradingEngine:
                 continue
 
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
-            bar["close"] = self._to_real_price(bar["close"], pos.code)
+            bar["close"] = self.adjust_factors.to_real_price(pos.code, bar["close"])
 
             # Take profit
             if take_profit_price := self.strategy.should_take_profit(bar, pos):
@@ -214,8 +202,8 @@ class TradingEngine:
 
         for pos in positions:
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
-            bar["close"] = self._to_real_price(bar["close"], pos.code)
-            pos.close(bar["close"] * 0.99)
+            real_price = self.adjust_factors.to_real_price(pos.code, bar["close"])
+            pos.close(real_price * 0.99)
             sell_orders.append(pos.to_sell_order(trade_date))
 
         if sell_orders:
@@ -225,7 +213,7 @@ class TradingEngine:
 
     @timeout(Timeouts.handle_pre_market_open_call)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
-        ind_df = self._compute_open_indicators(quote_df)  # NOTE: price adjustment will be done there as well
+        ind_df = self._compute_open_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
             self._inday_trade(ind_df)
 
@@ -235,12 +223,8 @@ class TradingEngine:
             LOG.warn("已进入盘中交易, 但指标计算仍在进行中!")
             return
 
-        quote_df = self._backward_adjust_prices(quote_df)
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        assert isinstance(ind_df, pd.DataFrame)
-
-        ind_df.update(quote_df)
-        ind_df = self.strategy.compute_intraday_indicators(ind_df)
+        ind_df = self.strategy.compute_intraday_indicators(quote_df, ind_df)
         self._inday_trade(ind_df)
 
     @timeout(Timeouts.handle_cont_trade_pre_close)
@@ -249,13 +233,8 @@ class TradingEngine:
             LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")
             return
 
-        quote_df = self._backward_adjust_prices(quote_df)
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        assert isinstance(ind_df, pd.DataFrame)
-
-        ind_df.update(quote_df)
-        ind_df = self.strategy.compute_intraday_indicators(ind_df)
-        ind_df = self._compute_close_indicators(ind_df)
+        ind_df = self._compute_close_indicators(quote_df, ind_df)
         if isinstance(ind_df, pd.DataFrame):
             self._pre_close_trade(ind_df)
 

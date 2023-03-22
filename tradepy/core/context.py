@@ -27,7 +27,7 @@ class Context:
 
     # Misc
     signals_percent_range = (0, 100)  # in percentage
-    hfq_adjust_factors: pd.DataFrame | None = None
+    hfq_adjust_factors: pd.DataFrame | None = None  # TODO: should be instance of AdjustFactos or None
 
     def __post_init__(self):
         if self.hfq_adjust_factors is not None:

@@ -15,7 +15,7 @@ if new_p.exists():
     sys.exit(1)
 
 
-since_date = "2022-11-05"
+since_date = "2022-11-08"
 df = StocksDailyBarsDepot.load(since_date=since_date)
 
 p.rename(new_p)

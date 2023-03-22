@@ -17,7 +17,6 @@ class AStockExchange:
     @staticmethod
     def market_phase_now():
         _ = MarketPhase
-        # return _.PRE_CLOSE_CALL
 
         now = datetime.now()
         if str(now.date()) not in trade_cal:
@@ -44,7 +43,7 @@ class AStockExchange:
 
         elif 13 <= hour < 15:
             if hour == 14:
-                if 52 <= minute < 57:
+                if 53 <= minute < 57:
                     return _.CONT_TRADE_PRE_CLOSE
                 if minute >= 57:
                     return _.PRE_CLOSE_CALL
@@ -69,7 +68,7 @@ def fetch_market_quote():
     if phase not in (
         MarketPhase.PRE_OPEN_CALL_P2,
         MarketPhase.CONT_TRADE,
-        MarketPhase.PRE_CLOSE_CALL):
+        MarketPhase.CONT_TRADE_PRE_CLOSE):
         return
 
     with timeit() as timer:
