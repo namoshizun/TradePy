@@ -36,7 +36,7 @@ class Config:
     redis_port: int = int(getenv("REDIS_PORT", 6379))
     redis_db: int = int(getenv("REDIS_DB", 0))
     redis_password: str = getenv("REDIS_PASSWORD", "")
-    strategy_class: str = getenv("TRADE_CLASS", "")
+    strategy_class: str = getenv("TRADE_STRATEGY_CLASS", "")
 
     def get_strategy_class(self) -> Type["LiveStrategy"]:
         assert self.strategy_class

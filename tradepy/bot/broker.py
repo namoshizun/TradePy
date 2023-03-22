@@ -1,5 +1,6 @@
 import functools
 import json
+import os
 import tradepy
 
 from tradepy.constants import CacheKeys
@@ -11,6 +12,8 @@ LOG = tradepy.LOG
 
 
 class BrokerAPI:
+
+    broker_api_url = os.environ["TRADE_BROKER_API_URL"]
 
     @staticmethod
     def get_orders():
