@@ -28,10 +28,11 @@ loguru = "^0.6.0"
 celery = {extras = ["redis"], version = "^5.2.7"}
 fastapi = "^0.95.0"
 uvicorn = {extras = ["standard"], version = "^0.21.1"}
+pydantic = "^1.10.7"
 
 [tool.poetry.extras]
 bot = ["celery"]
-broker = ["fastapi", "uvicorn"]
+broker = ["fastapi", "uvicorn", "pydantic"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"
