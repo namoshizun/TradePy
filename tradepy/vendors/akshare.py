@@ -136,11 +136,14 @@ class AkShareClient:
         df["name"] = name
         return df
 
-    def get_sector_index_current_quote(self, name_or_code: str) -> pd.Series:
-        series = ak.stock_board_industry_current_em(name_or_code)
-        series = convert_akshare_sector_current_quote(series)
-        series["timestamp"] = str(get_latest_trade_date())
-        return series
+    def get_sector_index_current_quote(self, name_or_code: str) -> dict[str, Any]:
+        df = ak.stock_board_industry_spot_em(name_or_code)
+        data = convert_akshare_sector_current_quote({
+            row.item: row.value
+            for row in df.itertuples()
+        })
+        data["timestamp"] = str(get_latest_trade_date())  # type: ignore
+        return data
 
     def get_sectors_listing(self) -> pd.DataFrame:
         return convert_akshare_sector_listing(ak.stock_board_industry_name_em())
