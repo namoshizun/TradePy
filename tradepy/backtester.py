@@ -37,6 +37,7 @@ class Backtester:
                 latest_price=o.price,
                 timestamp=o.timestamp,
                 vol=o.vol,
+                avail_vol=o.vol,
             )
             for o in orders
         ]

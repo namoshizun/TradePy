@@ -15,11 +15,11 @@ class XtQuantConnection:
 
     @property
     def data_path(self) -> str:
-        return os.environ["XQUANT_QMT_DATA_PATH"]
+        return os.environ["XTQUANT_QMT_DATA_PATH"]
 
     @property
     def account_id(self) -> str:
-        return os.environ["XQUANT_ACCOUNT_ID"]
+        return os.environ["XTQUANT_ACCOUNT_ID"]
 
     def init_trader(self) -> XtQuantTrader:
         session_id = random.randint(100000, 999999)

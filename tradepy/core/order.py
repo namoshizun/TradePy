@@ -3,17 +3,24 @@ from pydantic import BaseModel
 
 OrderDirection = Literal['buy', 'sell']
 
-OrderStatus = Literal['pending', 'filled', 'cancelled']
+OrderStatus = Literal[
+    'pending',
+    'filled',
+    'cancelled',
+    'unknown',
+    'invalid'
+]
 
 
 class Order(BaseModel):
-    id: str
+    id: str | None = None  # Can be null when creating an order
     timestamp: str
     code: str
     price: float
-    filled_price: float | None = None
     vol: int
-    status: OrderStatus
+    filled_price: float | None = None
+    filled_vol: int | None = None
+    status: OrderStatus = "pending"
     direction: Literal["buy", "sell"]
 
     @property

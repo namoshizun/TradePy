@@ -7,6 +7,8 @@ from broker_proxy.qmt.routes import router as api_router
 from broker_proxy.qmt.connector import xt_conn
 
 
+# TODO: The API Server should be moved to an upper level. The actual
+# broker API router to be included should be specified in the env vars
 app = FastAPI(title="QMT Broker Proxy")
 
 app.include_router(api_router)

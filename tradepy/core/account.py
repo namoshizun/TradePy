@@ -15,14 +15,6 @@ class Account:
     cash_amount: float = 0
     holdings: Holdings = field(default_factory=Holdings)
 
-    @classmethod
-    def from_dict(cls, data) -> "Account":
-        holdings = Holdings.from_list(data["holdings"])
-        return cls(
-            cash_amount=data["cash_amount"],
-            holdings=holdings
-        )
-
     @require_mode("backtest")
     def update_holdings(self, price_lookup: Holdings.PriceLookupFun):
         if any(self.holdings):

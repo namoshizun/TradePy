@@ -1,6 +1,8 @@
 {
+    "python.languageServer": "Pylance",
     "python.linting.flake8Enabled": true,
     "python.linting.enabled": true,
     "editor.formatOnSave": false,
-    "python.formatting.provider": "autopep8"
+    "python.formatting.provider": "autopep8",
+    "python.analysis.typeCheckingMode": "basic",
 }

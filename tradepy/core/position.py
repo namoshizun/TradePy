@@ -12,6 +12,7 @@ class Position(BaseModel):
     code: str
     price: float
     vol: int
+    avail_vol: int
     latest_price: float
 
     def as_dict(self):
