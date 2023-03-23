@@ -17,7 +17,7 @@ from tradepy.core.position import Position
 from tradepy.core.strategy import LiveStrategy
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
-from tradepy.bot import broker
+from tradepy.bot.broker import BrokerAPI
 from tradepy.warehouse import AdjustFactorDepot
 
 
@@ -49,7 +49,7 @@ class TradingEngine:
 
         factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
-            cash_amount=broker.get_account_free_cash_amount(),  # type: ignore
+            cash_amount=BrokerAPI.get_account_free_cash_amount(),  # type: ignore
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
@@ -130,7 +130,7 @@ class TradingEngine:
             return
 
         with self.redis_client.lock(lock_key, timeout=Timeouts.compute_close_indicators, sleep=1):
-            positions = broker.get_positions(available_only=True)  # type: ignore
+            positions = BrokerAPI.get_positions(available_only=True)  # type: ignore
             closable_positions_codes = [
                 pos.code
                 for pos in positions
@@ -146,7 +146,7 @@ class TradingEngine:
             return df
 
     def _inday_trade(self, ind_df: pd.DataFrame):
-        positions: list[Position] = broker.get_positions(available_only=True)  # type: ignore
+        positions: list[Position] = BrokerAPI.get_positions(available_only=True)  # type: ignore
         trade_date = ind_df.iloc[0]["timestamp"]
 
         # [1] Sell existing positions
@@ -172,18 +172,18 @@ class TradingEngine:
         if sell_orders:
             LOG.info('发送卖出指令')
             LOG.log_orders(sell_orders)
-            broker.place_orders(sell_orders)
+            BrokerAPI.place_orders(sell_orders)
 
         # [2] Buy stocks
-        orders = broker.get_orders()  # type: ignore
+        orders = BrokerAPI.get_orders()  # type: ignore
         buy_options = self._get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
         if buy_options:
-            free_cash_amount = broker.get_account_free_cash_amount()  # type: ignore
+            free_cash_amount = BrokerAPI.get_account_free_cash_amount()  # type: ignore
             port_df, budget = self.strategy.get_portfolio_and_budget(ind_df, buy_options, free_cash_amount)
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
 
             if buy_orders:
-                broker.place_orders(buy_orders)
+                BrokerAPI.place_orders(buy_orders)
                 LOG.info('发送买入指令')
                 LOG.log_orders(buy_orders)
 
@@ -195,7 +195,7 @@ class TradingEngine:
 
         positions: list[Position] = [
             pos
-            for pos in broker.get_positions(available_only=True)  # type: ignore
+            for pos in BrokerAPI.get_positions(available_only=True)  # type: ignore
             if pos.code in close_codes
         ]
         sell_orders, trade_date = [], ind_df.iloc[0]["timestamp"]
@@ -209,7 +209,7 @@ class TradingEngine:
         if sell_orders:
             LOG.info('发送卖出指令')
             LOG.log_orders(sell_orders)
-            broker.place_orders(sell_orders)
+            BrokerAPI.place_orders(sell_orders)
 
     @timeout(Timeouts.handle_pre_market_open_call)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
@@ -229,7 +229,7 @@ class TradingEngine:
 
     @timeout(Timeouts.handle_cont_trade_pre_close)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):
-        if not broker.get_positions(available_only=True):  # type: ignore
+        if not BrokerAPI.get_positions(available_only=True):  # type: ignore
             LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")
             return
 

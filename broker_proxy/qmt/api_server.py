@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+import tradepy
 from broker_proxy.qmt.routes import router as api_router
 from broker_proxy.qmt.connector import xt_conn
 
@@ -16,8 +17,8 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost",
-        os.environ["TRADE_BOT_HOST"]
+        "localhost",
+        os.environ["TRADE_BROKER_HOST"]
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -25,7 +26,8 @@ app.add_middleware(
 )
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
-    os.environ["TRADE_BOT_HOST"]
+    "localhost",
+    os.environ["TRADE_BROKER_HOST"],
 ])
 
 
@@ -37,3 +39,4 @@ async def app_startup() -> None:
 @app.on_event("shutdown")
 async def app_shutdown() -> None:
     xt_conn.disconnect()
+    tradepy.config.exit()

@@ -16,7 +16,7 @@ class classproperty:
 class CacheKeys:
     _prefix = f'tradepy:{date.today()}'
 
-    cash_amount = f"{_prefix}:broker:account-free-cash-amount"
+    account = f"{_prefix}:broker:account"
     orders = f"{_prefix}:broker:orders"
     positions = f"{_prefix}:broker:positions"
 

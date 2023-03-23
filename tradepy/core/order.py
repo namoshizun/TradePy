@@ -1,3 +1,5 @@
+import uuid
+from datetime import date
 from typing import Literal
 from pydantic import BaseModel
 
@@ -27,6 +29,17 @@ class Order(BaseModel):
     def slip_points(self) -> float:
         assert self.filled_price is not None
         return self.price - self.filled_price
+
+    @classmethod
+    def fake(cls) -> "Order":
+        return cls(
+            id=str(uuid.uuid4()),
+            timestamp=date.today().isoformat(),
+            code="000333",
+            direction="buy",
+            price=50,
+            vol=100,
+        )
 
     def __str__(self) -> str:
         return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}]'

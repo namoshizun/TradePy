@@ -35,7 +35,7 @@ class Position(BaseModel):
             timestamp=timestamp,
             code=self.code,
             price=self.latest_price,
-            vol=self.vol,
+            vol=self.avail_vol,
             direction="sell",
             status="pending"
         )

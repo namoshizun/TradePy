@@ -4,7 +4,7 @@ import importlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Type
 from dotenv import load_dotenv
-from redis import Redis
+from redis import Redis, ConnectionPool
 
 from tradepy.types import MarketType, Markets
 
@@ -38,6 +38,9 @@ class Config:
     redis_password: str = getenv("REDIS_PASSWORD", "")
     strategy_class: str = getenv("TRADE_STRATEGY_CLASS", "")
 
+    # global states
+    redis_connection_pool: ConnectionPool | None = None
+
     def get_strategy_class(self) -> Type["LiveStrategy"]:
         assert self.strategy_class
         *module_path, class_name = self.strategy_class.split('.')
@@ -46,12 +49,16 @@ class Config:
         return getattr(module, class_name)
 
     def get_redis_client(self) -> Redis:
-        return Redis(
-            host=self.redis_host,
-            port=self.redis_port,
-            password=self.redis_password,
-            decode_responses=True
-        )
+        if self.redis_connection_pool is None:
+            self.redis_connection_pool = ConnectionPool(
+                host=self.redis_host,
+                port=self.redis_port,
+                password=self.redis_password,
+                db=self.redis_db,
+                decode_responses=True
+            )
+
+        return Redis(connection_pool=self.redis_connection_pool)
 
     def set_database_dir(self, path: str | pathlib.Path):
         if isinstance(path, str):
@@ -67,3 +74,7 @@ class Config:
         if mode == "trading":
             assert self.redis_password, "Please provide the redis password by setting environment variable REDIS_PASSWORD"
         self.mode = mode
+
+    def exit(self):
+        if self.redis_connection_pool:
+            self.redis_connection_pool.disconnect()
