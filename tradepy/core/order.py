@@ -1,29 +1,20 @@
-import uuid
-from dataclasses import dataclass
 from typing import Literal
-
+from pydantic import BaseModel
 
 OrderDirection = Literal['buy', 'sell']
 
 OrderStatus = Literal['pending', 'filled', 'cancelled']
 
 
-@dataclass
-class Order:
+class Order(BaseModel):
+    id: str
     timestamp: str
     code: str
-    company: str
     price: float
-    shares: int
-    direction: OrderDirection
-    status: OrderStatus
     filled_price: float | None = None
-    id: str = ""
-
-    def __post_init__(self):
-        if not self.id:
-            uuid_piece = str(uuid.uuid4()).split('-')[1]
-            self.id = f'{self.company}-{uuid_piece}'
+    vol: int
+    status: OrderStatus
+    direction: Literal["buy", "sell"]
 
     @property
     def slip_points(self) -> float:
@@ -31,4 +22,4 @@ class Order:
         return self.price - self.filled_price
 
     def __str__(self) -> str:
-        return f'[{self.timestamp}] {self.company} @{self.price} * {self.shares}. [{self.direction}, {self.status}]'
+        return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}]'

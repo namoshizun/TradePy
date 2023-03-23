@@ -29,9 +29,8 @@ class Holdings:
                 latest_price=pos["latest_price"],
                 timestamp=pos["timestamp"],
                 code=pos["code"],
-                company=pos["company"],
                 price=pos["price"],
-                shares=pos["shares"],
+                vol=pos["shares"],
             )
             for pos in data
         }

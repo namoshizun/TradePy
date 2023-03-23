@@ -1,37 +1,25 @@
 import uuid
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from tradepy.core.order import Order
 from tradepy.utils import calc_pct_chg, round_val
 
 
-@dataclass
-class Position:
+class Position(BaseModel):
 
+    id: str
     timestamp: str
     code: str
-    company: str
     price: float
-    shares: int
-
-    latest_price: float = 0
-    id: str = ""
-
-    def __post_init__(self):
-        if not self.latest_price:
-            self.latest_price = self.price
-
-        if not self.id:
-            uuid_piece = str(uuid.uuid4()).split('-')[1]
-            self.id = f'{self.company}-{uuid_piece}'
+    vol: int
+    latest_price: float
 
     def as_dict(self):
         return {
             "id": self.id,
             "timestamp": self.timestamp,
             "code": self.code,
-            "company": self.company,
-            "shares": self.shares,
+            "shares": self.vol,
             "cost_price": self.price,
             "latest_price": self.latest_price,
             "profit": self.profit_or_loss_at(self.latest_price),
@@ -42,11 +30,11 @@ class Position:
     def to_sell_order(self, timestamp) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'
         return Order(
+            id=str(uuid.uuid4),
             timestamp=timestamp,
             code=self.code,
-            company=self.company,
             price=self.latest_price,
-            shares=self.shares,
+            vol=self.vol,
             direction="sell",
             status="pending"
         )
@@ -58,7 +46,7 @@ class Position:
 
     @round_val
     def total_value_at(self, price: float) -> float:
-        return price * self.shares
+        return price * self.vol
 
     @round_val
     def profit_or_loss_at(self, price: float) -> float:
@@ -89,7 +77,7 @@ class Position:
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.shares}'
+        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol}'
         return msg
 
     def __repr__(self):

@@ -90,10 +90,9 @@ def get_orders(orders) -> list[Order]:
             id=x["id"],
             timestamp=x["timestamp"],
             code=x["code"],
-            company=x["company"],
             price=x["price"],
             filled_price=x["filled_price"],
-            shares=x["shares"],
+            vol=x["vol"],
             status=x["status"],
             direction=x["direction"],
         )
@@ -113,9 +112,8 @@ def get_positions(positions, available_only: bool = False) -> list[Position]:
             id=x["id"],
             timestamp=x["timestamp"],
             code=x["code"],
-            company=x["company"],
             price=x["price"],
-            shares=x["shares"],
+            vol=x["shares"],
         )
         for x in positions
         if x["code"] not in on_sell_lst

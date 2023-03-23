@@ -3,6 +3,7 @@ import sys
 import inspect
 import talib
 import random
+import uuid
 import pandas as pd
 from functools import cache, cached_property
 from itertools import chain
@@ -172,11 +173,11 @@ class StrategyBase(Generic[BarDataType]):
 
         return [
             Order(
+                id=str(uuid.uuid4()),
                 timestamp=row.timestamp,
                 code=row.code,
-                company=row.company,
                 price=row.order_price,
-                shares=row.trade_units * self.trading_unit,
+                vol=row.trade_units * self.trading_unit,
                 direction="buy",
                 status="pending"
             )

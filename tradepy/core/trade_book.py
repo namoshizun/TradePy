@@ -54,12 +54,12 @@ class TradeBook:
             "tag": action,
             "pos_id": pos.id,
             "code": pos.code,
-            "shares": pos.shares,
+            "shares": pos.vol,
             "price": pos.latest_price,
-            "total_value": pos.latest_price * pos.shares,
+            "total_value": pos.latest_price * pos.vol,
             "chg": chg,
             "pct_chg": pct_chg,
-            "total_return": (pos.price * pct_chg * 1e-2) * pos.shares
+            "total_return": (pos.price * pct_chg * 1e-2) * pos.vol
         })
 
     def buy(self, timestamp: str, pos: Position):
@@ -68,9 +68,9 @@ class TradeBook:
             "tag": TradeActions.OPEN,
             "pos_id": pos.id,
             "code": pos.code,
-            "shares": pos.shares,
+            "shares": pos.vol,
             "price": pos.price,
-            "total_value": pos.price * pos.shares,
+            "total_value": pos.price * pos.vol,
         })
 
     def exit(self, *args, **kwargs):

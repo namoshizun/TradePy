@@ -31,11 +31,12 @@ class Backtester:
     def __orders_to_positions(self, orders: list[Order]) -> list[Position]:
         return [
             Position(
+                id=o.id,
                 code=o.code,
-                company=o.company,
                 price=o.price,
+                latest_price=o.price,
                 timestamp=o.timestamp,
-                shares=o.shares,
+                vol=o.vol,
             )
             for o in orders
         ]
