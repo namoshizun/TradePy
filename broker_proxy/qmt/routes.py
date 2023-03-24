@@ -4,13 +4,14 @@ from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
-from broker_proxy.cache import AccountCache, PositionCache, OrderCache
+from broker_proxy.cache import PositionCache, OrderCache
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.qmt.conversion import (
     xtorder_to_tradepy,
     xtposition_to_tradepy,
     xtaccount_to_tradepy,
-    tradepy_order_direction_to_xtorder_status
+    tradepy_order_direction_to_xtorder_status,
+    tradepy_code_to_xtcode,
 )
 from tradepy.core.position import Position
 from tradepy.core.order import Order
@@ -34,9 +35,8 @@ def use_cache(getter, setter):
 
 
 @router.get("/account")
-@use_cache(AccountCache.get, AccountCache.set)
 async def get_account_info():
-    logger.info("查詢最新資產信息")
+    logger.info("查询并最新资产信息")
     trader = xt_conn.get_trader()
     account = xt_conn.get_account()
     assets: XtAsset | None = trader.query_stock_asset(account)
@@ -52,7 +52,7 @@ async def get_account_info():
 async def get_positions(available: bool = False):
     @use_cache(PositionCache.get_many, PositionCache.set_many)
     async def fetch():
-        logger.info("查詢並更新當前持倉")
+        logger.info("查询并更新当前持仓")
         account = xt_conn.get_account()
         trader = xt_conn.get_trader()
         xt_positions: list[XtPosition] = trader.query_stock_positions(account)
@@ -71,7 +71,7 @@ async def get_positions(available: bool = False):
 @router.get("/orders", response_model=list[Order])
 @use_cache(OrderCache.get_many, OrderCache.set_many)
 async def get_orders():
-    logger.info("查詢並更新當前委托")
+    logger.info("查询并更新当前委托")
     account = xt_conn.get_account()
     trader = xt_conn.get_trader()
     orders: list[XtOrder] = trader.query_stock_orders(account)
@@ -80,7 +80,7 @@ async def get_orders():
 
 @router.post("/orders", response_model=Order)
 async def place_order(orders: list[Order]):
-    logger.info("收到下單請求")
+    logger.info("收到下单请求")
     account = xt_conn.get_account()
     trader = xt_conn.get_trader()
 
@@ -89,7 +89,7 @@ async def place_order(orders: list[Order]):
         logger.info(f"提交委托: {order}")
         order_id = trader.order_stock(
             account=account,
-            stock_code=order.code,
+            stock_code=tradepy_code_to_xtcode(order.code),
             order_type=tradepy_order_direction_to_xtorder_status(order.direction),
             order_volume=order.vol,
             price_type=xtconstant.FIX_PRICE,

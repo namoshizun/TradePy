@@ -38,8 +38,8 @@ class XtQuantConnection:
         self._trader.register_callback(callback)
         res = self._trader.subscribe(self._account)
         if res != 0:
-            logger.error(f'订阅交易主推失败{res}')
-        logger.info(f"订阅交易主推成功{res}")
+            logger.error(f'订阅交易主推失败: {res}')
+        logger.info(f"订阅交易主推成功: {res}")
 
     def connect(self):
         logger.info("启动交易线程")

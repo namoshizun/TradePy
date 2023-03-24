@@ -49,7 +49,7 @@ class TradingEngine:
 
         factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
-            cash_amount=BrokerAPI.get_account_free_cash_amount(),  # type: ignore
+            cash_amount=0,  # No use
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),

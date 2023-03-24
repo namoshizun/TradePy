@@ -17,7 +17,7 @@ OrderStatus = Literal[
 class Order(BaseModel):
     id: str | None = None  # Can be null when creating an order
     timestamp: str
-    code: str
+    code: str  # e.g., 000333
     price: float
     vol: int
     filled_price: float | None = None
@@ -33,13 +33,17 @@ class Order(BaseModel):
     @classmethod
     def fake(cls) -> "Order":
         return cls(
-            id=str(uuid.uuid4()),
+            id=cls.make_id("000333"),
             timestamp=date.today().isoformat(),
             code="000333",
             direction="buy",
             price=50,
             vol=100,
         )
+
+    @staticmethod
+    def make_id(code) -> str:
+        return code + "-" + str(uuid.uuid4()).split('-')[1]
 
     def __str__(self) -> str:
         return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}]'

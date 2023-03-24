@@ -5,6 +5,7 @@ from xtquant import xtconstant
 
 from tradepy.core.position import Position
 from tradepy.core.order import Order, OrderDirection, OrderStatus
+from tradepy.convertion import convert_code_to_exchange
 
 
 def tradepy_order_direction_to_xtorder_status(dir: OrderDirection):
@@ -46,7 +47,7 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
     return Order(
         id=str(o.order_id),
         timestamp=datetime.fromtimestamp(o.order_time).isoformat(),
-        code=o.stock_code.split('.')[0],  # e.g., 000333.SZ => 000333
+        code=xtcode_to_tradepy_code(o.stock_code),
         price=o.price,
         vol=o.order_volume,
         filled_price=o.traded_price,
@@ -61,7 +62,7 @@ def xtposition_to_tradepy(p: XtPosition) -> Position:
     return Position(
         id=p.stock_code,
         timestamp=date.today().isoformat(),
-        code=p.stock_code.split(".")[0],
+        code=xtcode_to_tradepy_code(p.stock_code),
         price=p.open_price,
         latest_price=curr_price,
         vol=p.volume,
@@ -76,3 +77,14 @@ def xtaccount_to_tradepy(a: XtAsset) -> dict[str, float]:
         "frozen_cash": a.frozen_cash,
         "market_value": a.market_value
     }
+
+
+def tradepy_code_to_xtcode(code: str) -> str:
+    if "." in code:
+        return code
+    exchange = convert_code_to_exchange(code)
+    return f'{code}.{exchange}'
+
+
+def xtcode_to_tradepy_code(code: str) -> str:
+    return code.split(".")[0]

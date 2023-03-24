@@ -1,4 +1,3 @@
-import uuid
 from pydantic import BaseModel
 
 from tradepy.core.order import Order
@@ -31,7 +30,7 @@ class Position(BaseModel):
     def to_sell_order(self, timestamp) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'
         return Order(
-            id=str(uuid.uuid4),
+            id=Order.make_id(self.code),
             timestamp=timestamp,
             code=self.code,
             price=self.latest_price,

@@ -6,6 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import tradepy
 from broker_proxy.qmt.routes import router as api_router
 from broker_proxy.qmt.connector import xt_conn
+from broker_proxy.qmt.subscriber import CacheSyncCallback
 
 
 # TODO: The API Server should be moved to an upper level. The actual
@@ -33,7 +34,6 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
 
 @app.on_event("startup")
 async def app_startup() -> None:
-    from broker_proxy.qmt.subscriber import CacheSyncCallback
     xt_conn.connect()
     xt_conn.subscribe(CacheSyncCallback())
 

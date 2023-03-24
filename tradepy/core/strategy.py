@@ -3,7 +3,6 @@ import sys
 import inspect
 import talib
 import random
-import uuid
 import pandas as pd
 from functools import cache, cached_property
 from itertools import chain
@@ -173,7 +172,7 @@ class StrategyBase(Generic[BarDataType]):
 
         return [
             Order(
-                id=str(uuid.uuid4()),
+                id=Order.make_id(row.code),
                 timestamp=row.timestamp,
                 code=row.code,
                 price=row.order_price,
@@ -204,8 +203,8 @@ class StrategyBase(Generic[BarDataType]):
             # Won't trade this stock
             return bars_df
 
-        adj_df = self.hfq_adjust_factors.copy()
-        if adj_df is not None:
+        if self.hfq_adjust_factors is not None:
+            adj_df = self.hfq_adjust_factors.copy()
             assert isinstance(adj_df, pd.DataFrame)
             # Adjust prices
             try:
