@@ -49,7 +49,10 @@ class PositionCache(CacheItem):
             return Position.parse_raw(raw)
 
     @staticmethod
-    def get_many() -> list[Position]:
+    def get_many() -> list[Position] | None:
+        r = get_redis()
+        if not r.exists(CacheKeys.positions):
+            return None
         return [
             Position.parse_raw(raw)
             for _, raw in get_redis().hgetall(CacheKeys.positions).items()
@@ -73,7 +76,10 @@ class OrderCache(CacheItem):
             return Order.parse_raw(raw)
 
     @staticmethod
-    def get_many() -> list[Order]:
+    def get_many() -> list[Order] | None:
+        r = get_redis()
+        if not r.exists(CacheKeys.orders):
+            return None
         return [
             Order.parse_raw(raw)
             for _, raw in get_redis().hgetall(CacheKeys.orders).items()
@@ -90,6 +96,6 @@ class AccountCache(CacheItem):
         )
 
     @staticmethod
-    def get() -> dict:
-        raw = get_redis.get(CacheKeys.account)
-        return json.loads(raw)
+    def get() -> dict | None:
+        if raw := get_redis().get(CacheKeys.account):
+            return json.loads(raw)

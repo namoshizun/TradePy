@@ -33,7 +33,9 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
 
 @app.on_event("startup")
 async def app_startup() -> None:
+    from broker_proxy.qmt.subscriber import CacheSyncCallback
     xt_conn.connect()
+    xt_conn.subscribe(CacheSyncCallback())
 
 
 @app.on_event("shutdown")

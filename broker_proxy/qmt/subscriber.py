@@ -19,8 +19,8 @@ class CacheSyncCallback(XtQuantTraderCallback):
         logger.error("连接断开")
 
     def on_stock_order(self, xt_order: XtOrder):
-        logger.info(f"委托状态更新: {xt_order.stock_code}, {xt_order.order_status}, {xt_order.order_sysid}")
         order: Order = xt_convert.xtorder_to_tradepy(xt_order)
+        logger.info(f"委托状态更新: {order}")
         cache.OrderCache.set(order)
 
     def on_stock_asset(self, asset: XtAsset):
@@ -29,8 +29,8 @@ class CacheSyncCallback(XtQuantTraderCallback):
         cache.AccountCache.set(account)
 
     def on_stock_position(self, xt_position: XtPosition):
-        logger.info(f"持仓变动: {xt_position.stock_code}, {xt_position.volume}")
         position: Position = xt_convert.xtposition_to_tradepy(xt_position)
+        logger.info(f"持仓变动: {position}")
         cache.PositionCache.set(position)
 
     def on_order_error(self, order_error: XtOrderError):

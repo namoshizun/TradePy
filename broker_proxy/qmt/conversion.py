@@ -1,5 +1,5 @@
 from loguru import logger
-from datetime import date
+from datetime import date, datetime
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
@@ -45,8 +45,8 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
 
     return Order(
         id=str(o.order_id),
-        timestamp=o.order_time,
-        code=o.stock_code,
+        timestamp=datetime.fromtimestamp(o.order_time).isoformat(),
+        code=o.stock_code.split('.')[0],  # e.g., 000333.SZ => 000333
         price=o.price,
         vol=o.order_volume,
         filled_price=o.traded_price,
@@ -61,7 +61,7 @@ def xtposition_to_tradepy(p: XtPosition) -> Position:
     return Position(
         id=p.stock_code,
         timestamp=date.today().isoformat(),
-        code=p.stock_code,
+        code=p.stock_code.split(".")[0],
         price=p.open_price,
         latest_price=curr_price,
         vol=p.volume,
