@@ -3,7 +3,7 @@ import sys
 import random
 from loguru import logger
 
-from xtquant.xttrader import XtQuantTrader
+from xtquant.xttrader import XtQuantTrader, XtQuantTraderCallback
 from xtquant.xttype import StockAccount
 
 
@@ -33,6 +33,9 @@ class XtQuantConnection:
 
     def get_trader(self) -> XtQuantTrader:
         return self._trader
+
+    def subscribe(self, callback: XtQuantTraderCallback):
+        self._trader.register_callback(callback)
 
     def connect(self):
         logger.info("启动交易线程")

@@ -10,7 +10,7 @@ from broker_proxy.qmt import conversion as xt_convert
 from broker_proxy import cache
 
 
-class DataSyncCallback(XtQuantTraderCallback):
+class CacheSyncCallback(XtQuantTraderCallback):
 
     def __init__(self) -> None:
         self.redis = tradepy.config.get_redis_client()
@@ -53,6 +53,7 @@ def terminate_connection():
 if __name__ == "__main__":
     logger.add("xtquant_proxy_subscriber.log", rotation="1 day", retention="100 days")
     xt_conn.connect()
+    xt_conn.subscribe(CacheSyncCallback())
 
     # TODO: shutdown gracefully when terminated as a Windows service
     try:

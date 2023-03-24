@@ -17,6 +17,11 @@ class CacheItem:
     def set(*args):
         raise NotImplementedError
 
+    @classmethod
+    def set_many(cls, instances: list):
+        for instance in instances:
+            cls.set(instance)
+
     @staticmethod
     @abc.abstractmethod
     def get(*args):
@@ -24,7 +29,7 @@ class CacheItem:
 
     @staticmethod
     @abc.abstractmethod
-    def get_all(*args):
+    def get_many(*args):
         raise NotImplementedError
 
 
@@ -44,7 +49,7 @@ class PositionCache(CacheItem):
             return Position.parse_raw(raw)
 
     @staticmethod
-    def get_all() -> list[Position]:
+    def get_many() -> list[Position]:
         return [
             Position.parse_raw(raw)
             for _, raw in get_redis().hgetall(CacheKeys.positions).items()
@@ -68,7 +73,7 @@ class OrderCache(CacheItem):
             return Order.parse_raw(raw)
 
     @staticmethod
-    def get_all() -> list[Order]:
+    def get_many() -> list[Order]:
         return [
             Order.parse_raw(raw)
             for _, raw in get_redis().hgetall(CacheKeys.orders).items()

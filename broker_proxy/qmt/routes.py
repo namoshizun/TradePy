@@ -20,13 +20,13 @@ router = APIRouter()
 
 
 def use_cache(getter, setter):
-    def decor(view):
-        @wraps(view)
+    def decor(func):
+        @wraps(func)
         def inner(*args, **kwargs):
             if cached := getter():
                 return cached
 
-            result = view(*args, **kwargs)
+            result = func(*args, **kwargs)
             setter(result)
             return result
         return inner
@@ -49,18 +49,27 @@ async def get_account_info():
 
 
 @router.get("/positions", response_model=list[Position])
-@use_cache(PositionCache.get_all, PositionCache.set)
-async def get_positions():
-    account = xt_conn.get_account()
-    trader = xt_conn.get_trader()
-    positions: list[XtPosition] = trader.query_stock_positions(account)
-    return [xtposition_to_tradepy(p) for p in positions]
+async def get_positions(available: bool = False):
+    @use_cache(PositionCache.get_many, PositionCache.set_many)
+    def fetch():
+        account = xt_conn.get_account()
+        trader = xt_conn.get_trader()
+        xt_positions: list[XtPosition] = trader.query_stock_positions(account)
+        return [
+            xtposition_to_tradepy(p)
+            for p in xt_positions
+        ]
+
+    positions = fetch()
+    if available:
+        return [p for p in positions if p.avail_vol > 0]
+
+    return positions
 
 
 @router.get("/orders", response_model=list[Order])
-@use_cache(OrderCache.get_all, OrderCache.set)
+@use_cache(OrderCache.get_many, OrderCache.set_many)
 async def get_orders():
-    print('WOWOWOWOWOWOWOWOWWOWOWOWOWO')
     account = xt_conn.get_account()
     trader = xt_conn.get_trader()
     orders: list[XtOrder] = trader.query_stock_orders(account)

@@ -22,8 +22,10 @@ class BrokerAPI:
         return list(map(Order.parse_raw, res.json()))
 
     @staticmethod
-    def get_positions() -> list[Position]:
-        res = rq.get(get_url("positions"))
+    def get_positions(available_only=False) -> list[Position]:
+        res = rq.get(get_url("positions"), params={
+            "available": available_only
+        })
         return list(map(Position.parse_raw, res.json()))
 
     @staticmethod
