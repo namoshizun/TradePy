@@ -21,24 +21,6 @@ class Holdings:
             for pos in self.positions.values()
         ]
 
-    @classmethod
-    def from_list(cls, data) -> "Holdings":
-        positions = {
-            pos["code"]: Position(
-                id=pos["id"],
-                latest_price=pos["latest_price"],
-                timestamp=pos["timestamp"],
-                code=pos["code"],
-                company=pos["company"],
-                price=pos["price"],
-                shares=pos["shares"],
-            )
-            for pos in data
-        }
-        instance = cls()
-        instance.positions = positions
-        return instance
-
     def update_price(self, price_lookup: PriceLookupFun):
         for _, pos in self:
             with suppress(KeyError):

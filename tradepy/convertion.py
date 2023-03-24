@@ -113,7 +113,7 @@ def convert_akshare_sector_day_bars(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=mapping)[list(mapping.values())]
 
 
-def convert_akshare_sector_current_quote(data: pd.Series) -> pd.Series:
+def convert_akshare_sector_current_quote(data: dict[str, float]) -> dict[str, float]:
     mapping = {
         "最新": "close",
         "最高": "high",
@@ -125,7 +125,10 @@ def convert_akshare_sector_current_quote(data: pd.Series) -> pd.Series:
         "涨跌幅": "pct_chg",
         "代码": "code",
     }
-    return data.rename(mapping)[list(mapping.values())]
+    return {
+        en_key: data[ch_key]
+        for ch_key, en_key in mapping.items()
+    }
 
 
 def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:

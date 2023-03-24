@@ -8,7 +8,6 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10.4"
 pandas = "^1.5.3"
-TA-Lib = "^0.4.25"
 akshare = "^1.9.2"
 tqdm = "^4.65.0"
 xlrd = "^2.0.1"
@@ -24,10 +23,16 @@ colorlog = "^6.7.0"
 pygraphviz = "^1.10"
 python-dotenv = "^1.0.0"
 redis = "^4.5.2"
+loguru = "^0.6.0"
 celery = {extras = ["redis"], version = "^5.2.7"}
+fastapi = "^0.95.0"
+uvicorn = {extras = ["standard"], version = "^0.21.1"}
+pydantic = "^1.10.7"
+ta-lib = "0.4.24"
 
 [tool.poetry.extras]
 bot = ["celery"]
+broker = ["fastapi", "uvicorn", "pydantic"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"
