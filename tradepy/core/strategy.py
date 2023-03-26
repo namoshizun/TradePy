@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from tradepy import LOG
 from tradepy.core.context import Context
-from tradepy.backtester import Backtester
+from tradepy.backtest.backtester import Backtester
 from tradepy.core.order import Order
 from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position

@@ -133,13 +133,12 @@ class Backtester:
                 for pos in buy_positions:
                     trade_book.buy(timestamp, pos)
 
-            # Log this action day
-            if buy_options or close_indices:
-                trade_book.log_capitals(
-                    timestamp,
-                    self.account.cash_amount,
-                    self.account.holdings.get_total_worth()
-                )
+            # Logging
+            trade_book.log_capitals(
+                timestamp,
+                self.account.cash_amount,
+                self.account.holdings.get_total_worth()
+            )
 
         # That was quite a long story :D
         return trade_book
