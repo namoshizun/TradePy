@@ -20,17 +20,7 @@ class CacheSyncCallback(XtQuantTraderCallback):
     def on_stock_order(self, xt_order: XtOrder):
         order: Order = xt_convert.xtorder_to_tradepy(xt_order)
         logger.info(f"委托状态更新: {order}")
-
-        account = xt_conn.get_account()
-        trader = xt_conn.get_trader()
-        xtcode = xt_convert.tradepy_code_to_xtcode(order.code)
-
-        if not (xtpos := trader.query_stock_position(account, xtcode)):
-            return
-
-        trpos = xt_convert.xtposition_to_tradepy(xtpos)
-        logger.info(f"持仓状态更新: {trpos}")
-        cache.PositionCache.set(trpos)
+        cache.OrderCache.set(order)
 
     # NOTE: the following callbacks are extremely useful, but for some
     # reason QMT just won't invoke them!

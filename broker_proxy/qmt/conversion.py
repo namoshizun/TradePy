@@ -1,3 +1,4 @@
+import numpy as np
 from loguru import logger
 from datetime import date, datetime
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
@@ -58,7 +59,14 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
 
 
 def xtposition_to_tradepy(p: XtPosition) -> Position:
-    curr_price = round(p.market_value / p.volume, 2)
+    if p.volume == 0:
+        curr_price = 0
+    else:
+        curr_price = round(p.market_value / p.volume, 2)
+
+    if np.isnan(p.open_price):
+        p.open_price = 0
+
     return Position(
         id=p.stock_code,
         timestamp=date.today().isoformat(),

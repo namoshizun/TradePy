@@ -36,7 +36,7 @@ def use_cache(getter, setter):
 
 @router.get("/account")
 async def get_account_info():
-    logger.info("查询并最新资产信息")
+    logger.info("查询最新资产信息")
     trader = xt_conn.get_trader()
     account = xt_conn.get_account()
     assets: XtAsset | None = trader.query_stock_asset(account)
@@ -50,18 +50,17 @@ async def get_account_info():
 
 @router.get("/positions", response_model=list[Position])
 async def get_positions(available: bool = False):
-    @use_cache(PositionCache.get_many, PositionCache.set_many)
-    async def fetch():
-        logger.info("查询并更新当前持仓")
-        account = xt_conn.get_account()
-        trader = xt_conn.get_trader()
-        xt_positions: list[XtPosition] = trader.query_stock_positions(account)
-        return [
-            xtposition_to_tradepy(p)
-            for p in xt_positions
-        ]
+    logger.info("查询并更新当前持仓")
+    account = xt_conn.get_account()
+    trader = xt_conn.get_trader()
+    xt_positions: list[XtPosition] = trader.query_stock_positions(account)
+    logger.info("完成")
 
-    positions = await fetch()
+    positions = [
+        xtposition_to_tradepy(p)
+        for p in xt_positions
+    ]
+
     if available:
         return [p for p in positions if p.avail_vol > 0]
 
@@ -78,13 +77,13 @@ async def get_orders():
     return [xtorder_to_tradepy(o) for o in orders]
 
 
-@router.post("/orders", response_model=Order)
+@router.post("/orders")
 async def place_order(orders: list[Order]):
     logger.info("收到下单请求")
     account = xt_conn.get_account()
     trader = xt_conn.get_trader()
 
-    created_orders = []
+    succ, fail = [], []
     for order in orders:
         logger.info(f"提交委托: {order}")
         order_id = trader.order_stock(
@@ -98,14 +97,13 @@ async def place_order(orders: list[Order]):
 
         if order_id == -1:
             logger.error(f'下单失败: {order}')
+            fail.append(order.id)
             continue
 
-        xtorder: XtOrder | None = trader.query_stock_order(account, order_id)
-        if xtorder is None:
-            logger.error(f'下单成功, 但是未查询到委托信息! 委托id = {order_id}')
-            continue
-
+        succ.append(order.id)
         logger.info(f"下单成功: {order}")
-        created_orders.append(xtorder_to_tradepy(xtorder))
 
-    return created_orders
+    return {
+        "succ": succ,
+        "fail": fail
+    }

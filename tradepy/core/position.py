@@ -58,6 +58,8 @@ class Position(BaseModel):
 
     @round_val
     def pct_chg_at(self, price: float) -> float:
+        if self.chg_at(price) == 0:
+            return 0
         return calc_pct_chg(self.price, price)
 
     @round_val
