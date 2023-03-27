@@ -19,14 +19,14 @@ class BrokerAPI:
     @staticmethod
     def get_orders() -> list[Order]:
         res = rq.get(get_url("orders"))
-        return list(map(Order.parse_raw, res.json()))
+        return [Order(**x) for x in res.json()]
 
     @staticmethod
     def get_positions(available_only=False) -> list[Position]:
         res = rq.get(get_url("positions"), params={
             "available": available_only
         })
-        return list(map(Position.parse_raw, res.json()))
+        return [Position(**x) for x in res.json()]
 
     @staticmethod
     def get_account_free_cash_amount() -> float:
@@ -34,9 +34,11 @@ class BrokerAPI:
         return res.json()["free_cash"]
 
     @staticmethod
-    def place_orders(orders: list[Order]) -> list[Order]:
+    def place_orders(orders: list[Order]):
         res = rq.post(get_url("orders"), json=[
             o.dict()
             for o in orders
-        ])
-        return list(map(Order.parse_raw, res.json()))
+        ]).json()
+
+        if res["succ"] != len(orders):
+            tradepy.LOG.warn(f'部分下单失败: {res["fail"]}')

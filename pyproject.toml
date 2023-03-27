@@ -33,7 +33,7 @@ quantstats = "^0.0.59"
 
 [tool.poetry.extras]
 bot = ["celery"]
-broker = ["fastapi", "uvicorn", "pydantic"]
+broker = ["fastapi", "uvicorn"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"

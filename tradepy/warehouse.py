@@ -132,7 +132,6 @@ class StocksDailyBarsDepot(GenericBarsDepot):
                     company = tradepy.listing.get_by_code(code).name
                     market = convert_code_to_market(code)
                     df[["company", "market"]] = company, market
-
                 if since_date or until_date:
                     _since_date = since_date or "2000-01-01"  # noqa
                     _until_date = until_date or "3000-01-01"  # noqa
