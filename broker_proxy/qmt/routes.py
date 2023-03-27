@@ -4,7 +4,7 @@ from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
-from broker_proxy.cache import PositionCache, OrderCache
+from broker_proxy.cache import OrderCache
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.qmt.conversion import (
     xtorder_to_tradepy,
