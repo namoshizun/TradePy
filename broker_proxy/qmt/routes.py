@@ -103,6 +103,11 @@ async def place_order(orders: list[Order]):
         succ.append(order.id)
         logger.info(f"下单成功: {order}")
 
+        # Ensure the cache exists
+        if not OrderCache.exists(str(order_id)):
+            order.id = str(order_id)
+            OrderCache.set(order)
+
     return {
         "succ": succ,
         "fail": fail

@@ -14,6 +14,11 @@ class CacheItem:
 
     @staticmethod
     @abc.abstractmethod
+    def exists(*args):
+        raise NotImplementedError
+
+    @staticmethod
+    @abc.abstractmethod
     def set(*args):
         raise NotImplementedError
 
@@ -60,6 +65,10 @@ class PositionCache(CacheItem):
 
 
 class OrderCache(CacheItem):
+
+    @staticmethod
+    def exists(order: Order):
+        return get_redis().hexists(CacheKeys.orders, order.id)
 
     @staticmethod
     def set(order: Order):

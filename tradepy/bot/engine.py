@@ -178,10 +178,10 @@ class TradingEngine:
         orders = BrokerAPI.get_orders()  # type: ignore
         buy_options = self._get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
         if buy_options:
-            n_buys = sum(1 for o in orders if o.direction == "buy")
+            n_bought = sum(1 for o in orders if o.direction == "buy")
             free_cash_amount = self.ctx.account.cash_amount
-            max_position_opens = max(0, self.ctx.max_position_opens - n_buys)
 
+            max_position_opens = max(0, self.ctx.max_position_opens - n_bought)
             port_df, budget = self.strategy.get_portfolio_and_budget(
                 ind_df,
                 buy_options=buy_options,
@@ -190,7 +190,7 @@ class TradingEngine:
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
 
-            LOG.info(f'当日已买入{n_buys}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{free_cash_amount}')
+            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{free_cash_amount}. 触发买入{len(buy_options)}, 准许买入{max_position_opens}')
             if buy_orders:
                 LOG.info('发送买入指令')
                 BrokerAPI.place_orders(buy_orders)
