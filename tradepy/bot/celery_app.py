@@ -1,8 +1,10 @@
 from celery import Celery
+from celery.schedules import crontab
 from kombu import Queue
 
 import tradepy
 
+crontab(hour=20, minute=0)
 
 tradepy.initialize("trading")
 
@@ -29,5 +31,10 @@ app.conf.beat_schedule = {
         'task': 'tradepy.fetch_market_quote',
         'schedule': tconf.tick_fetch_interval,
         'args': ()
+    },
+    "update-data-sources": {
+        "task": "tradepy.update_data_sources",
+        "schedule": crontab(hour=20, minute=0),  # type: ignore
+        "args": ()
     },
 }

@@ -56,7 +56,7 @@ class StockDayBarsCollector(DataCollector):
         for code in new_listings:
             yield {
                 "code": code,
-                "start_date": date.fromisoformat('2010-01-01')
+                "start_date": self.since_date.fromisoformat('2010-01-01')
             }
 
     def _compute_mkt_cap_percentile_ranks(self, df: pd.DataFrame):
