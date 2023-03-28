@@ -190,6 +190,7 @@ class TradingEngine:
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
 
+            LOG.info(f'当日已买入{n_buys}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{free_cash_amount}')
             if buy_orders:
                 LOG.info('发送买入指令')
                 BrokerAPI.place_orders(buy_orders)
