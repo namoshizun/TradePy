@@ -116,20 +116,25 @@ class StrategyBase(Generic[BarDataType]):
     def get_portfolio_and_budget(self,
                                  bar_df: pd.DataFrame,
                                  buy_options: list[Any],
-                                 budget: float) -> tuple[pd.DataFrame, float]:
+                                 budget: float,
+                                 max_position_opens: int | None = None,
+                                 max_position_size: float | None = None) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
         min_sig, max_sig = self.signals_percent_range
         signal_ratio = 100 * len(buy_options) / len(bar_df)
         if (signal_ratio < min_sig) or (signal_ratio > max_sig):
             return pd.DataFrame(), 0
 
+        max_position_opens = max_position_opens or self.max_position_opens
+        max_position_size = max_position_size or self.max_position_size
+
         # Limit number of new opens
-        if len(buy_options) > self.max_position_opens:
-            buy_options = random.sample(buy_options, self.max_position_opens)
+        if len(buy_options) > max_position_opens:
+            buy_options = random.sample(buy_options, max_position_opens)
 
         # Limit position budget allocation
         min_position_allocation = budget // len(buy_options)
-        max_position_value = self.max_position_size * self.account.get_total_asset_value()
+        max_position_value = max_position_size * self.account.get_total_asset_value()
 
         if min_position_allocation > max_position_value:
             budget = len(buy_options) * max_position_value

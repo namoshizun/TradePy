@@ -49,7 +49,7 @@ class TradingEngine:
 
         factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
-            cash_amount=0,  # No use
+            cash_amount=BrokerAPI.get_account_free_cash_amount(),
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
@@ -178,13 +178,21 @@ class TradingEngine:
         orders = BrokerAPI.get_orders()  # type: ignore
         buy_options = self._get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
         if buy_options:
-            free_cash_amount = BrokerAPI.get_account_free_cash_amount()  # type: ignore
-            port_df, budget = self.strategy.get_portfolio_and_budget(ind_df, buy_options, free_cash_amount)
+            n_buys = sum(1 for o in orders if o.direction == "buy")
+            free_cash_amount = self.ctx.account.cash_amount
+            max_position_opens = max(0, self.ctx.max_position_opens - n_buys)
+
+            port_df, budget = self.strategy.get_portfolio_and_budget(
+                ind_df,
+                buy_options=buy_options,
+                budget=free_cash_amount,
+                max_position_opens=max_position_opens)
+
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
 
             if buy_orders:
-                BrokerAPI.place_orders(buy_orders)
                 LOG.info('发送买入指令')
+                BrokerAPI.place_orders(buy_orders)
                 LOG.log_orders(buy_orders)
 
     def _pre_close_trade(self, ind_df: pd.DataFrame):

@@ -41,4 +41,4 @@ class BrokerAPI:
         ]).json()
 
         if res["succ"] != len(orders):
-            tradepy.LOG.warn(f'部分下单失败: {res["fail"]}')
+            tradepy.LOG.warn(f'部分下单失败: {res}')

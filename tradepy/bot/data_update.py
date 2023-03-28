@@ -6,7 +6,7 @@ from tradepy.collectors.adjust_factor import AdjustFactorCollector
 from tradepy.warehouse import StocksDailyBarsDepot
 
 
-@shared_task(name="tradepy.update_data_sources")
+@shared_task(name="tradepy.update_data_sources", expires=60 * 60)
 def update_data_sources():
     df = StocksDailyBarsDepot.load()
     since_date = df["timestamp"].min()
