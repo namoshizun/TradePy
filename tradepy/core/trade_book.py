@@ -3,6 +3,7 @@ from functools import cached_property
 from typing import TypedDict
 from typing_extensions import NotRequired
 
+import tradepy
 from tradepy.core.position import Position
 from tradepy.types import TradeActions, TradeActionType
 
@@ -38,6 +39,11 @@ class TradeBook:
         df = pd.DataFrame(self.trade_logs)
         df.set_index("timestamp", inplace=True)
         df.sort_index(inplace=True)
+
+        codes = df["code"].unique()
+        code_to_company = tradepy.listing.df.loc[codes, "name"]
+        df = df.join(code_to_company, on="code")
+        df.rename(columns={"name": "company"}, inplace=True)
         return df
 
     @cached_property
