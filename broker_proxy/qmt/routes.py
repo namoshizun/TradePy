@@ -92,7 +92,7 @@ async def place_order(orders: list[Order]):
             order_type=tradepy_order_direction_to_xtorder_status(order.direction),
             order_volume=order.vol,
             price_type=xtconstant.FIX_PRICE,
-            price=order.price,
+            price=round(order.price, 2),
         )
 
         if order_id == -1:

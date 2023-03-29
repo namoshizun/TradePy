@@ -85,12 +85,13 @@ class TradingEngine:
 
     def _get_buy_options(self,
                          ind_df: pd.DataFrame,
-                         orders: list[Order]) -> list[tuple[Any, float]]:
-        already_ordered = set(o.code for o in orders)
+                         orders: list[Order],
+                         positions: list[Position]) -> list[tuple[Any, float]]:
+        already_traded = set(x.code for x in orders + positions)
         return [
             (code, self.adjust_factors.to_real_price(code, price))
             for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
-            if (code not in already_ordered) and (price := self.strategy.should_buy(*indicators))
+            if (code not in already_traded) and (price := self.strategy.should_buy(*indicators))
         ]
 
     def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:
@@ -176,7 +177,7 @@ class TradingEngine:
 
         # [2] Buy stocks
         orders = BrokerAPI.get_orders()  # type: ignore
-        buy_options = self._get_buy_options(ind_df, orders)  # list[DF_Index, BuyPrice]
+        buy_options = self._get_buy_options(ind_df, orders, positions)  # list[DF_Index, BuyPrice]
         if buy_options:
             n_bought = sum(1 for o in orders if o.direction == "buy")
             free_cash_amount = self.ctx.account.cash_amount
