@@ -6,7 +6,7 @@ from xtquant import xtconstant
 
 from tradepy.core.position import Position
 from tradepy.core.order import Order, OrderDirection, OrderStatus
-from tradepy.convertion import convert_code_to_exchange
+from tradepy.conversion import convert_code_to_exchange
 
 
 def tradepy_order_direction_to_xtorder_status(dir: OrderDirection):

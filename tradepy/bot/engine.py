@@ -49,7 +49,7 @@ class TradingEngine:
 
         factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
-            cash_amount=BrokerAPI.get_account_free_cash_amount(),
+            cash_amount=0,  # NOTE: no meaning for live trading
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
@@ -90,7 +90,7 @@ class TradingEngine:
         already_traded = set(x.code for x in orders + positions)
         return [
             (code, self.adjust_factors.to_real_price(code, price))
-            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
+            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)
             if (code not in already_traded) and (price := self.strategy.should_buy(*indicators))
         ]
 
@@ -180,10 +180,10 @@ class TradingEngine:
         buy_options = self._get_buy_options(ind_df, orders, positions)  # list[DF_Index, BuyPrice]
         if buy_options:
             n_bought = sum(1 for o in orders if o.direction == "buy")
-            free_cash_amount = self.ctx.account.cash_amount
+            free_cash_amount = BrokerAPI.get_account_free_cash_amount()
 
             max_position_opens = max(0, self.ctx.max_position_opens - n_bought)
-            port_df, budget = self.strategy.get_portfolio_and_budget(
+            port_df, budget = self.strategy.adjust_portfolio_and_budget(
                 ind_df,
                 buy_options=buy_options,
                 budget=free_cash_amount,

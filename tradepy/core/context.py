@@ -2,9 +2,8 @@ import pandas as pd
 import numpy as np
 from datetime import date
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from tradepy.core.account import Account
 from tradepy.utils import get_latest_trade_date
 
 
@@ -19,7 +18,6 @@ class Context:
     trading_unit: int
     broker_commission_rate: float = 0
     stamp_duty_rate: float = 0
-    account: Account = field(init=False)
 
     # Position sizing
     max_position_size: float = np.inf
@@ -39,12 +37,6 @@ class Context:
             _adf.set_index("code", inplace=True)
             _adf.sort_values(["code", "timestamp"], inplace=True)
             self.hfq_adjust_factors = _adf
-
-        self.account = Account(
-            cash_amount=self.cash_amount,
-            broker_commission_rate=self.broker_commission_rate,
-            stamp_duty_rate=self.stamp_duty_rate
-        )
 
     def get_trade_date(self) -> date:
         return get_latest_trade_date()

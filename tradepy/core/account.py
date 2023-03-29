@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field
+from pydantic import BaseModel, Field
 from typing import Iterable
 from tradepy.core.holdings import Holdings
 from tradepy.core.position import Position
@@ -6,14 +6,29 @@ from tradepy.decorators import require_mode
 from tradepy.utils import round_val
 
 
-@dataclass
-class Account:
+class Account(BaseModel):
 
-    broker_commission_rate: float = 0
-    stamp_duty_rate: float = 0
+    free_cash_amount: float
+    frozen_cash_amount: float
+    market_value: float
 
-    cash_amount: float = 0
-    holdings: Holdings = field(default_factory=Holdings)
+    @property
+    def total_asset_value(self) -> float:
+        return self.market_value + self.free_cash_amount + self.frozen_cash_amount
+
+
+class BacktestAccount(BaseModel):
+
+    free_cash_amount: float
+    broker_commission_rate: float
+    stamp_duty_rate: float
+
+    holdings: Holdings = Field(default_factory=Holdings)
+    frozen_cash_amount: float = 0  # noop
+    market_value: float = 0  # noop
+
+    class Config:
+        arbitrary_types_allowed = True
 
     @require_mode("backtest")
     def update_holdings(self, price_lookup: Holdings.PriceLookupFun):
@@ -23,12 +38,12 @@ class Account:
     @require_mode("backtest")
     def buy(self, positions: Iterable[Position]):
         if cost_total := self.holdings.buy(positions):
-            self.cash_amount -= self.add_buy_commissions(cost_total)
+            self.free_cash_amount -= self.add_buy_commissions(cost_total)
 
     @require_mode("backtest")
     def sell(self, positions: Iterable[Position]):
         if close_total := self.holdings.sell(positions):
-            self.cash_amount += self.take_sell_commissions(close_total)
+            self.free_cash_amount += self.take_sell_commissions(close_total)
 
     @require_mode("backtest")
     def clear(self):
@@ -37,12 +52,6 @@ class Account:
             for _, pos in self.holdings
         ]
         self.sell(all_positions)
-
-    def clone(self):
-        return self.__class__(**{
-            k: v
-            for k, v in asdict(self).items()
-        })
 
     @round_val
     def add_buy_commissions(self, amount: float) -> float:
@@ -53,8 +62,6 @@ class Account:
         rate = self.broker_commission_rate + self.stamp_duty_rate
         return amount * (1 - rate * 1e-2)
 
-    def get_total_asset_value(self) -> float:
-        return self.holdings.get_total_worth() + self.cash_amount
-
-    def get_positions_value(self) -> float:
-        return self.holdings.get_total_worth()
+    @property
+    def total_asset_value(self) -> float:
+        return self.holdings.get_total_worth() + self.free_cash_amount

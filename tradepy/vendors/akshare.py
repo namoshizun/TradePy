@@ -7,7 +7,7 @@ from typing import Any, Literal
 from functools import wraps
 
 import tradepy
-from tradepy.convertion import (
+from tradepy.conversion import (
     convert_akshare_broad_based_index_current_quote,
     convert_akshare_current_quotation,
     convert_akshare_minute_bar,

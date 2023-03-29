@@ -6,7 +6,7 @@ from celery import shared_task
 import tradepy
 from tradepy.trade_cal import trade_cal
 from tradepy.constants import Timeouts
-from tradepy.convertion import convert_code_to_market
+from tradepy.conversion import convert_code_to_market
 from tradepy.decorators import timeit, timeout
 from tradepy.types import MarketPhase
 from tradepy.bot.celery_app import app as celery_app

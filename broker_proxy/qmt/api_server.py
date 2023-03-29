@@ -1,4 +1,5 @@
 import os
+from loguru import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -6,6 +7,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import tradepy
 from broker_proxy.qmt.routes import router as api_router
 from broker_proxy.qmt.connector import xt_conn
+from broker_proxy.decorators import repeat_every
 
 
 # TODO: The API Server should be moved to an upper level. The actual
@@ -40,3 +42,13 @@ async def app_startup() -> None:
 async def app_shutdown() -> None:
     xt_conn.disconnect()
     tradepy.config.exit()
+
+
+@app.on_event("startup")
+@repeat_every(seconds=3)
+async def sync_assets() -> None:
+    if not xt_conn.connected:
+        logger.info('交易终端未连接, 无法同步资产信息')
+        return
+
+    print('sync_assets: TODO')

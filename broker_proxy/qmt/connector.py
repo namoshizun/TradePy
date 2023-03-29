@@ -21,6 +21,10 @@ class XtQuantConnection:
     def account_id(self) -> str:
         return os.environ["XTQUANT_ACCOUNT_ID"]
 
+    @property
+    def connected(self) -> bool:
+        return self._trader.connected
+
     def init_trader(self) -> XtQuantTrader:
         session_id = random.randint(100000, 999999)
         return XtQuantTrader(self.data_path, session_id)
