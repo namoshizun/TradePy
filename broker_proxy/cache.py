@@ -67,8 +67,8 @@ class PositionCache(CacheItem):
 class OrderCache(CacheItem):
 
     @staticmethod
-    def exists(order: Order):
-        return get_redis().hexists(CacheKeys.orders, order.id)
+    def exists(order_id: str):
+        return get_redis().hexists(CacheKeys.orders, order_id)
 
     @staticmethod
     def set(order: Order):
