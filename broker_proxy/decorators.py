@@ -5,6 +5,8 @@ from functools import wraps
 from traceback import format_exception
 from typing import Any, Callable, Coroutine
 
+import tradepy
+
 
 NoArgsNoReturnAsyncFuncT = Callable[[], Coroutine[Any, Any, None]]
 NoArgsNoReturnDecorator = Callable[[NoArgsNoReturnAsyncFuncT], NoArgsNoReturnAsyncFuncT]
@@ -75,3 +77,27 @@ def repeat_every(
         return wrapped
 
     return decorator
+
+
+def with_redis_lock(key: str, **lock_args):
+    def decor(func):
+        @wraps(func)
+        async def inner(*args, **kwargs):
+            with tradepy.config.get_redis_client().lock(key, **lock_args):
+                return await func(*args, **kwargs)
+        return inner
+    return decor
+
+
+def use_cache(getter, setter):
+    def decor(func):
+        @wraps(func)
+        async def inner(*args, **kwargs):
+            if (cached := getter()) is not None:
+                return cached
+
+            result = await func(*args, **kwargs)
+            setter(result)
+            return result
+        return inner
+    return decor

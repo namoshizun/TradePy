@@ -60,6 +60,10 @@ class TradeBookStorage:
     def fetch_capital_logs(self) -> list[CapitalsLog]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def get_opening(self, date: str) -> CapitalsLog | None:
+        raise NotImplementedError
+
 
 class InMemoryTradeBookStorage(TradeBookStorage):
 
@@ -166,6 +170,9 @@ class TradeBook:
 
     def log_closing_capitals(self, timestamp: str, account: Account):
         self.storage.log_closing_capitals(timestamp, account)
+
+    def get_opening(self, date: str) -> CapitalsLog | None:
+        return self.storage.get_opening(date)
 
     @classmethod
     def backtest(cls) -> "TradeBook":

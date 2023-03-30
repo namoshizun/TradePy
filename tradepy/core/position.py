@@ -32,6 +32,11 @@ class Position(BaseModel):
     def cost(self):
         return self.total_value_at(self.price)
 
+    @property
+    @round_val
+    def total_value(self) -> float:
+        return self.total_value_at(self.latest_price)
+
     @round_val
     def total_value_at(self, price: float) -> float:
         return price * self.vol

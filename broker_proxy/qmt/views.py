@@ -1,10 +1,10 @@
 from datetime import datetime
 from fastapi import APIRouter
-from functools import wraps
 from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
+from broker_proxy.decorators import use_cache, with_redis_lock
 from broker_proxy.cache import OrderCache, PositionCache, AccountCache, use_redis
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.qmt.conversion import (
@@ -17,36 +17,10 @@ from broker_proxy.qmt.conversion import (
 
 import tradepy
 from tradepy.constants import CacheKeys
-from tradepy.core.position import Position
-from tradepy.core.order import Order
-from tradepy.core.account import Account
+from tradepy.core.models import Position, Order, Account
 
 
 router = APIRouter()
-
-
-def use_cache(getter, setter):
-    def decor(func):
-        @wraps(func)
-        async def inner(*args, **kwargs):
-            if (cached := getter()) is not None:
-                return cached
-
-            result = await func(*args, **kwargs)
-            setter(result)
-            return result
-        return inner
-    return decor
-
-
-def with_lock(key: str, **lock_args):
-    def decor(func):
-        @wraps(func)
-        async def inner(*args, **kwargs):
-            with tradepy.config.get_redis_client().lock(key, **lock_args):
-                return await func(*args, **kwargs)
-        return inner
-    return decor
 
 
 @router.get("/account", response_model=Account)
@@ -68,11 +42,10 @@ async def get_account_info():
 async def get_positions(available: bool = False):
     @use_cache(PositionCache.get_many, PositionCache.set_many)
     async def fetch():
-        logger.info("查询并更新当前持仓")
+        logger.info("查询当前持仓")
         account = xt_conn.get_account()
         trader = xt_conn.get_trader()
         xt_positions: list[XtPosition] = trader.query_stock_positions(account)
-        logger.info("完成")
 
         return [
             xtposition_to_tradepy(p)
@@ -89,7 +62,7 @@ async def get_positions(available: bool = False):
 @router.get("/orders", response_model=list[Order])
 @use_cache(OrderCache.get_many, OrderCache.set_many)
 async def get_orders():
-    logger.info("查询并更新当前委托")
+    logger.info("查询当前委托")
     account = xt_conn.get_account()
     trader = xt_conn.get_trader()
     orders: list[XtOrder] = trader.query_stock_orders(account)
@@ -97,7 +70,7 @@ async def get_orders():
 
 
 @router.post("/orders")
-@with_lock(CacheKeys.update_assets, sleep=0.25)
+@with_redis_lock(CacheKeys.update_assets, sleep=0.25)
 async def place_order(orders: list[Order]):
     logger.info("收到下单请求")
 
@@ -107,8 +80,8 @@ async def place_order(orders: list[Order]):
     rd = tradepy.config.get_redis_client()
 
     with use_redis(rd.pipeline()):
-        # Pre-dudct account free cash
-        buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.direction == "buy"])
+        # Pre-dudct account free cash (buy orders)
+        buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:
             account: Account = AccountCache.get()  # type: ignore
             if buy_total > Account.free_cash_amount:
@@ -118,18 +91,20 @@ async def place_order(orders: list[Order]):
                 AccountCache.set(account)
                 logger.info(f'买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}')
 
-        # Pre-deduct positions available positions
-        sell_orders = [o for o in orders if o.direction == "sell"]
+        # Pre-deduct positions available positions (sell orders)
+        sell_orders = [o for o in orders if o.is_sell]
         positions: dict[str, Position] = {p.code: p for p in PositionCache.get_many()}  # type: ignore
         for order in sell_orders:
-            if order.direction == "sell":
-                if pos := positions.get(order.code):
-                    if pos.avail_vol < order.vol:
-                        logger.error(f'卖出数量超过可用数量: {order}, 该委托预期将被拒绝')
-                    else:
-                        pos.avail_vol -= order.vol
+            if pos := positions.get(order.code):
+                if pos.avail_vol < order.vol:
+                    logger.error(f'卖出数量超过可用数量: {order}, 该委托预期将被拒绝')
+                else:
+                    pos.avail_vol -= order.vol
 
-        # Create orders
+        if sell_orders:
+            PositionCache.set_many(list(positions.values()))
+
+        # Place orders
         for order in orders:
             logger.info(f"提交委托: {order}")
             order_id = trader.order_stock(
@@ -151,10 +126,6 @@ async def place_order(orders: list[Order]):
                 order.id = str(order_id)
                 order.tags = dict(created_at=datetime.now().isoformat())
                 OrderCache.set(order)
-
-        # Update positions if any of the orders is a sell order
-        if sell_orders:
-            PositionCache.set_many(list(positions.values()))
 
     return {
         "succ": succ,

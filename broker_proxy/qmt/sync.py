@@ -1,4 +1,15 @@
+from datetime import date, datetime
+from loguru import logger
+
+from broker_proxy.decorators import with_redis_lock
 from broker_proxy.qmt.connector import xt_conn
+from broker_proxy.cache import AccountCache, PositionCache, OrderCache, use_redis
+from broker_proxy.qmt.conversion import xtorder_to_tradepy, xtposition_to_tradepy
+
+import tradepy
+from tradepy.constants import CacheKeys
+from tradepy.core.models import Order, Position, Account
+from tradepy.core.trade_book import TradeBook, CapitalsLog
 
 
 class AssetsSyncer:
@@ -7,5 +18,86 @@ class AssetsSyncer:
         self.trader = xt_conn.get_trader()
         self.account = xt_conn.get_account()
 
+    def fetch_counter_orders(self) -> list[Order]:
+        xt_orders = self.trader.query_stock_orders(self.account)
+        return list(map(xtorder_to_tradepy, xt_orders))
+
+    def fetch_counter_positions(self) -> list[Position]:
+        xt_positions = self.trader.query_stock_positions(self.account)
+        return list(map(xtposition_to_tradepy, xt_positions))
+
+    def _delete_expired_orders_cache(self, orders: dict[str, Order]):
+        expiry, now = 10, datetime.now()  # seconds
+        for oid in orders.keys():
+            o = orders[oid]
+            if o.status == "created" and (now - o.created_at).seconds > expiry:
+                logger.warning(f'委托缓存已过期: {o}. 正常情况下是因为无效订单')
+                del orders[oid]
+
+    def _update_orders_cache(self, orders: dict[str, Order]):
+        for o in self.fetch_counter_orders():
+            assert o.id
+            if o.id not in orders:
+                logger.warning(f'柜台返回了未缓存的委托: {o}')
+            orders[o.id] = o
+        OrderCache.set_many(orders.values())
+
+    def _recalculate_positions(self, orders: dict[str, Order]) -> list[Position]:
+        positions = self.fetch_counter_positions()
+        for p in positions:
+            p.vol, p.avail_vol = p.yesterday_vol, p.yesterday_vol
+            for o in orders.values():
+                if o.code == p.code:
+                    if o.is_buy and o.is_filled:
+                        p.vol += o.filled_vol  # type: ignore
+                    elif o.is_sell:
+                        p.avail_vol -= o.vol
+                        if o.is_filled:
+                            p.vol -= o.filled_vol  # type: ignore
+        PositionCache.set_many(positions)
+        return positions
+
+    def _recalculate_account_assets(self,
+                                    orders: dict[str, Order],
+                                    positions: list[Position],
+                                    open_capitals: CapitalsLog):
+        free_cash_amount, frozen_cash_amount = open_capitals["free_cash_amount"], 0
+        for o in orders.values():
+            if o.is_buy:
+                free_cash_amount -= o.trade_value
+                if not o.is_filled:
+                    frozen_cash_amount += o.trade_value
+            elif o.is_sell and o.is_filled:
+                free_cash_amount += o.trade_value
+
+        AccountCache.set(Account(
+            free_cash_amount=free_cash_amount,
+            frozen_cash_amount=frozen_cash_amount,
+            market_value=sum(p.total_value for p in positions),
+        ))
+
+    @with_redis_lock(CacheKeys.update_assets, timeout=10, sleep=0.2)
     def run(self):
-        ...
+        # Retrieve opening capitals
+        trade_book = TradeBook.live_trading()
+        today = date.today().isoformat()
+        open_capitals: CapitalsLog | None = trade_book.get_opening(today)
+        if not open_capitals:
+            logger.error('未找到今日开盘资金数据, 无法计算资产数据!')
+            return
+
+        rd = tradepy.config.get_redis_client()
+        with use_redis(rd.pipeline()):
+            cached_orders: dict[str, Order] = {
+                o.id: o
+                for o in OrderCache.get_many()
+            }  # type: ignore
+
+            if not cached_orders:
+                logger.info('今日没有委托订单, 无须更新资产数据')
+                return
+
+            self._delete_expired_orders_cache(cached_orders)
+            self._update_orders_cache(cached_orders)
+            positions = self._recalculate_positions(cached_orders)
+            self._recalculate_account_assets(cached_orders, positions, open_capitals)

@@ -9,6 +9,8 @@ from broker_proxy.qmt.views import router as api_router
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.decorators import repeat_every
 from broker_proxy.qmt.sync import AssetsSyncer
+from tradepy.constants import CacheKeys
+from tradepy.decorators import timeit
 
 
 # TODO: The API Server should be moved to an upper level. The actual
@@ -52,4 +54,11 @@ async def sync_assets() -> None:
         logger.info('交易终端未连接, 无法同步资产信息')
         return
 
-    AssetsSyncer().run()
+    if tradepy.config.get_redis_client().get(CacheKeys.update_assets):
+        logger.warning('存在尚未完成的资产同步或下单任务')
+        return
+
+    with timeit() as timer:
+        AssetsSyncer().run()
+
+    logger.info(f'资产同步完成, 耗时: {timer["millseconds"]}ms')

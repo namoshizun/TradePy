@@ -1,7 +1,10 @@
 import abc
+
 import tradepy
 import redis
 import contextvars
+from pydantic import BaseModel
+from typing import Iterable, TypeVar, Generic
 from contextlib import contextmanager
 from tradepy.constants import CacheKeys
 from tradepy.core.account import Account
@@ -31,7 +34,10 @@ def get_redis() -> redis.Redis:
         return tradepy.config.get_redis_client()
 
 
-class CacheItem:
+ItemType = TypeVar("ItemType", bound=BaseModel)
+
+
+class CacheItem(Generic[ItemType]):
 
     @staticmethod
     @abc.abstractmethod
@@ -40,26 +46,26 @@ class CacheItem:
 
     @staticmethod
     @abc.abstractmethod
-    def set(*args):
+    def set(item: ItemType):
         raise NotImplementedError
 
     @classmethod
-    def set_many(cls, instances: list):
+    def set_many(cls, instances: Iterable[ItemType]):
         for instance in instances:
             cls.set(instance)
 
     @staticmethod
     @abc.abstractmethod
-    def get(*args):
+    def get(*args) -> ItemType | None:
         raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
-    def get_many(*args):
+    def get_many(*args) -> list[ItemType] | None:
         raise NotImplementedError
 
 
-class PositionCache(CacheItem):
+class PositionCache(CacheItem[Position]):
 
     @staticmethod
     def set(position: Position):
@@ -85,7 +91,7 @@ class PositionCache(CacheItem):
         ]
 
 
-class OrderCache(CacheItem):
+class OrderCache(CacheItem[Order]):
 
     @staticmethod
     def exists(order_id: str):
@@ -116,7 +122,7 @@ class OrderCache(CacheItem):
         ]
 
 
-class AccountCache(CacheItem):
+class AccountCache(CacheItem[Account]):
 
     @staticmethod
     def set(account: Account):

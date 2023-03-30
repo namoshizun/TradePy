@@ -32,6 +32,27 @@ class Order(BaseModel):
         return datetime.fromisoformat(self.tags["created_at"])
 
     @property
+    def trade_value(self):
+        if self.is_filled:
+            return self.filled_price * self.filled_vol  # type: ignore
+        return self.price * self.vol
+
+    @property
+    def is_buy(self) -> bool:
+        return self.direction == "buy"
+
+    @property
+    def is_filled(self) -> bool:
+        yes = self.status == "filled"
+        if yes and (self.filled_price is None or self.filled_vol is None):
+            raise ValueError('订单已成交, 但没有成交价格或成家笔数!')
+        return yes
+
+    @property
+    def is_sell(self) -> bool:
+        return self.direction == "sell"
+
+    @property
     def slip_points(self) -> float:
         assert self.filled_price is not None
         return self.price - self.filled_price
