@@ -1,6 +1,7 @@
 import os
 import tradepy
 import requests as rq
+from tradepy.core.account import Account
 
 from tradepy.core.position import Position
 from tradepy.core.order import Order
@@ -29,9 +30,9 @@ class BrokerAPI:
         return [Position(**x) for x in res.json()]
 
     @staticmethod
-    def get_account_free_cash_amount() -> float:
+    def get_account() -> Account:
         res = rq.get(get_url("account"))
-        return res.json()["free_cash"]
+        return Account(**res.json())
 
     @staticmethod
     def place_orders(orders: list[Order]):

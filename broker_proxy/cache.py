@@ -1,7 +1,7 @@
 import abc
-import json
 import tradepy
 from tradepy.constants import CacheKeys
+from tradepy.core.account import Account
 from tradepy.core.position import Position
 from tradepy.core.order import Order
 
@@ -98,13 +98,13 @@ class OrderCache(CacheItem):
 class AccountCache(CacheItem):
 
     @staticmethod
-    def set(account: dict):
+    def set(account: Account):
         get_redis().set(
             CacheKeys.account,
-            json.dumps(account)
+            account.json()
         )
 
     @staticmethod
-    def get() -> dict | None:
+    def get() -> Account | None:
         if raw := get_redis().get(CacheKeys.account):
-            return json.loads(raw)
+            return Account.parse_raw(raw)

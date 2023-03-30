@@ -67,7 +67,7 @@ class Backtester:
         indices, prices = zip(*indices_and_prices)
         return pd.DataFrame({
             "order_price": prices,
-        }, index=pd.Index(indices, names=["timestamp", "code"]))
+        }, index=pd.MultiIndex.from_tuples(indices, names=["timestamp", "code"]))
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
         if not strategy.close_indicators:

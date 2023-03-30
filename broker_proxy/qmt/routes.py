@@ -4,7 +4,7 @@ from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
-from broker_proxy.cache import OrderCache
+from broker_proxy.cache import OrderCache, PositionCache, AccountCache
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.qmt.conversion import (
     xtorder_to_tradepy,
@@ -15,6 +15,7 @@ from broker_proxy.qmt.conversion import (
 )
 from tradepy.core.position import Position
 from tradepy.core.order import Order
+from tradepy.core.account import Account
 
 
 router = APIRouter()
@@ -34,7 +35,8 @@ def use_cache(getter, setter):
     return decor
 
 
-@router.get("/account")
+@router.get("/account", response_model=Account)
+@use_cache(AccountCache.get, AccountCache.set)
 async def get_account_info():
     logger.info("查询最新资产信息")
     trader = xt_conn.get_trader()
@@ -50,17 +52,20 @@ async def get_account_info():
 
 @router.get("/positions", response_model=list[Position])
 async def get_positions(available: bool = False):
-    logger.info("查询并更新当前持仓")
-    account = xt_conn.get_account()
-    trader = xt_conn.get_trader()
-    xt_positions: list[XtPosition] = trader.query_stock_positions(account)
-    logger.info("完成")
+    @use_cache(PositionCache.get_many, PositionCache.set_many)
+    async def fetch():
+        logger.info("查询并更新当前持仓")
+        account = xt_conn.get_account()
+        trader = xt_conn.get_trader()
+        xt_positions: list[XtPosition] = trader.query_stock_positions(account)
+        logger.info("完成")
 
-    positions = [
-        xtposition_to_tradepy(p)
-        for p in xt_positions
-    ]
+        return [
+            xtposition_to_tradepy(p)
+            for p in xt_positions
+        ]
 
+    positions = await fetch()
     if available:
         return [p for p in positions if p.avail_vol > 0]
 
