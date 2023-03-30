@@ -70,7 +70,7 @@ async def get_orders():
 
 
 @router.post("/orders")
-@with_redis_lock(CacheKeys.update_assets, sleep=0.25)
+@with_redis_lock(CacheKeys.update_assets, sleep=0.2)
 async def place_order(orders: list[Order]):
     logger.info("收到下单请求")
 

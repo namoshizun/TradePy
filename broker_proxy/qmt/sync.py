@@ -28,7 +28,7 @@ class AssetsSyncer:
 
     def _delete_expired_orders_cache(self, orders: dict[str, Order]):
         expiry, now = 10, datetime.now()  # seconds
-        for oid in orders.keys():
+        for oid in list(orders.keys()):
             o = orders[oid]
             if o.status == "created" and (now - o.created_at).seconds > expiry:
                 logger.warning(f'委托缓存已过期: {o}. 正常情况下是因为无效订单')
@@ -43,7 +43,9 @@ class AssetsSyncer:
         OrderCache.set_many(orders.values())
 
     def _recalculate_positions(self, orders: dict[str, Order]) -> list[Position]:
-        positions = self.fetch_counter_positions()
+        if not (positions := self.fetch_counter_positions()):
+            return []
+
         for p in positions:
             p.vol, p.avail_vol = p.yesterday_vol, p.yesterday_vol
             for o in orders.values():
@@ -54,6 +56,8 @@ class AssetsSyncer:
                         p.avail_vol -= o.vol
                         if o.is_filled:
                             p.vol -= o.filled_vol  # type: ignore
+
+                    assert p.vol >= 0 and p.avail_vol >= 0, f'持仓计算错误: {p}'
         PositionCache.set_many(positions)
         return positions
 
@@ -70,6 +74,7 @@ class AssetsSyncer:
             elif o.is_sell and o.is_filled:
                 free_cash_amount += o.trade_value
 
+        assert free_cash_amount >= 0 and frozen_cash_amount >= 0, f"资金计算错误: 可用 = {free_cash_amount}, 冻结 = {frozen_cash_amount}"
         AccountCache.set(Account(
             free_cash_amount=free_cash_amount,
             frozen_cash_amount=frozen_cash_amount,
@@ -81,22 +86,20 @@ class AssetsSyncer:
         # Retrieve opening capitals
         trade_book = TradeBook.live_trading()
         today = date.today().isoformat()
-        open_capitals: CapitalsLog | None = trade_book.get_opening(today)
-        if not open_capitals:
+        if not (open_capitals := trade_book.get_opening(today)):
             logger.error('未找到今日开盘资金数据, 无法计算资产数据!')
             return
 
         rd = tradepy.config.get_redis_client()
         with use_redis(rd.pipeline()):
-            cached_orders: dict[str, Order] = {
-                o.id: o
-                for o in OrderCache.get_many()
-            }  # type: ignore
-
-            if not cached_orders:
+            if not (temp := OrderCache.get_many()):
                 logger.info('今日没有委托订单, 无须更新资产数据')
                 return
 
+            cached_orders: dict[str, Order] = {
+                o.id: o
+                for o in temp
+            }  # type: ignore
             self._delete_expired_orders_cache(cached_orders)
             self._update_orders_cache(cached_orders)
             positions = self._recalculate_positions(cached_orders)

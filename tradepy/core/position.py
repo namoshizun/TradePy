@@ -72,7 +72,7 @@ class Position(BaseModel):
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol}'
+        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol} ({self.avail_vol}可用)'
         return msg
 
     def __repr__(self):

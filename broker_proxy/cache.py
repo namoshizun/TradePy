@@ -20,10 +20,10 @@ def use_redis(client: redis.Redis):
     token = client_var.set(client)
     try:
         yield
-    finally:
         client = client_var.get(token)
         if isinstance(client, redis.client.Pipeline):
             client.execute()
+    finally:
         client_var.reset(token)
 
 

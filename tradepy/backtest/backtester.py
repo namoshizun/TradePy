@@ -129,7 +129,7 @@ class Backtester:
                 # [3] Close
                 elif index in close_indices:
                     pos.close(bar["close"])
-                    trade_book.close_position(timestamp, pos)
+                    trade_book.close(timestamp, pos)
                     sell_positions.append(pos)
 
             if sell_positions:
