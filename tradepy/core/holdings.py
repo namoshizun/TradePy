@@ -15,12 +15,6 @@ class Holdings:
     def position_codes(self) -> set[str]:
         return set(code for code, _ in self)
 
-    def as_list(self):
-        return [
-            pos.as_dict()
-            for pos in self.positions.values()
-        ]
-
     def update_price(self, price_lookup: PriceLookupFun):
         for _, pos in self:
             with suppress(KeyError):
@@ -52,7 +46,7 @@ class Holdings:
 
         return total
 
-    def get_total_worth(self):
+    def get_total_market_value(self):
         return sum(
             pos.total_value_at(pos.latest_price)
             for _, pos in self

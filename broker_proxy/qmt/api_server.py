@@ -5,9 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 import tradepy
-from broker_proxy.qmt.routes import router as api_router
+from broker_proxy.qmt.views import router as api_router
 from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.decorators import repeat_every
+from broker_proxy.qmt.sync import AssetsSyncer
 
 
 # TODO: The API Server should be moved to an upper level. The actual
@@ -51,4 +52,4 @@ async def sync_assets() -> None:
         logger.info('交易终端未连接, 无法同步资产信息')
         return
 
-    print('sync_assets: TODO')
+    AssetsSyncer().run()

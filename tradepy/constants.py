@@ -42,6 +42,10 @@ class CacheKeys:
     def compute_close_indicators(self):
         return f'{self.prefix}:lock:compute-close-indicators'
 
+    @classproperty
+    def update_assets(self):
+        return f'{self.prefix}:lock:cache-update'
+
 
 class Timeouts:
     download_quote = 3

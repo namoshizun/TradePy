@@ -76,6 +76,7 @@ def xtposition_to_tradepy(p: XtPosition) -> Position:
         latest_price=curr_price,
         vol=p.volume,
         avail_vol=p.can_use_volume,
+        yesterday_vol=p.yesterday_volume,
     )
 
 

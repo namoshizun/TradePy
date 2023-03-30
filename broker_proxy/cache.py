@@ -1,13 +1,34 @@
 import abc
 import tradepy
+import redis
+import contextvars
+from contextlib import contextmanager
 from tradepy.constants import CacheKeys
 from tradepy.core.account import Account
 from tradepy.core.position import Position
 from tradepy.core.order import Order
 
 
-def get_redis():
-    return tradepy.config.get_redis_client()
+client_var = contextvars.ContextVar("redis_client")
+
+
+@contextmanager
+def use_redis(client: redis.Redis):
+    token = client_var.set(client)
+    try:
+        yield
+    finally:
+        client = client_var.get(token)
+        if isinstance(client, redis.client.Pipeline):
+            client.execute()
+        client_var.reset(token)
+
+
+def get_redis() -> redis.Redis:
+    try:
+        return client_var.get()
+    except LookupError:
+        return tradepy.config.get_redis_client()
 
 
 class CacheItem:

@@ -93,7 +93,7 @@ class Backtester:
             df.sort_index(inplace=True)
 
         LOG.info('>>> 交易中 ...')
-        trade_book = TradeBook()
+        trade_book = TradeBook.backtest()
 
         # Per day
         for timestamp, sub_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
@@ -153,11 +153,7 @@ class Backtester:
                     trade_book.buy(timestamp, pos)
 
             # Logging
-            trade_book.log_capitals(
-                timestamp,
-                self.account.free_cash_amount,
-                self.account.holdings.get_total_worth()
-            )
+            trade_book.log_closing_capitals(timestamp, self.account)
 
         # That was quite a long story :D
         return trade_book

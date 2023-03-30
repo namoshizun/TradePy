@@ -12,6 +12,14 @@ class Account(BaseModel):
     frozen_cash_amount: float
     market_value: float
 
+    def free_cash(self, amount: float):
+        self.free_cash_amount += amount
+        self.frozen_cash_amount -= amount
+
+    def freeze_cash(self, amount: float):
+        self.free_cash_amount -= amount
+        self.frozen_cash_amount += amount
+
     @property
     def total_asset_value(self) -> float:
         return self.market_value + self.free_cash_amount + self.frozen_cash_amount
@@ -24,8 +32,7 @@ class BacktestAccount(BaseModel):
     stamp_duty_rate: float
 
     holdings: Holdings = Field(default_factory=Holdings)
-    frozen_cash_amount: float = 0  # noop
-    market_value: float = 0  # noop
+    frozen_cash_amount: float = 0  # noset in backtesting
 
     class Config:
         arbitrary_types_allowed = True
@@ -64,4 +71,8 @@ class BacktestAccount(BaseModel):
 
     @property
     def total_asset_value(self) -> float:
-        return self.holdings.get_total_worth() + self.free_cash_amount
+        return self.market_value + self.free_cash_amount
+
+    @property
+    def market_value(self) -> float:
+        return self.holdings.get_total_market_value()

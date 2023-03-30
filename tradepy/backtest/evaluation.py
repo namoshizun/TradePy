@@ -17,9 +17,9 @@ class ResultEvaluator:
         df.set_index("timestamp", inplace=True)
 
         # Count the number of trade actions, the counts of win / lose closes
-        close_results = df.query('tag == "平仓"').copy()
+        close_results = df.query('action == "平仓"').copy()
         close_results["win_close"] = close_results["pct_chg"] > 0
-        action_counts = df.groupby("tag").size()
+        action_counts = df.groupby("action").size()
 
         wins = action_counts["止盈"] + (close_wins := close_results["win_close"].sum())
         loses = action_counts["止损"] + (close_lose := (~close_results["win_close"]).sum())

@@ -174,7 +174,6 @@ class StrategyBase(Generic[BarDataType]):
                 price=row.order_price,
                 vol=row.trade_units * self.trading_unit,
                 direction="buy",
-                status="pending"
             )
             for row in port_df.reset_index().itertuples()
             if row.trade_units > 0

@@ -11,21 +11,9 @@ class Position(BaseModel):
     code: str
     price: float
     vol: int
-    avail_vol: int
     latest_price: float
-
-    def as_dict(self):
-        return {
-            "id": self.id,
-            "timestamp": self.timestamp,
-            "code": self.code,
-            "shares": self.vol,
-            "cost_price": self.price,
-            "latest_price": self.latest_price,
-            "profit": self.profit_or_loss_at(self.latest_price),
-            "value": self.total_value_at(self.latest_price),
-            "pct_chg": self.pct_chg_at(self.latest_price)
-        }
+    avail_vol: int
+    yesterday_vol: int = 0
 
     def to_sell_order(self, timestamp) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'

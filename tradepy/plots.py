@@ -23,11 +23,11 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
     )
 
     # -----
-    cap_df = pd.DataFrame(trade_book.capital_logs).set_index("timestamp")
-    cap_df["total"] = cap_df["positions_value"] + cap_df["free_cash_amount"]
-    cap_df = cap_df.join(index_df, on="timestamp")
+    cap_df = trade_book.cap_logs_df.copy()
+    cap_df.index = cap_df.index.astype(str)
+    cap_df = cap_df.join(index_df)
 
-    for col in ["total", "positions_value", "free_cash_amount"]:
+    for col in ["capital", "market_value", "free_cash_amount"]:
         cap_df[col] = cap_df[col].reset_index()[col].interpolate(method="pad").values
 
     cap_df.dropna(inplace=True)
@@ -50,7 +50,7 @@ def plot_capital_curve(trade_book: TradeBook, since_date="1900-01-01", until_dat
     fig.add_trace(
         go.Scatter(
             x=cap_df.index,
-            y=cap_df["total"],
+            y=cap_df["capital"],
             mode='lines',
             line=dict(color='blue', width=1),
         ),
