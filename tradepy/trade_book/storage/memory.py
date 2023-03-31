@@ -1,6 +1,4 @@
-from tradepy.core.models import Position
-from tradepy.types import TradeActionType
-from tradepy.trade_book.types import TradeLog, CapitalsLog, AnyAccount
+from tradepy.trade_book.types import TradeLog, CapitalsLog
 from tradepy.trade_book.storage import TradeBookStorage
 
 
@@ -10,16 +8,13 @@ class InMemoryTradeBookStorage(TradeBookStorage):
         self.trade_logs: list[TradeLog] = list()
         self.capital_logs: list[CapitalsLog] = list()
 
-    def sell(self, timestamp: str, pos: Position, action: TradeActionType):
-        log = self.make_close_position_log(timestamp, pos, action)
+    def sell(self, log: TradeLog):
         self.trade_logs.append(log)
 
-    def buy(self, timestamp: str, pos: Position):
-        log = self.make_open_position_log(timestamp, pos)
+    def buy(self, log: TradeLog):
         self.trade_logs.append(log)
 
-    def log_closing_capitals(self, timestamp, account: AnyAccount):
-        log = self.make_capital_log(timestamp, account)
+    def log_closing_capitals(self, log: CapitalsLog):
         self.capital_logs.append(log)
 
     def fetch_trade_logs(self) -> list[TradeLog]:

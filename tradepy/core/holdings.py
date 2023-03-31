@@ -42,7 +42,7 @@ class Holdings:
                 raise ValueError(f"Position not found: {pos}. Current positions: {self.positions}")
 
             pos = self.positions.pop(pos.code)
-            total += pos.total_value_at(pos.latest_price)
+            total += pos.latest_price * pos.yesterday_vol
 
         return total
 

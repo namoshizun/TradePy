@@ -2,9 +2,7 @@ import os
 import sqlite3
 from loguru import logger
 
-from tradepy.core.models import Position
-from tradepy.types import TradeActionType
-from tradepy.trade_book.types import TradeLog, CapitalsLog, AnyAccount
+from tradepy.trade_book.types import TradeLog, CapitalsLog
 from tradepy.trade_book.storage import TradeBookStorage
 from tradepy.trade_book.storage.sqlite_orm import Table
 
@@ -24,24 +22,22 @@ class SQLiteTradeBookStorage(TradeBookStorage):
     def __del__(self):
         self.conn.close()
 
-    def buy(self, timestamp: str, pos: Position):
-        log = self.make_open_position_log(timestamp, pos)
+    def buy(self, log: TradeLog):
         self.trade_logs_tbl.insert(self.conn, log)
 
-    def sell(self, timestamp: str, pos: Position, action: TradeActionType):
-        log = self.make_close_position_log(timestamp, pos, action)
+    def sell(self, log: TradeLog):
         self.trade_logs_tbl.insert(self.conn, log)
 
-    def log_opening_capitals(self, date: str, account: AnyAccount):
+    def log_opening_capitals(self, log: CapitalsLog):
+        date = log["timestamp"]
         if self.capital_logs_tbl.select(self.conn, timestamp=date):
             logger.warning(f'{date}已存在开盘资金记录，将不再记录。')
             return
 
-        log = self.make_capital_log(date, account)
         self.capital_logs_tbl.insert(self.conn, log)
 
-    def log_closing_capitals(self, date: str, account: AnyAccount):
-        log = self.make_capital_log(date, account)
+    def log_closing_capitals(self, log: CapitalsLog):
+        date = log["timestamp"]
         self.capital_logs_tbl.update(
             self.conn,
             where={'timestamp': date},

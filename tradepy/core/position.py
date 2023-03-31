@@ -66,6 +66,19 @@ class Position(BaseModel):
         # NOTE: the actual closing price might be different from the daily close price, which is
         # used to update the latest price when the position is still in holding
         self.latest_price = price
+        if not self.yesterday_vol:
+            # only when in backtesting..
+            self.yesterday_vol = self.vol
+            self.vol = 0
+            self.avail_vol = 0
+
+    @property
+    def is_closed(self) -> bool:
+        return self.vol == 0 and self.avail_vol == 0
+
+    @property
+    def is_new(self) -> bool:
+        return self.yesterday_vol == 0
 
     def __hash__(self):
         return hash(self.code)

@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, date
 from fastapi import APIRouter
 from loguru import logger
@@ -142,8 +143,9 @@ async def warm_db():
     assert account
 
     logger.info("预热SQL数据库")
+    today = date.today().isoformat()
     trade_book = TradeBook.live_trading()
-    trade_book.log_opening_capitals(date.today().isoformat(), account)
+    trade_book.log_opening_capitals(today, account)
 
     logger.info("完成预热")
     return "ok"
@@ -151,5 +153,36 @@ async def warm_db():
 
 @router.get("/control/flush-cache")
 async def flush_cache():
-    raise NotImplementedError()
+    account = await get_account_info()
+    today = date.today().isoformat()
+
+    logger.info("导出资产总额")
+    logger.info(account)
+    trade_book = TradeBook.live_trading()
+    trade_book.log_closing_capitals(today, account)
+
+    logger.info("导出持仓变动记录")
+    positions = await get_positions()
+    for pos in positions:
+        if pos.is_new:
+            logger.info(f'[开仓] {pos}')
+            trade_book.buy(today, pos)
+
+        elif pos.is_closed:
+            # FIXME: the reason to close this position should be somehow retrieved instead of infered from the position!
+            stop_loss = float(os.environ["TRADE_STOP_LOSS"])
+            take_profit = float(os.environ["TRADE_TAKE_PROFIT"])
+            pct_chg = pos.pct_chg_at(pos.latest_price)
+
+            if pct_chg >= take_profit:
+                logger.info(f'[止盈] {pos}')
+                trade_book.take_profit(today, pos)
+            elif pct_chg <= -stop_loss:
+                logger.info(f'[止损] {pos}')
+                trade_book.stop_loss(today, pos)
+            else:
+                logger.info(f'[平仓] {pos}')
+                trade_book.close(today, pos)
+            # FIXME: this is so BAD!!!!!
+
     return "ok"

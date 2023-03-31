@@ -50,7 +50,7 @@ async def app_shutdown() -> None:
 
 
 @app.on_event("startup")
-@repeat_every(seconds=3)
+@repeat_every(seconds=tradepy.config.assets_sync_interval)
 async def sync_assets() -> None:
     not_trading = AStockExchange.market_phase_now() in (
         MarketPhase.CLOSED,
@@ -71,4 +71,4 @@ async def sync_assets() -> None:
     with timeit() as timer:
         await AssetsSyncer().run()  # type: ignore
 
-    logger.info(f'资产同步完成, 耗时: {timer["millseconds"]}ms')
+    logger.debug(f'资产同步完成, 耗时: {timer["millseconds"]}ms')
