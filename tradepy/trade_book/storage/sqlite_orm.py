@@ -123,8 +123,14 @@ values ({", ".join(map(self.__serialize, values))})
 
     # SELECT -------
     def build_select_sql(self, **query) -> str:
+        select_clause = f"select * from {self.table_name}"
+        if not query:
+            return select_clause
+
+        return select_clause + self.build_where_sql(**query)
+
+    def build_where_sql(self, **query) -> str:
         return f"""
-select * from {self.table_name}
 where {" AND ".join(
     f"{col} = {self.__serialize(val)}" for col, val in query.items()
 )}
@@ -137,15 +143,25 @@ where {" AND ".join(
 
     # DELETE ------
     def build_delete_sql(self, **query) -> str:
-        return f"""
-delete from {self.table_name}
-where {" AND ".join(
-    f"{col} = {self.__serialize(val)}" for col, val in query.items()
-)}
-        """
+        delete_clause = f"delete from {self.table_name}"
+        if not query:
+            return delete_clause
+        return delete_clause + self.build_where_sql(**query)
 
     def delete(self, conn: sqlite3.Connection, **query) -> int:
         cursor = conn.execute(self.build_delete_sql(**query))
+        return cursor.rowcount
+
+    # UPDATE ------
+    def build_update_sql(self, where: dict[str, Any], update: dict[str, Any]) -> str:
+        set_clause = ", ".join(f"{col} = {self.__serialize(val)}" for col, val in update.items())
+        update_clause = f"update {self.table_name} set {set_clause}"
+        where_clause = self.build_where_sql(**where)
+        return update_clause + where_clause
+
+    def update(self, conn: sqlite3.Connection, where: dict[str, Any], update: dict[str, Any]) -> int:
+        cursor = conn.execute(self.build_update_sql(where, update))
+        conn.commit()
         return cursor.rowcount
 
     @classmethod
@@ -206,6 +222,20 @@ if __name__ == '__main__':
     }
     print(table.build_insert_sql(row))
     print(table.insert(conn, row))
+
+    print('-' * 30)
+    update_args = dict(
+        where={
+            "timestamp": "2023-03-20",
+            "code": "000333"
+        },
+        update={
+            "action": "止盈",
+            "price": 100
+        },
+    )
+    print(table.build_update_sql(**update_args))
+    print(table.update(conn, **update_args))
 
     print('-' * 30)
     query = {

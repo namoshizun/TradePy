@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from loguru import logger
 
 from tradepy.core.models import Position
 from tradepy.types import TradeActionType
@@ -14,32 +15,47 @@ class SQLiteTradeBookStorage(TradeBookStorage):
         db_path = os.path.expanduser('~/.tradepy/trade_book.db')
         self.conn = sqlite3.connect(db_path)
 
-        self.trade_logs_ent: Table[TradeLog] = Table.from_typed_dict(TradeLog)
-        self.capital_logs_ent: Table[CapitalsLog] = Table.from_typed_dict(CapitalsLog)
+        self.trade_logs_tbl: Table[TradeLog] = Table.from_typed_dict(TradeLog)
+        self.capital_logs_tbl: Table[CapitalsLog] = Table.from_typed_dict(CapitalsLog)
 
-        self.trade_logs_ent.create_table(self.conn)
-        self.capital_logs_ent.create_table(self.conn)
+        self.trade_logs_tbl.create_table(self.conn)
+        self.capital_logs_tbl.create_table(self.conn)
 
     def __del__(self):
         self.conn.close()
 
     def buy(self, timestamp: str, pos: Position):
-        return super().buy(timestamp, pos)
+        log = self.make_open_position_log(timestamp, pos)
+        self.trade_logs_tbl.insert(self.conn, log)
 
     def sell(self, timestamp: str, pos: Position, action: TradeActionType):
-        return super().sell(timestamp, pos, action)
+        log = self.make_close_position_log(timestamp, pos, action)
+        self.trade_logs_tbl.insert(self.conn, log)
 
-    def log_opening_capitals(self, timestamp: str, account: AnyAccount):
-        return super().log_opening_capitals(timestamp, account)
+    def log_opening_capitals(self, date: str, account: AnyAccount):
+        log = self.make_capital_log(date, account)
+        self.capital_logs_tbl.insert(self.conn, log)
 
-    def log_closing_capitals(self, timestamp: str, account: AnyAccount):
-        return super().log_closing_capitals(timestamp, account)
+    def log_closing_capitals(self, date: str, account: AnyAccount):
+        log = self.make_capital_log(date, account)
+        self.capital_logs_tbl.update(
+            self.conn,
+            where={'timestamp': date},
+            update=log
+        )
 
     def fetch_trade_logs(self) -> list[TradeLog]:
-        return super().fetch_trade_logs()
+        return self.trade_logs_tbl.select(self.conn)
 
     def fetch_capital_logs(self) -> list[CapitalsLog]:
-        return super().fetch_capital_logs()
+        return self.capital_logs_tbl.select(self.conn)
 
     def get_opening(self, date: str) -> CapitalsLog | None:
-        return super().get_opening(date)
+        logs = self.capital_logs_tbl.select(self.conn, timestamp=date)
+        if not logs:
+            return None
+
+        if len(logs) > 1:
+            logger.warning(f'Found more than one opening capital log on {date}. Will return the first one.')
+
+        return logs[0]
