@@ -11,6 +11,8 @@ from broker_proxy.decorators import repeat_every
 from broker_proxy.qmt.sync import AssetsSyncer
 from tradepy.constants import CacheKeys
 from tradepy.decorators import timeit
+from tradepy.core.exchange import AStockExchange
+from tradepy.types import MarketPhase
 
 
 # TODO: The API Server should be moved to an upper level. The actual
@@ -50,6 +52,14 @@ async def app_shutdown() -> None:
 @app.on_event("startup")
 @repeat_every(seconds=3)
 async def sync_assets() -> None:
+    not_trading = AStockExchange.market_phase_now() in (
+        MarketPhase.CLOSED,
+        MarketPhase.LUNCHBREAK,
+        MarketPhase.PRE_OPEN,
+    )
+    if not_trading:
+        return
+
     if not xt_conn.connected:
         logger.info('交易终端未连接, 无法同步资产信息')
         return
@@ -59,6 +69,6 @@ async def sync_assets() -> None:
         return
 
     with timeit() as timer:
-        AssetsSyncer().run()
+        await AssetsSyncer().run()  # type: ignore
 
     logger.info(f'资产同步完成, 耗时: {timer["millseconds"]}ms')

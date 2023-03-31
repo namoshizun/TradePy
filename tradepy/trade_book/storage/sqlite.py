@@ -33,7 +33,7 @@ class SQLiteTradeBookStorage(TradeBookStorage):
         self.trade_logs_tbl.insert(self.conn, log)
 
     def log_opening_capitals(self, date: str, account: AnyAccount):
-        if self.trade_logs_tbl.select(self.conn, timestamp=date):
+        if self.capital_logs_tbl.select(self.conn, timestamp=date):
             logger.warning(f'{date}已存在开盘资金记录，将不再记录。')
             return
 

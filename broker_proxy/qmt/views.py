@@ -78,9 +78,8 @@ async def place_order(orders: list[Order]):
     xt_account = xt_conn.get_account()
     trader = xt_conn.get_trader()
     succ, fail = [], []
-    rd = tradepy.config.get_redis_client()
 
-    with use_redis(rd.pipeline()):
+    with use_redis(tradepy.config.get_redis_client()):
         # Pre-dudct account free cash (buy orders)
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:
@@ -134,7 +133,7 @@ async def place_order(orders: list[Order]):
     }
 
 
-@router.get("/controls/warm-db")
+@router.get("/control/warm-db")
 async def warm_db():
     logger.info("预热缓存数据库")
     await get_orders()
@@ -147,8 +146,10 @@ async def warm_db():
     trade_book.log_opening_capitals(date.today().isoformat(), account)
 
     logger.info("完成预热")
+    return "ok"
 
 
-@router.get("/controls/flush-cache")
+@router.get("/control/flush-cache")
 async def flush_cache():
     raise NotImplementedError()
+    return "ok"

@@ -17,7 +17,7 @@ def repeat_every(
     seconds: float,
     wait_first: bool = False,
     logger: logging.Logger | None = None,
-    raise_exceptions: bool = False,
+    raise_exceptions: bool = True,
     max_repetitions: int | None = None,
 ) -> NoArgsNoReturnDecorator:
     """
@@ -84,7 +84,9 @@ def with_redis_lock(key: str, **lock_args):
         @wraps(func)
         async def inner(*args, **kwargs):
             with tradepy.config.get_redis_client().lock(key, **lock_args):
-                return await func(*args, **kwargs)
+                if asyncio.iscoroutinefunction(func):
+                    return await func(*args, **kwargs)
+                return func(*args, **kwargs)
         return inner
     return decor
 

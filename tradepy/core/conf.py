@@ -58,7 +58,6 @@ class Config:
                 db=self.redis_db,
                 decode_responses=True
             )
-
         return Redis(connection_pool=self.redis_connection_pool)
 
     def set_database_dir(self, path: str | pathlib.Path):
