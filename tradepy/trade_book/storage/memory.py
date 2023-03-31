@@ -1,7 +1,7 @@
 from tradepy.core.models import Position
 from tradepy.types import TradeActionType
-from tradepy.core.trade_book.types import TradeLog, CapitalsLog, AnyAccount
-from tradepy.core.trade_book.storage import TradeBookStorage
+from tradepy.trade_book.types import TradeLog, CapitalsLog, AnyAccount
+from tradepy.trade_book.storage import TradeBookStorage
 
 
 class InMemoryTradeBookStorage(TradeBookStorage):

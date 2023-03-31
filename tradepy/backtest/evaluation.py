@@ -1,6 +1,6 @@
 import pandas as pd
 import quantstats as qs
-from tradepy.core.trade_book import TradeBook
+from tradepy.trade_book import TradeBook
 
 
 class ResultEvaluator:

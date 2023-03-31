@@ -5,8 +5,8 @@ import tradepy
 from tradepy.core.account import Account
 from tradepy.core.models import Position
 from tradepy.types import TradeActions
-from tradepy.core.trade_book.types import CapitalsLog
-from tradepy.core.trade_book.storage import TradeBookStorage, SQLiteTradeBookStorage, InMemoryTradeBookStorage
+from tradepy.trade_book.types import CapitalsLog
+from tradepy.trade_book.storage import TradeBookStorage, SQLiteTradeBookStorage, InMemoryTradeBookStorage
 
 
 class TradeBook:

@@ -1,7 +1,7 @@
 import abc
 from tradepy.core.models import Position
 from tradepy.types import TradeActions, TradeActionType
-from tradepy.core.trade_book.types import TradeLog, CapitalsLog, AnyAccount
+from tradepy.trade_book.types import TradeLog, CapitalsLog, AnyAccount
 
 
 class TradeBookStorage:

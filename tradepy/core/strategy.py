@@ -12,8 +12,8 @@ from tqdm import tqdm
 from tradepy import LOG
 from tradepy.core.context import Context
 from tradepy.backtest.backtester import Backtester
+from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
-from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg

@@ -9,7 +9,7 @@ from broker_proxy.qmt.conversion import xtorder_to_tradepy, xtposition_to_tradep
 import tradepy
 from tradepy.constants import CacheKeys
 from tradepy.core.models import Order, Position, Account
-from tradepy.core.trade_book import TradeBook, CapitalsLog
+from tradepy.trade_book import TradeBook, CapitalsLog
 
 
 class AssetsSyncer:

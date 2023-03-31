@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 import tradepy.trade_cal
-from tradepy.core.trade_book import TradeBook
+from tradepy.trade_book import TradeBook
 from tradepy.warehouse import BroadBasedIndexBarsDepot
 
 

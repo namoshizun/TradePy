@@ -8,7 +8,7 @@ from tradepy import LOG
 from tradepy.core.account import BacktestAccount
 from tradepy.core.order import Order
 from tradepy.core.position import Position
-from tradepy.core.trade_book import TradeBook
+from tradepy.trade_book import TradeBook
 from tradepy.core.context import Context
 
 if TYPE_CHECKING:
