@@ -5,6 +5,7 @@ from tradepy.core.models import Position
 from tradepy.types import TradeActionType
 from tradepy.trade_book.types import TradeLog, CapitalsLog, AnyAccount
 from tradepy.trade_book.storage import TradeBookStorage
+from tradepy.trade_book.storage.sqlite_orm import Table
 
 
 class SQLiteTradeBookStorage(TradeBookStorage):
@@ -13,20 +14,11 @@ class SQLiteTradeBookStorage(TradeBookStorage):
         db_path = os.path.expanduser('~/.tradepy/trade_book.db')
         self.conn = sqlite3.connect(db_path)
 
-        self.conn.execute('''
-        create table if not exists trade_logs (
-            id text primary key,
-            timestamp text,
-            action text,
-            code text,
-            vol integer,
-            price real,
-            total_value real,
-            chg real,
-            pct_chg real,
-            total_return real
-        )
-        ''')
+        self.trade_logs_ent: Table[TradeLog] = Table.from_typed_dict(TradeLog)
+        self.capital_logs_ent: Table[CapitalsLog] = Table.from_typed_dict(CapitalsLog)
+
+        self.trade_logs_ent.create_table(self.conn)
+        self.capital_logs_ent.create_table(self.conn)
 
     def __del__(self):
         self.conn.close()
