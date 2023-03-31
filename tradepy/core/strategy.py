@@ -2,19 +2,18 @@ import abc
 import sys
 import inspect
 import talib
-import random
 import pandas as pd
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
-from typing import Any, TypedDict, Generic, TypeVar
+from typing import TypedDict, Generic, TypeVar
 from tqdm import tqdm
 
 from tradepy import LOG
 from tradepy.core.context import Context
 from tradepy.backtest.backtester import Backtester
+from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
-from tradepy.core.trade_book import TradeBook
 from tradepy.core.position import Position
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
@@ -113,15 +112,17 @@ class StrategyBase(Generic[BarDataType]):
     def should_close(self, *indicators) -> bool:
         return False
 
-    def get_portfolio_and_budget(self,
-                                 bar_df: pd.DataFrame,
-                                 buy_options: list[Any],
+    def adjust_portfolio_and_budget(self,  # THE ABSOLUTELY WORST INTERFACE IN THIS PROJECT!
+                                 port_df: pd.DataFrame,
                                  budget: float,
+                                 n_stocks: int,
+                                 total_asset_value: float,
                                  max_position_opens: int | None = None,
                                  max_position_size: float | None = None) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
         min_sig, max_sig = self.signals_percent_range
-        signal_ratio = 100 * len(buy_options) / len(bar_df)
+        n_options = len(port_df)
+        signal_ratio = 100 * n_options / n_stocks
         if (signal_ratio < min_sig) or (signal_ratio > max_sig):
             return pd.DataFrame(), 0
 
@@ -129,26 +130,16 @@ class StrategyBase(Generic[BarDataType]):
         max_position_size = max_position_size or self.max_position_size
 
         # Limit number of new opens
-        if len(buy_options) > max_position_opens:
-            buy_options = random.sample(buy_options, max_position_opens)
+        if n_options > max_position_opens:
+            port_df = port_df.sample(n=max_position_opens)
 
         # Limit position budget allocation
-        min_position_allocation = budget // len(buy_options)
-        max_position_value = max_position_size * self.account.get_total_asset_value()
+        min_position_allocation = budget // n_options
+        max_position_value = max_position_size * total_asset_value
 
         if min_position_allocation > max_position_value:
-            budget = len(buy_options) * max_position_value
+            budget = n_options * max_position_value
 
-        # Generate the order frame and annotate the actual price to price
-        indices, prices = zip(*buy_options)
-
-        # FIXME: This is a hack to get the dataframe look right...
-        if "timestamp" in bar_df.index.names:
-            port_df = bar_df.loc[list(indices), ["company"]].copy()
-        else:
-            port_df = bar_df.loc[list(indices), ["company", "timestamp"]].copy()
-
-        port_df["order_price"] = prices
         return port_df, budget
 
     def generate_buy_orders(self, port_df: pd.DataFrame, budget: float) -> list[Order]:
@@ -183,7 +174,6 @@ class StrategyBase(Generic[BarDataType]):
                 price=row.order_price,
                 vol=row.trade_units * self.trading_unit,
                 direction="buy",
-                status="pending"
             )
             for row in port_df.reset_index().itertuples()
             if row.trade_units > 0

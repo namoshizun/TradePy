@@ -2,7 +2,7 @@ import pandas as pd
 from functools import cache, cached_property
 from fuzzywuzzy import fuzz
 
-from tradepy.convertion import convert_code_to_market
+from tradepy.conversion import convert_code_to_market
 from tradepy.types import MarketType
 
 

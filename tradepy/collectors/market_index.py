@@ -3,7 +3,7 @@ import pandas as pd
 from tradepy import LOG
 from tradepy.collectors import DataCollector
 from tradepy.warehouse import BroadBasedIndexBarsDepot, SectorIndexBarsDepot
-from tradepy.convertion import broad_index_code_name_mapping
+from tradepy.conversion import broad_index_code_name_mapping
 
 
 class EastMoneySectorIndexCollector(DataCollector):

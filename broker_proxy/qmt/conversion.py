@@ -4,9 +4,10 @@ from datetime import date, datetime
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
+from tradepy.core.account import Account
 from tradepy.core.position import Position
 from tradepy.core.order import Order, OrderDirection, OrderStatus
-from tradepy.convertion import convert_code_to_exchange
+from tradepy.conversion import convert_code_to_exchange
 
 
 def tradepy_order_direction_to_xtorder_status(dir: OrderDirection):
@@ -75,16 +76,16 @@ def xtposition_to_tradepy(p: XtPosition) -> Position:
         latest_price=curr_price,
         vol=p.volume,
         avail_vol=p.can_use_volume,
+        yesterday_vol=p.yesterday_volume,
     )
 
 
-def xtaccount_to_tradepy(a: XtAsset) -> dict[str, float]:
-    # TODO: design a common "Account" model
-    return {
-        "free_cash": a.cash,
-        "frozen_cash": a.frozen_cash,
-        "market_value": a.market_value
-    }
+def xtaccount_to_tradepy(a: XtAsset) -> Account:
+    return Account(
+        free_cash_amount=a.cash,
+        frozen_cash_amount=a.frozen_cash,
+        market_value=a.market_value
+    )
 
 
 def tradepy_code_to_xtcode(code: str) -> str:

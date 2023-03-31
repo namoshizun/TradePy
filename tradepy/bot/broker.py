@@ -1,6 +1,7 @@
 import os
 import tradepy
 import requests as rq
+from tradepy.core.account import Account
 
 from tradepy.core.position import Position
 from tradepy.core.order import Order
@@ -17,6 +18,16 @@ def get_url(path) -> str:
 class BrokerAPI:
 
     @staticmethod
+    def warm_db() -> str:
+        res = rq.get(get_url("control/warm-db"))
+        return res.text
+
+    @staticmethod
+    def flush_cache() -> str:
+        res = rq.get(get_url("control/flush-cache"))
+        return res.text
+
+    @staticmethod
     def get_orders() -> list[Order]:
         res = rq.get(get_url("orders"))
         return [Order(**x) for x in res.json()]
@@ -29,9 +40,9 @@ class BrokerAPI:
         return [Position(**x) for x in res.json()]
 
     @staticmethod
-    def get_account_free_cash_amount() -> float:
+    def get_account() -> Account:
         res = rq.get(get_url("account"))
-        return res.json()["free_cash"]
+        return Account(**res.json())
 
     @staticmethod
     def place_orders(orders: list[Order]):

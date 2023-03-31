@@ -1,11 +1,12 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 OrderDirection = Literal['buy', 'sell']
 
 OrderStatus = Literal[
+    "created",
     'pending',
     'filled',
     'cancelled',
@@ -22,8 +23,34 @@ class Order(BaseModel):
     vol: int
     filled_price: float | None = None
     filled_vol: int | None = None
-    status: OrderStatus = "pending"
+    status: OrderStatus = "created"
     direction: Literal["buy", "sell"]
+    tags: dict = Field(default_factory=dict)
+
+    @property
+    def created_at(self) -> datetime:
+        return datetime.fromisoformat(self.tags["created_at"])
+
+    @property
+    def trade_value(self):
+        if self.is_filled:
+            return self.filled_price * self.filled_vol  # type: ignore
+        return self.price * self.vol
+
+    @property
+    def is_buy(self) -> bool:
+        return self.direction == "buy"
+
+    @property
+    def is_filled(self) -> bool:
+        yes = self.status == "filled"
+        if yes and (self.filled_price is None or self.filled_vol is None):
+            raise ValueError('订单已成交, 但没有成交价格或成家笔数!')
+        return yes
+
+    @property
+    def is_sell(self) -> bool:
+        return self.direction == "sell"
 
     @property
     def slip_points(self) -> float:

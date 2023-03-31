@@ -1,16 +1,43 @@
 import abc
-import json
+
 import tradepy
+import redis
+import contextvars
+from pydantic import BaseModel
+from typing import Iterable, TypeVar, Generic
+from contextlib import contextmanager
 from tradepy.constants import CacheKeys
+from tradepy.core.account import Account
 from tradepy.core.position import Position
 from tradepy.core.order import Order
 
 
-def get_redis():
-    return tradepy.config.get_redis_client()
+client_var = contextvars.ContextVar("redis_client")
 
 
-class CacheItem:
+@contextmanager
+def use_redis(client: redis.Redis):
+    token = client_var.set(client)
+    try:
+        yield
+        client = client_var.get(token)
+        if isinstance(client, redis.client.Pipeline):
+            client.execute()
+    finally:
+        client_var.reset(token)
+
+
+def get_redis() -> redis.Redis:
+    try:
+        return client_var.get()
+    except LookupError:
+        return tradepy.config.get_redis_client()
+
+
+ItemType = TypeVar("ItemType", bound=BaseModel)
+
+
+class CacheItem(Generic[ItemType]):
 
     @staticmethod
     @abc.abstractmethod
@@ -19,26 +46,26 @@ class CacheItem:
 
     @staticmethod
     @abc.abstractmethod
-    def set(*args):
+    def set(item: ItemType):
         raise NotImplementedError
 
     @classmethod
-    def set_many(cls, instances: list):
+    def set_many(cls, instances: Iterable[ItemType]):
         for instance in instances:
             cls.set(instance)
 
     @staticmethod
     @abc.abstractmethod
-    def get(*args):
+    def get(*args) -> ItemType | None:
         raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
-    def get_many(*args):
+    def get_many(*args) -> list[ItemType] | None:
         raise NotImplementedError
 
 
-class PositionCache(CacheItem):
+class PositionCache(CacheItem[Position]):
 
     @staticmethod
     def set(position: Position):
@@ -64,7 +91,7 @@ class PositionCache(CacheItem):
         ]
 
 
-class OrderCache(CacheItem):
+class OrderCache(CacheItem[Order]):
 
     @staticmethod
     def exists(order_id: str):
@@ -95,16 +122,16 @@ class OrderCache(CacheItem):
         ]
 
 
-class AccountCache(CacheItem):
+class AccountCache(CacheItem[Account]):
 
     @staticmethod
-    def set(account: dict):
+    def set(account: Account):
         get_redis().set(
             CacheKeys.account,
-            json.dumps(account)
+            account.json()
         )
 
     @staticmethod
-    def get() -> dict | None:
+    def get() -> Account | None:
         if raw := get_redis().get(CacheKeys.account):
-            return json.loads(raw)
+            return Account.parse_raw(raw)

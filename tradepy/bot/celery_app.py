@@ -37,4 +37,14 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=20, minute=0),  # type: ignore
         "args": ()
     },
+    "warm-broker-db": {
+        "task": "tradepy.warm_broker_db",
+        "schedule": crontab(hour=9, minute=0),  # type: ignore
+        "args": ()
+    },
+    "flush-broker-cache": {
+        "task": "tradepy.flush_broker_cache",
+        "schedule": crontab(hour=15, minute=5),  # type: ignore
+        "args": ()
+    },
 }

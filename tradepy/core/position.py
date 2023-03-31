@@ -11,21 +11,9 @@ class Position(BaseModel):
     code: str
     price: float
     vol: int
-    avail_vol: int
     latest_price: float
-
-    def as_dict(self):
-        return {
-            "id": self.id,
-            "timestamp": self.timestamp,
-            "code": self.code,
-            "shares": self.vol,
-            "cost_price": self.price,
-            "latest_price": self.latest_price,
-            "profit": self.profit_or_loss_at(self.latest_price),
-            "value": self.total_value_at(self.latest_price),
-            "pct_chg": self.pct_chg_at(self.latest_price)
-        }
+    avail_vol: int
+    yesterday_vol: int = 0
 
     def to_sell_order(self, timestamp) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'
@@ -43,6 +31,11 @@ class Position(BaseModel):
     @round_val
     def cost(self):
         return self.total_value_at(self.price)
+
+    @property
+    @round_val
+    def total_value(self) -> float:
+        return self.total_value_at(self.latest_price)
 
     @round_val
     def total_value_at(self, price: float) -> float:
@@ -73,13 +66,26 @@ class Position(BaseModel):
         # NOTE: the actual closing price might be different from the daily close price, which is
         # used to update the latest price when the position is still in holding
         self.latest_price = price
+        if not self.yesterday_vol:
+            # only when in backtesting..
+            self.yesterday_vol = self.vol
+            self.vol = 0
+            self.avail_vol = 0
+
+    @property
+    def is_closed(self) -> bool:
+        return self.vol == 0 and self.avail_vol == 0
+
+    @property
+    def is_new(self) -> bool:
+        return self.yesterday_vol == 0
 
     def __hash__(self):
         return hash(self.code)
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol}'
+        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol} ({self.avail_vol}可用)'
         return msg
 
     def __repr__(self):

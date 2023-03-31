@@ -1,19 +1,15 @@
 import os
-import io
 import pickle
 import pandas as pd
-from typing import Any
 from functools import cached_property
 from datetime import date
 from pathlib import Path
-from celery import shared_task
 
 import tradepy
 from tradepy.constants import CacheKeys, Timeouts
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
-from tradepy.core.order import Order
-from tradepy.core.position import Position
+from tradepy.core.models import Order, Position
 from tradepy.core.strategy import LiveStrategy
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
@@ -49,7 +45,7 @@ class TradingEngine:
 
         factors_df = AdjustFactorDepot.load()
         ctx_args = dict(
-            cash_amount=BrokerAPI.get_account_free_cash_amount(),
+            cash_amount=0,  # NOTE: no meaning for live trading
             trading_unit=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
@@ -60,6 +56,7 @@ class TradingEngine:
         ctx_args.update(_load_ctx_vars_from_env())
         self.ctx = Context.build(**ctx_args)
 
+        self.account = BrokerAPI.get_account()
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
         self.adjust_factors: AdjustFactors = AdjustFactors(factors_df)
 
@@ -86,13 +83,21 @@ class TradingEngine:
     def _get_buy_options(self,
                          ind_df: pd.DataFrame,
                          orders: list[Order],
-                         positions: list[Position]) -> list[tuple[Any, float]]:
+                         positions: list[Position]) -> pd.DataFrame:
         already_traded = set(x.code for x in orders + positions)
-        return [
+        codes_and_prices = [
             (code, self.adjust_factors.to_real_price(code, price))
-            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
+            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)
             if (code not in already_traded) and (price := self.strategy.should_buy(*indicators))
         ]
+
+        if not codes_and_prices:
+            return pd.DataFrame()
+
+        codes, prices = zip(*codes_and_prices)
+        return pd.DataFrame({
+            "order_price": prices,
+        }, index=pd.Index(codes, name="code"))
 
     def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:
         if not self.strategy.close_indicators:
@@ -177,21 +182,21 @@ class TradingEngine:
 
         # [2] Buy stocks
         orders = BrokerAPI.get_orders()  # type: ignore
-        buy_options = self._get_buy_options(ind_df, orders, positions)  # list[DF_Index, BuyPrice]
-        if buy_options:
+        port_df = self._get_buy_options(ind_df, orders, positions)  # list[DF_Index, BuyPrice]
+        if not port_df.empty:
             n_bought = sum(1 for o in orders if o.direction == "buy")
-            free_cash_amount = self.ctx.account.cash_amount
 
             max_position_opens = max(0, self.ctx.max_position_opens - n_bought)
-            port_df, budget = self.strategy.get_portfolio_and_budget(
-                ind_df,
-                buy_options=buy_options,
-                budget=free_cash_amount,
+            port_df, budget = self.strategy.adjust_portfolio_and_budget(
+                port_df,
+                budget=self.account.free_cash_amount,
+                total_asset_value=self.account.total_asset_value,
+                n_stocks=len(ind_df),
                 max_position_opens=max_position_opens)
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
 
-            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{free_cash_amount}. 触发买入{len(buy_options)}, 准许买入{max_position_opens}')
+            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{self.account.free_cash_amount}. 触发买入{n_bought}, 准许买入{max_position_opens}')
             if buy_orders:
                 LOG.info('发送买入指令')
                 BrokerAPI.place_orders(buy_orders)
@@ -261,13 +266,3 @@ class TradingEngine:
 
             case MarketPhase.CONT_TRADE_PRE_CLOSE:
                 self.on_cont_trade_pre_close(quote_df)
-
-
-@shared_task(name="tradepy.handle_tick")
-def handle_tick(payload):
-    quote_df_reader = io.StringIO(payload["market_quote"])
-
-    TradingEngine().handle_tick(
-        market_phase=payload["market_phase"],
-        quote_df=pd.read_csv(quote_df_reader, index_col="code", dtype={"code": str}),
-    )

@@ -7,7 +7,7 @@ from typing import Any, Generator
 from functools import cache, partial
 
 import tradepy
-from tradepy.convertion import convert_code_to_market
+from tradepy.conversion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
 
 

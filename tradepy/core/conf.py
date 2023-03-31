@@ -32,6 +32,7 @@ class Config:
 
     # Trading Mode Conf
     tick_fetch_interval = int(getenv("TICK_FETCH_INTERVAL", "5"))
+    assets_sync_interval = int(getenv("ASSETS_SYNC_INTERVAL", "3"))
     redis_host: str = getenv("REDIS_HOST", "localhost")
     redis_port: int = int(getenv("REDIS_PORT", 6379))
     redis_db: int = int(getenv("REDIS_DB", 0))
@@ -57,7 +58,6 @@ class Config:
                 db=self.redis_db,
                 decode_responses=True
             )
-
         return Redis(connection_pool=self.redis_connection_pool)
 
     def set_database_dir(self, path: str | pathlib.Path):

@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
 from tradepy import LOG
+from tradepy.core.account import BacktestAccount
 from tradepy.core.order import Order
 from tradepy.core.position import Position
-from tradepy.core.trade_book import TradeBook
+from tradepy.trade_book import TradeBook
 from tradepy.core.context import Context
 
 if TYPE_CHECKING:
@@ -17,7 +18,11 @@ if TYPE_CHECKING:
 class Backtester:
 
     def __init__(self, ctx: Context) -> None:
-        self.account = ctx.account
+        self.account = BacktestAccount(
+            free_cash_amount=ctx.cash_amount,
+            broker_commission_rate=ctx.broker_commission_rate,
+            stamp_duty_rate=ctx.stamp_duty_rate
+        )
 
         if ctx.hfq_adjust_factors is not None:
             _adf = ctx.hfq_adjust_factors.copy()
@@ -43,18 +48,26 @@ class Backtester:
         ]
 
     def get_buy_options(self,
-                        df: pd.DataFrame,
+                        bars_df: pd.DataFrame,
                         strategy: "StrategyBase",
-                        sell_positions: list[Position]) -> list[tuple[Any, float]]:
+                        sell_positions: list[Position]) -> pd.DataFrame:
         sold_or_holding_codes = self.account.holdings.position_codes | \
             set(pos.code for pos in sell_positions)
         jitter_price = lambda p: p * random.uniform(1 - 1e-4 * 5, 1 + 1e-4 * 5)  # 0.05% slip
 
-        return [
+        indices_and_prices = [
             (index, jitter_price(price))
-            for index, *indicators in df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
+            for index, *indicators in bars_df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
             if (index[1] not in sold_or_holding_codes) and (price := strategy.should_buy(*indicators))
         ]
+
+        if not indices_and_prices:
+            return pd.DataFrame()
+
+        indices, prices = zip(*indices_and_prices)
+        return pd.DataFrame({
+            "order_price": prices,
+        }, index=pd.MultiIndex.from_tuples(indices, names=["timestamp", "code"]))
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:
         if not strategy.close_indicators:
@@ -80,7 +93,7 @@ class Backtester:
             df.sort_index(inplace=True)
 
         LOG.info('>>> 交易中 ...')
-        trade_book = TradeBook()
+        trade_book = TradeBook.backtest()
 
         # Per day
         for timestamp, sub_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
@@ -116,16 +129,22 @@ class Backtester:
                 # [3] Close
                 elif index in close_indices:
                     pos.close(bar["close"])
-                    trade_book.close_position(timestamp, pos)
+                    trade_book.close(timestamp, pos)
                     sell_positions.append(pos)
 
             if sell_positions:
                 self.account.sell(sell_positions)
 
             # Buy
-            buy_options = self.get_buy_options(sub_df, strategy, sell_positions)  # list[DF_Index, BuyPrice]
-            if buy_options:
-                port_df, budget = strategy.get_portfolio_and_budget(sub_df, buy_options, self.account.cash_amount)
+            port_df = self.get_buy_options(sub_df, strategy, sell_positions)  # list[DF_Index, BuyPrice]
+            if not port_df.empty:
+                port_df, budget = strategy.adjust_portfolio_and_budget(
+                    port_df=port_df,
+                    budget=self.account.free_cash_amount,
+                    n_stocks=len(sub_df),
+                    total_asset_value=self.account.total_asset_value
+                )
+
                 buy_orders = strategy.generate_buy_orders(port_df, budget)
                 buy_positions = self.__orders_to_positions(buy_orders)
 
@@ -134,11 +153,7 @@ class Backtester:
                     trade_book.buy(timestamp, pos)
 
             # Logging
-            trade_book.log_capitals(
-                timestamp,
-                self.account.cash_amount,
-                self.account.holdings.get_total_worth()
-            )
+            trade_book.log_closing_capitals(timestamp, self.account)
 
         # That was quite a long story :D
         return trade_book
