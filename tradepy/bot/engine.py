@@ -1,18 +1,15 @@
 import os
-import io
 import pickle
 import pandas as pd
 from functools import cached_property
 from datetime import date
 from pathlib import Path
-from celery import shared_task
 
 import tradepy
 from tradepy.constants import CacheKeys, Timeouts
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
-from tradepy.core.order import Order
-from tradepy.core.position import Position
+from tradepy.core.models import Order, Position
 from tradepy.core.strategy import LiveStrategy
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
@@ -269,13 +266,3 @@ class TradingEngine:
 
             case MarketPhase.CONT_TRADE_PRE_CLOSE:
                 self.on_cont_trade_pre_close(quote_df)
-
-
-@shared_task(name="tradepy.handle_tick")
-def handle_tick(payload):
-    quote_df_reader = io.StringIO(payload["market_quote"])
-
-    TradingEngine().handle_tick(
-        market_phase=payload["market_phase"],
-        quote_df=pd.read_csv(quote_df_reader, index_col="code", dtype={"code": str}),
-    )

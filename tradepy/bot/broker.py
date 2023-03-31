@@ -18,6 +18,16 @@ def get_url(path) -> str:
 class BrokerAPI:
 
     @staticmethod
+    def warm_db() -> str:
+        res = rq.get(get_url("control/warm-db"))
+        return res.text
+
+    @staticmethod
+    def flush_cache() -> str:
+        res = rq.get(get_url("control/flush-cache"))
+        return res.text
+
+    @staticmethod
     def get_orders() -> list[Order]:
         res = rq.get(get_url("orders"))
         return [Order(**x) for x in res.json()]

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter
 from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
@@ -16,6 +16,7 @@ from broker_proxy.qmt.conversion import (
 )
 
 import tradepy
+from tradepy.trade_book import TradeBook
 from tradepy.constants import CacheKeys
 from tradepy.core.models import Position, Order, Account
 
@@ -131,3 +132,23 @@ async def place_order(orders: list[Order]):
         "succ": succ,
         "fail": fail
     }
+
+
+@router.get("/controls/warm-db")
+async def warm_db():
+    logger.info("预热缓存数据库")
+    await get_orders()
+    await get_positions()
+    account = await get_account_info()
+    assert account
+
+    logger.info("预热SQL数据库")
+    trade_book = TradeBook.live_trading()
+    trade_book.log_opening_capitals(date.today().isoformat(), account)
+
+    logger.info("完成预热")
+
+
+@router.get("/controls/flush-cache")
+async def flush_cache():
+    raise NotImplementedError()
