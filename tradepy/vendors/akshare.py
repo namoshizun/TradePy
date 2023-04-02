@@ -35,6 +35,7 @@ def retry(max_retries=3, wait_interval=5):
                 except Exception:
                     tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次. \n\n {traceback.format_exc()}')
                     time.sleep(wait_interval)
+                    n += 1
         return inner
     return decor
 
