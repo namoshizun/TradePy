@@ -39,99 +39,89 @@ ItemType = TypeVar("ItemType", bound=BaseModel)
 
 class CacheItem(Generic[ItemType]):
 
-    @staticmethod
-    @abc.abstractmethod
-    def exists(*args):
-        raise NotImplementedError
+    key: str
+    item_type: type[ItemType]
 
-    @staticmethod
+    @classmethod
     @abc.abstractmethod
-    def set(item: ItemType):
+    def exists(cls, *args):
         raise NotImplementedError
 
     @classmethod
-    def set_many(cls, instances: Iterable[ItemType]):
-        for instance in instances:
-            cls.set(instance)
-
-    @staticmethod
     @abc.abstractmethod
-    def get(*args) -> ItemType | None:
+    def set(cls, item: ItemType):
         raise NotImplementedError
 
-    @staticmethod
+    @classmethod
     @abc.abstractmethod
-    def get_many(*args) -> list[ItemType] | None:
+    def set_many(cls, items: Iterable[ItemType]):
+        raise NotImplementedError
+
+    @classmethod
+    @abc.abstractmethod
+    def get(cls, *args) -> ItemType | None:
+        raise NotImplementedError
+
+    @classmethod
+    @abc.abstractmethod
+    def get_many(cls, *args) -> list[ItemType] | None:
         raise NotImplementedError
 
 
-class PositionCache(CacheItem[Position]):
+class HashmapCacheItem(CacheItem[ItemType]):
 
-    @staticmethod
-    def set(position: Position):
-        get_redis().hset(
-            CacheKeys.positions,
-            position.id,
-            position.json()
-        )
+    @classmethod
+    def set(cls, item: ItemType):
+        get_redis().hset(cls.key, item.id, item.json())
 
-    @staticmethod
-    def get(position_id: str) -> Position | None:
-        if raw := get_redis().hget(CacheKeys.positions, position_id):
-            return Position.parse_raw(raw)
-
-    @staticmethod
-    def get_many() -> list[Position] | None:
+    @classmethod
+    def set_many(cls, items: Iterable[ItemType]):
         r = get_redis()
-        if not r.exists(CacheKeys.positions):
+        with r.pipeline() as pipe:
+            pipe.delete(cls.key)
+            pipe.hset(cls.key, mapping={
+                i.id: i.json()
+                for i in items
+            })
+            pipe.execute()
+
+    @classmethod
+    def get(cls, id: str) -> ItemType | None:
+        if raw := get_redis().hget(cls.key, id):
+            return cls.item_type.parse_raw(raw)
+
+    @classmethod
+    def get_many(cls) -> list[ItemType] | None:
+        r = get_redis()
+        if not r.exists(cls.key):
             return None
         return [
-            Position.parse_raw(raw)
-            for _, raw in get_redis().hgetall(CacheKeys.positions).items()
+            cls.item_type.parse_raw(raw)
+            for _, raw in r.hgetall(cls.key).items()
         ]
 
 
-class OrderCache(CacheItem[Order]):
+class PositionCache(HashmapCacheItem[Position]):
 
-    @staticmethod
-    def exists(order_id: str):
-        return get_redis().hexists(CacheKeys.orders, order_id)
+    key = CacheKeys.positions
+    item_type = Position
 
-    @staticmethod
-    def set(order: Order):
-        assert order.id is not None
-        get_redis().hset(
-            CacheKeys.orders,
-            order.id,
-            order.json()
-        )
 
-    @staticmethod
-    def get(order_id: str) -> Order | None:
-        if raw := get_redis().hget(CacheKeys.orders, order_id):
-            return Order.parse_raw(raw)
+class OrderCache(HashmapCacheItem[Order]):
 
-    @staticmethod
-    def get_many() -> list[Order] | None:
-        r = get_redis()
-        if not r.exists(CacheKeys.orders):
-            return None
-        return [
-            Order.parse_raw(raw)
-            for _, raw in get_redis().hgetall(CacheKeys.orders).items()
-        ]
+    key = CacheKeys.orders
+    item_type = Order
 
 
 class AccountCache(CacheItem[Account]):
 
-    @staticmethod
-    def set(account: Account):
-        get_redis().set(
-            CacheKeys.account,
-            account.json()
-        )
+    key = CacheKeys.account
 
-    @staticmethod
-    def get() -> Account | None:
-        if raw := get_redis().get(CacheKeys.account):
+    @classmethod
+    def set(cls, account: Account):
+        get_redis().set(cls.key, account.json())
+
+    @classmethod
+    def get(cls) -> Account | None:
+        if raw := get_redis().get(cls.key):
             return Account.parse_raw(raw)

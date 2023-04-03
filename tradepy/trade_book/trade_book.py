@@ -1,4 +1,5 @@
 import pandas as pd
+from loguru import logger
 from functools import cached_property
 
 import tradepy
@@ -45,6 +46,9 @@ class TradeBook:
             "vol": pos.vol,
             "price": pos.price,
             "total_value": pos.price * pos.vol,
+            "chg": 0,
+            "pct_chg": 0,
+            "total_return": 0,
         }
 
     def make_close_position_log(self, timestamp: str, pos: Position, action: TradeActionType) -> TradeLog:
@@ -77,11 +81,19 @@ class TradeBook:
 
     def buy(self, timestamp: str, pos: Position):
         log = self.make_open_position_log(timestamp, pos)
-        self.storage.buy(log)
+        try:
+            self.storage.buy(log)
+        except Exception as exc:
+            logger.error(f'导出开仓日志错误, {log}')
+            raise exc
 
     def sell(self, timestamp: str, pos: Position, action: TradeActionType):
         log = self.make_close_position_log(timestamp, pos, action)
-        self.storage.sell(log)
+        try:
+            self.storage.sell(log)
+        except Exception as exc:
+            logger.error(f'导出开仓日志错误, {log}')
+            raise exc
 
     def close(self, *args, **kwargs):
         kwargs["action"] = TradeActions.CLOSE
