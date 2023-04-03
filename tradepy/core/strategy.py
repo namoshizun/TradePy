@@ -126,8 +126,11 @@ class StrategyBase(Generic[BarDataType]):
         if (signal_ratio < min_sig) or (signal_ratio > max_sig):
             return pd.DataFrame(), 0
 
-        max_position_opens = max_position_opens or self.max_position_opens
-        max_position_size = max_position_size or self.max_position_size
+        if max_position_opens is None:
+            max_position_opens = self.max_position_opens
+
+        if max_position_opens is None:
+            max_position_size = self.max_position_size
 
         # Limit number of new opens
         if n_options > max_position_opens:

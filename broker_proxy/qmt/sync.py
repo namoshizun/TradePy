@@ -33,7 +33,7 @@ class AssetsSyncer:
             o = orders[oid]
             if o.status == "created" and (now - o.created_at).seconds > expiry:
                 logger.warning(f'委托缓存已过期: {o}. 正常情况下是因为无效订单')
-                del orders[oid]
+                orders.pop(oid)
 
     def _update_orders_cache(self, orders: dict[str, Order]):
         for o in self.fetch_counter_orders():
