@@ -16,7 +16,7 @@ python-versions = ">=3.7"
 
 [[package]]
 name = "akshare"
-version = "1.9.29"
+version = "1.9.33"
 description = "AKShare is an elegant and simple financial data interface library for Python, built for human beings!"
 category = "main"
 optional = false
@@ -2228,8 +2228,8 @@ aiosqlite = [
     {file = "aiosqlite-0.18.0.tar.gz", hash = "sha256:faa843ef5fb08bafe9a9b3859012d3d9d6f77ce3637899de20606b7fc39aa213"},
 ]
 akshare = [
-    {file = "akshare-1.9.29-py3-none-any.whl", hash = "sha256:4d4a2825d20f33154df7c189461a52c003aef9572ee8fd44ad285cd496862ef0"},
-    {file = "akshare-1.9.29.tar.gz", hash = "sha256:074ebf8c56bbc53cba92d733a47d700cbc1e8e8adbc16f794f4f9a7925a8f8ce"},
+    {file = "akshare-1.9.33-py3-none-any.whl", hash = "sha256:125406f5771de857ba31cceace507eda075f44722997f4fbcc228fd8fbcdc7d0"},
+    {file = "akshare-1.9.33.tar.gz", hash = "sha256:940b75672ffaa4aa6ffb80228a127803cfd44665ba651c5f419b6ef1f1826a99"},
 ]
 amqp = [
     {file = "amqp-5.1.1-py3-none-any.whl", hash = "sha256:6f0956d2c23d8fa6e7691934d8c3930eadb44972cbbd1a7ae3a520f735d43359"},
