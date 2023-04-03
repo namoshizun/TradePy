@@ -7,6 +7,7 @@ from broker_proxy.cache import AccountCache, PositionCache, OrderCache, use_redi
 from broker_proxy.qmt.conversion import xtorder_to_tradepy, xtposition_to_tradepy
 
 import tradepy
+from tradepy.core.exceptions import AssetsSyncError
 from tradepy.constants import CacheKeys
 from tradepy.core.models import Order, Position, Account
 from tradepy.trade_book import TradeBook, CapitalsLog
@@ -47,6 +48,7 @@ class AssetsSyncer:
             return []
 
         for p in positions:
+            # print(p)
             p.vol, p.avail_vol = p.yesterday_vol, p.yesterday_vol
             for o in orders.values():
                 if o.code == p.code:
@@ -57,7 +59,11 @@ class AssetsSyncer:
                         if o.is_filled:
                             p.vol -= o.filled_vol  # type: ignore
 
-                    assert p.vol >= 0 and p.avail_vol >= 0, f'持仓计算错误: {p}'
+                    if p.vol < 0 or p.avail_vol < 0:
+                        pos_str = "\n".join(map(str, positions))
+                        order_str = "\n".join(map(str, orders.values()))
+                        error_message = f'持仓计算错误:\n{p}:\n' + f'所有持仓:\n{pos_str}\n' + f'所有委托:\n{order_str}'
+                        raise AssetsSyncError(error_message)
         PositionCache.set_many(positions)
         return positions
 

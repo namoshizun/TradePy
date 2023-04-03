@@ -95,8 +95,10 @@ class TradingEngine:
             return pd.DataFrame()
 
         codes, prices = zip(*codes_and_prices)
+        timestamp = ind_df.iloc[0]["timestamp"]
         return pd.DataFrame({
             "order_price": prices,
+            "timestamp": [timestamp] * len(prices),
         }, index=pd.Index(codes, name="code"))
 
     def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:

@@ -85,7 +85,7 @@ async def place_order(orders: list[Order]):
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:
             account: Account = AccountCache.get()  # type: ignore
-            if buy_total > Account.free_cash_amount:
+            if buy_total > account.free_cash_amount:
                 logger.error(f'买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}, 买入总额超过可用金额, 该委托预期将被拒绝')
             else:
                 account.freeze_cash(buy_total)

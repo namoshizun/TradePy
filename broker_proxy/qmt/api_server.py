@@ -50,7 +50,7 @@ async def app_shutdown() -> None:
 
 
 @app.on_event("startup")
-@repeat_every(seconds=tradepy.config.assets_sync_interval)
+@repeat_every(seconds=tradepy.config.assets_sync_interval, raise_exceptions=False, logger=logger)
 async def sync_assets() -> None:
     not_trading = AStockExchange.market_phase_now() in (
         MarketPhase.CLOSED,
