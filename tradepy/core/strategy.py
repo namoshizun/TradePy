@@ -129,7 +129,7 @@ class StrategyBase(Generic[BarDataType]):
         if max_position_opens is None:
             max_position_opens = self.max_position_opens
 
-        if max_position_opens is None:
+        if max_position_size is None:
             max_position_size = self.max_position_size
 
         # Limit number of new opens

@@ -197,8 +197,9 @@ class TradingEngine:
                 max_position_opens=max_position_opens)
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
-
-            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, 当前可用资金{self.account.free_cash_amount}. 触发买入{n_bought}, 准许买入{max_position_opens}')
+            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, '
+                     f'当前可用资金{self.account.free_cash_amount}. 触发买入{n_bought}, '
+                     f'今日剩余开仓限额{max_position_opens}, 实际开仓{len(buy_orders)}')
             if buy_orders:
                 LOG.info('发送买入指令')
                 BrokerAPI.place_orders(buy_orders)

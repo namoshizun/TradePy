@@ -23,7 +23,7 @@ def warm_broker_db():
         logger.warning('已休市，不预热数据库')
         return
 
-    if (res := BrokerAPI.warm_db()) != "ok":
+    if (res := BrokerAPI.warm_db()) != '"ok"':
         logger.error(f"数据库预热失败, 可能导致未预期结果! {res}")
 
 
