@@ -79,10 +79,11 @@ class HashmapCacheItem(CacheItem[ItemType]):
         r = get_redis()
         with r.pipeline() as pipe:
             pipe.delete(cls.key)
-            pipe.hset(cls.key, mapping={
-                i.id: i.json()
-                for i in items
-            })
+            if items:
+                pipe.hset(cls.key, mapping={
+                    i.id: i.json()
+                    for i in items
+                })
             pipe.execute()
 
     @classmethod
