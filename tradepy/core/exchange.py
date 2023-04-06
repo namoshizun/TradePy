@@ -19,13 +19,13 @@ class AStockExchange:
         if str(now.date()) not in trade_cal:
             return _.CLOSED
 
-        hour, minute = now.hour, now.minute
+        hour, minute, second = now.hour, now.minute, now.second
         if hour == 9:
             if minute < 15:
                 return _.PRE_OPEN
             if minute < 25:
                 return _.PRE_OPEN_CALL_P1
-            elif minute < 30:
+            elif (minute < 30) and (second > 30):  # delay a bit to ensure the upstream data sources are ready
                 return _.PRE_OPEN_CALL_P2
             else:
                 return _.CONT_TRADE

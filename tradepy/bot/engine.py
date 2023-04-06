@@ -153,19 +153,22 @@ class TradingEngine:
             df = self.strategy.compute_close_indicators(quote_df, ind_df)
             return df
 
-    def _inday_trade(self, ind_df: pd.DataFrame):
+    def _inday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
         positions: list[Position] = BrokerAPI.get_positions(available_only=True)  # type: ignore
         trade_date = ind_df.iloc[0]["timestamp"]
 
         # [1] Sell existing positions
+        # NOTE:
+        # Use the current quote frame to decide whether to take profit or stop loss.
+        # This is to avoid the situation where the indicator frame is incomplete for some reason
+        # and the position stock is missing in the frame.
         sell_orders = []
         for pos in positions:
-            if pos.code not in ind_df.index:
+            if pos.code not in quote_df.index:
                 # The stock is probably suspended today
                 continue
 
-            bar = ind_df.loc[pos.code].to_dict()  # type: ignore
-            bar["close"] = self.adjust_factors.to_real_price(pos.code, bar["close"])
+            bar = quote_df.loc[pos.code].to_dict()  # type: ignore
 
             # Take profit
             if take_profit_price := self.strategy.should_take_profit(bar, pos):
@@ -233,7 +236,7 @@ class TradingEngine:
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
         ind_df = self._compute_open_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
-            self._inday_trade(ind_df)
+            self._inday_trade(ind_df, quote_df)
 
     @timeout(Timeouts.handle_cont_trade)
     def on_cont_trade(self, quote_df: pd.DataFrame):
@@ -243,7 +246,7 @@ class TradingEngine:
 
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
         ind_df = self.strategy.compute_intraday_indicators(quote_df, ind_df)
-        self._inday_trade(ind_df)
+        self._inday_trade(ind_df, quote_df)
 
     @timeout(Timeouts.handle_cont_trade_pre_close)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):

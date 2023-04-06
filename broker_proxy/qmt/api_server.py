@@ -10,6 +10,7 @@ from broker_proxy.qmt.connector import xt_conn
 from broker_proxy.decorators import repeat_every
 from broker_proxy.qmt.sync import AssetsSyncer
 from tradepy.constants import CacheKeys
+from tradepy.core.exceptions import AssetsSyncError
 from tradepy.decorators import timeit
 from tradepy.core.exchange import AStockExchange
 from tradepy.types import MarketPhase
@@ -50,7 +51,12 @@ async def app_shutdown() -> None:
 
 
 @app.on_event("startup")
-@repeat_every(seconds=tradepy.config.assets_sync_interval, raise_exceptions=False, logger=logger)
+@repeat_every(
+    seconds=tradepy.config.assets_sync_interval,
+    raise_exceptions=False,
+    ignore_exceptions=[AssetsSyncError],
+    logger=logger,
+)
 async def sync_assets() -> None:
     not_trading = AStockExchange.market_phase_now() in (
         MarketPhase.CLOSED,

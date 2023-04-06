@@ -3,7 +3,7 @@ import logging
 from asyncio import ensure_future
 from functools import wraps
 from traceback import format_exception
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Type
 
 import tradepy
 
@@ -18,6 +18,7 @@ def repeat_every(
     wait_first: bool = False,
     logger: logging.Logger | None = None,
     raise_exceptions: bool = True,
+    ignore_exceptions: list[Type[Exception]] | None = None,
     max_repetitions: int | None = None,
 ) -> NoArgsNoReturnDecorator:
     """
@@ -42,6 +43,8 @@ def repeat_every(
         Note that if an error is raised, the repeated execution will stop.
         Otherwise, exceptions are just logged and the execution continues to repeat.
         See https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.set_exception_handler for more info.
+    ignore_exceptions: Optional[List[Type[Exception]]] (default None)
+        The exceptions in this provided list will be ignored regardless `raise_exceptions` is `True` or `False
     max_repetitions: Optional[int] (default None)
         The maximum number of times to call the repeated function. If `None`, the function is repeated forever.
     """
@@ -65,11 +68,16 @@ def repeat_every(
                         await func()  # type: ignore
                         repetitions += 1
                     except Exception as exc:
-                        if logger is not None:
-                            formatted_exception = "".join(format_exception(type(exc), exc, exc.__traceback__))
-                            logger.error(formatted_exception)
-                        if raise_exceptions:
-                            raise exc
+                        trace_msg = "".join(format_exception(type(exc), exc, exc.__traceback__))
+
+                        if ignore_exceptions and isinstance(exc, tuple(ignore_exceptions)):
+                            if logger:
+                                logger.warning(f"抛出异常{type(exc)}, 但是主动忽略: {trace_msg}")
+                        else:
+                            if logger:
+                                logger.error(trace_msg)
+                            if raise_exceptions:
+                                raise exc
                     await asyncio.sleep(seconds)
 
             ensure_future(loop())

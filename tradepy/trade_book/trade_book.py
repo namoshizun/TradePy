@@ -38,6 +38,9 @@ class TradeBook:
         return cap_df
 
     def make_open_position_log(self, timestamp: str, pos: Position) -> TradeLog:
+        chg = pos.chg_at(pos.latest_price)
+        pct_chg = pos.pct_chg_at(pos.latest_price)
+
         return {
             "timestamp": timestamp,
             "action": TradeActions.OPEN,
@@ -46,9 +49,9 @@ class TradeBook:
             "vol": pos.vol,
             "price": pos.price,
             "total_value": pos.price * pos.vol,
-            "chg": 0,
-            "pct_chg": 0,
-            "total_return": 0,
+            "chg": chg,
+            "pct_chg": pct_chg,
+            "total_return": (pos.price * pct_chg * 1e-2) * pos.vol,
         }
 
     def make_close_position_log(self, timestamp: str, pos: Position, action: TradeActionType) -> TradeLog:
