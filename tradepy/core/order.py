@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import date, datetime
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -72,5 +73,13 @@ class Order(BaseModel):
     def make_id(code) -> str:
         return code + "-" + str(uuid.uuid4()).split('-')[1]
 
+    def serialize_tags(self) -> str:
+        if not self.tags:
+            return ''
+        return json.dumps(self.tags)
+
+    def annotate(self, **kv):
+        self.tags.update(kv)
+
     def __str__(self) -> str:
-        return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}]'
+        return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}] ' + self.serialize_tags()

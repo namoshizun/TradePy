@@ -15,9 +15,9 @@ class Position(BaseModel):
     avail_vol: int
     yesterday_vol: int = 0
 
-    def to_sell_order(self, timestamp) -> Order:
+    def to_sell_order(self, timestamp, **annotations) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'
-        return Order(
+        order = Order(
             id=Order.make_id(self.code),
             timestamp=timestamp,
             code=self.code,
@@ -26,6 +26,10 @@ class Position(BaseModel):
             direction="sell",
             status="pending"
         )
+        if annotations:
+            order.annotate(**annotations)
+
+        return order
 
     @property
     @round_val

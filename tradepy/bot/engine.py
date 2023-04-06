@@ -162,7 +162,7 @@ class TradingEngine:
         # Use the current quote frame to decide whether to take profit or stop loss.
         # This is to avoid the situation where the indicator frame is incomplete for some reason
         # and the position stock is missing in the frame.
-        sell_orders = []
+        sell_orders: list[Order] = []
         for pos in positions:
             if pos.code not in quote_df.index:
                 # The stock is probably suspended today
@@ -173,12 +173,12 @@ class TradingEngine:
             # Take profit
             if take_profit_price := self.strategy.should_take_profit(bar, pos):
                 pos.close(take_profit_price)
-                sell_orders.append(pos.to_sell_order(trade_date))
+                sell_orders.append(pos.to_sell_order(trade_date, action="止盈"))
 
             # Stop loss
             elif stop_loss_price := self.strategy.should_stop_loss(bar, pos):
                 pos.close(stop_loss_price * 0.99)  # to secure the order fulfillment
-                sell_orders.append(pos.to_sell_order(trade_date))
+                sell_orders.append(pos.to_sell_order(trade_date, action="止损"))
 
         if sell_orders:
             LOG.info('发送卖出指令')
@@ -225,7 +225,7 @@ class TradingEngine:
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
             real_price = self.adjust_factors.to_real_price(pos.code, bar["close"])
             pos.close(real_price * 0.99)
-            sell_orders.append(pos.to_sell_order(trade_date))
+            sell_orders.append(pos.to_sell_order(trade_date, action="收盘平仓"))
 
         if sell_orders:
             LOG.info('发送卖出指令')
@@ -245,7 +245,7 @@ class TradingEngine:
             return
 
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        ind_df = self.strategy.compute_intraday_indicators(quote_df, ind_df)
+        ind_df = self.strategy.compute_intraday_indicators(quote_df.copy(), ind_df)
         self._inday_trade(ind_df, quote_df)
 
     @timeout(Timeouts.handle_cont_trade_pre_close)

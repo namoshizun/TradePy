@@ -115,6 +115,7 @@ async def place_order(orders: list[Order]):
                 order_volume=order.vol,
                 price_type=xtconstant.FIX_PRICE,
                 price=round(order.price, 2),
+                order_remark=order.serialize_tags(),
             )
 
             if order_id == -1:
