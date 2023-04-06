@@ -21,10 +21,13 @@ class TradeBook:
         df.set_index("timestamp", inplace=True)
         df.sort_index(inplace=True)
 
-        codes = df["code"].unique()
-        code_to_company = tradepy.listing.df.loc[codes, "name"]
-        df = df.join(code_to_company, on="code")
-        df.rename(columns={"name": "company"}, inplace=True)
+        try:
+            codes = df["code"].unique()
+            code_to_company = tradepy.listing.df.loc[codes, "name"]
+            df = df.join(code_to_company, on="code")
+            df.rename(columns={"name": "company"}, inplace=True)
+        except FileNotFoundError:
+            logger.warning('未找到股票列表数据, 无法在交易历史中添加公司名称')
         return df
 
     @cached_property

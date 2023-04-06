@@ -1,5 +1,5 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 
 import tradepy
 from tradepy.trade_cal import trade_cal
@@ -12,13 +12,17 @@ from tradepy.types import MarketPhase
 class AStockExchange:
 
     @staticmethod
+    def is_today_trade_day():
+        return str(date.today()) in trade_cal
+
+    @staticmethod
     def market_phase_now():
         _ = MarketPhase
 
-        now = datetime.now()
-        if str(now.date()) not in trade_cal:
+        if not AStockExchange.is_today_trade_day():
             return _.CLOSED
 
+        now = datetime.now()
         hour, minute, second = now.hour, now.minute, now.second
         if hour == 9:
             if minute < 15:

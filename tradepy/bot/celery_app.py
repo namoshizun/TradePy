@@ -44,7 +44,7 @@ app.conf.beat_schedule = {
     },
     "flush-broker-cache": {
         "task": "tradepy.flush_broker_cache",
-        "schedule": crontab(hour=14, minute=59),  # type: ignore
+        "schedule": crontab(hour=15, minute=5),  # type: ignore
         "args": ()
     },
 }

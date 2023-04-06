@@ -75,7 +75,11 @@ def flush_broker_db():
         logger.warning('未休市, 不应将当日缓存导出到数据库')
         return
 
-    if (res := BrokerAPI.flush_cache()) != "ok":
+    if not AStockExchange.is_today_trade_day():
+        logger.warning('非交易日, 不更新数据库')
+        return
+
+    if (res := BrokerAPI.flush_cache()) != '"ok"':
         logger.error(f"缓存落盘失败! {res}")
 
 

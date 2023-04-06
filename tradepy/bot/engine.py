@@ -150,7 +150,7 @@ class TradingEngine:
                 return
 
             ind_df = ind_df.loc[closable_positions_codes].copy()
-            df = self.strategy.compute_close_indicators(quote_df, ind_df)
+            df = self.strategy.compute_close_indicators(quote_df.copy(), ind_df)
             return df
 
     def _inday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
