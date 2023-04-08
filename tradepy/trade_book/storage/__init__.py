@@ -32,6 +32,11 @@ class TradeBookStorage:
     def get_opening(self, date: str) -> CapitalsLog | None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def clone(self):
+        raise NotImplementedError
+
+
 
 from .sqlite import SQLiteTradeBookStorage  # noqa
 from .memory import InMemoryTradeBookStorage  # noqa

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from tradepy.trade_book.types import TradeLog, CapitalsLog
 from tradepy.trade_book.storage import TradeBookStorage
 
@@ -22,3 +23,9 @@ class InMemoryTradeBookStorage(TradeBookStorage):
 
     def fetch_capital_logs(self) -> list[CapitalsLog]:
         return self.capital_logs
+
+    def clone(self) -> "InMemoryTradeBookStorage":
+        instance = InMemoryTradeBookStorage()
+        instance.trade_logs = deepcopy(self.trade_logs)
+        instance.capital_logs = deepcopy(self.capital_logs)
+        return instance

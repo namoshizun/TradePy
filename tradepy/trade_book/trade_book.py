@@ -40,6 +40,10 @@ class TradeBook:
         cap_df.set_index("timestamp", inplace=True)
         return cap_df
 
+    def clone(self) -> "TradeBook":
+        storage = self.storage.clone()
+        return TradeBook(storage)
+
     def make_open_position_log(self, timestamp: str, pos: Position) -> TradeLog:
         chg = pos.chg_at(pos.latest_price)
         pct_chg = pos.pct_chg_at(pos.latest_price)
