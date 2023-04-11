@@ -227,7 +227,7 @@ class TradingEngine:
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
             real_price = self.adjust_factors.to_real_price(pos.code, bar["close"])
             pos.close(real_price * 0.99)
-            sell_orders.append(pos.to_sell_order(trade_date, action="收盘平仓"))
+            sell_orders.append(pos.to_sell_order(trade_date, action="平仓"))
 
         if sell_orders:
             LOG.info('发送卖出指令')
