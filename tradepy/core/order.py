@@ -1,4 +1,5 @@
 import uuid
+from loguru import logger
 from datetime import date, datetime
 from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
@@ -99,24 +100,23 @@ class Order(BaseModel):
                         vol: int,
                         pct_chg: float):
         action_code = ACTION_TO_CODE[action]
-
-        remark = f'{action_code}:{price:.2f},{vol},{pct_chg:.2f}'
-        self.tags["sell_remark"] = remark
+        self.tags["sell_remark"] = f'{action_code}:{price:.2f},{vol},{pct_chg:.2f}'
 
     def get_sell_remark(self, raw=True) -> SellRemark | str | None:
         if "sell_remark" not in self.tags:
+            logger.warning(f'委托单 {self.id} 没有卖出备注')
             return None
 
+        remark_slug = self.tags["sell_remark"]
+        assert isinstance(remark_slug, str), remark_slug
         if raw:
-            return self.tags["sell_remark"]
-        return self._parse_sell_remark()
+            return remark_slug
 
-    def _parse_sell_remark(self) -> SellRemark:
-        remark = self.tags.get("sell_remark")
-        if not remark:
-            raise ValueError(f'委托单 {self.id} 没有卖出备注')
+        return Order.parse_sell_remark(remark_slug)
 
-        action_code, rest = remark.split(':')
+    @staticmethod
+    def parse_sell_remark(remark_slug: str) -> SellRemark:
+        action_code, rest = remark_slug.split(':')
         price, vol, pct_chg = rest.split(',')
         action = {v: k for k, v in ACTION_TO_CODE.items()}[action_code]
 

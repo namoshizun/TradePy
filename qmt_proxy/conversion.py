@@ -46,7 +46,7 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
         logger.error(f'Not recognised order status type {_status}. Fall back to ORDER_KNOWN')
         return "unknown"
 
-    return Order(
+    tr_order = Order(
         id=str(o.order_id),
         timestamp=datetime.fromtimestamp(o.order_time).isoformat(),
         code=xtcode_to_tradepy_code(o.stock_code),
@@ -57,6 +57,18 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
         status=to_status(int(o.order_status)),
         direction=to_direction(int(o.order_type)),
     )
+
+    if tr_order.is_sell and (remark_slug := o.order_remark):
+        # Restore the sell remark
+        try:
+            sell_remark = Order.parse_sell_remark(remark_slug)
+        except (ValueError, KeyError):
+            logger.error(f"委托单 {o.order_id} 的备注 {remark_slug} 无法解析")
+            return tr_order
+
+        tr_order.set_sell_remark(**sell_remark)
+
+    return tr_order
 
 
 def xtposition_to_tradepy(p: XtPosition) -> Position:
