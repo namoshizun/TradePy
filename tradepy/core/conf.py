@@ -1,12 +1,10 @@
 import os
 import pathlib
 import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Type
 from dotenv import load_dotenv
 from redis import Redis, ConnectionPool
-
-from tradepy.types import MarketType, Markets
 
 if TYPE_CHECKING:
     from tradepy.core.strategy import LiveStrategy
@@ -23,12 +21,6 @@ class Config:
     # Common Conf
     database_dir: pathlib.Path = pathlib.Path(os.getcwd()) / "database"
     mode: ModeType = "backtest"
-    market_types: list[MarketType] = field(default_factory=lambda: ([
-        Markets.SH_MAIN,
-        Markets.SZ_MAIN,
-        Markets.SME,
-        Markets.CHI_NEXT,
-    ]))
 
     # Trading Mode Conf
     tick_fetch_interval = int(getenv("TICK_FETCH_INTERVAL", "5"))

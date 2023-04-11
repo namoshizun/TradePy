@@ -17,7 +17,8 @@ from tradepy.core.order import Order
 from tradepy.core.position import Position
 from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
-from tradepy.core import Indicator, IndicatorSet, adjust_factors
+from tradepy.core import Indicator, IndicatorSet
+from tradepy.core.adjust_factors import AdjustFactors
 
 
 class BarData(TypedDict):
@@ -183,14 +184,12 @@ class StrategyBase(Generic[BarDataType]):
         ]
 
     def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
-        assert isinstance(self.hfq_adjust_factors, pd.DataFrame)
-        adj = adjust_factors.AdjustFactors(self.hfq_adjust_factors.loc[code])
-        return adj.backward_adjust_history_prices(bars_df)
+        assert isinstance(self.adjust_factors, AdjustFactors)
+        return self.adjust_factors.backward_adjust_history_prices(code, bars_df)
 
     def adjust_stocks_latest_prices(self, bars_df: pd.DataFrame):
-        assert isinstance(self.hfq_adjust_factors, pd.DataFrame)
-        adj = adjust_factors.AdjustFactors(self.hfq_adjust_factors)
-        return adj.backward_adjust_stocks_latest_prices(bars_df)
+        assert isinstance(self.adjust_factors, AdjustFactors)
+        return self.adjust_factors.backward_adjust_stocks_latest_prices(bars_df)
 
     def _adjust_then_compute(self, bars_df: pd.DataFrame, indicators: list[Indicator]):
         code: str = bars_df.index[0]  # type: ignore
@@ -201,9 +200,7 @@ class StrategyBase(Generic[BarDataType]):
             # Won't trade this stock
             return bars_df
 
-        if self.hfq_adjust_factors is not None:
-            adj_df = self.hfq_adjust_factors.copy()
-            assert isinstance(adj_df, pd.DataFrame)
+        if self.adjust_factors is not None:
             # Adjust prices
             try:
                 bars_df = self.adjust_stock_history_prices(code, bars_df)

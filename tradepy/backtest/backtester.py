@@ -24,15 +24,6 @@ class Backtester:
             stamp_duty_rate=ctx.stamp_duty_rate
         )
 
-        if ctx.hfq_adjust_factors is not None:
-            _adf = ctx.hfq_adjust_factors.copy()
-            _adf.reset_index(inplace=True)
-            _adf.set_index("code", inplace=True)
-            _adf.sort_values(["code", "timestamp"], inplace=True)
-            self.adjust_factors_df = _adf
-        else:
-            self.adjust_factors_df = None
-
     def __orders_to_positions(self, orders: list[Order]) -> list[Position]:
         return [
             Position(

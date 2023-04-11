@@ -1,7 +1,7 @@
-from functools import cached_property
 import pandas as pd
 import numpy as np
 import numba as nb
+from functools import cached_property
 
 
 @nb.njit
@@ -21,6 +21,13 @@ def _assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
 class AdjustFactors:
 
     def __init__(self, factors_df: pd.DataFrame):
+        adj_fac_cols = set(["code", "timestamp", "hfq_factor"])
+        assert set(cols := factors_df.columns).issubset(adj_fac_cols), cols
+
+        if factors_df.index.name != "code":
+            factors_df.reset_index(inplace=True)
+            factors_df.set_index("code", inplace=True)
+
         self.factors_df = factors_df.copy()
         self.factors_df.sort_values(["code", "timestamp"], inplace=True)
 
@@ -37,14 +44,16 @@ class AdjustFactors:
         factor: float = self.latest_factors.loc[code, "hfq_factor"]  # type: ignore
         return round(price / factor, 2)
 
-    def backward_adjust_history_prices(self, bars_df: pd.DataFrame):
+    def backward_adjust_history_prices(self, code: str, bars_df: pd.DataFrame):
         """
         bars_df: an individual stock's day bars
         """
+        factors_df = self.factors_df.loc[code]
+
         # Find each day's adjust factor
         factor_vals = _assign_factor_value_to_day(
-            nb.typed.List(self.factors_df["timestamp"].tolist()),
-            nb.typed.List(self.factors_df["hfq_factor"].tolist()),
+            nb.typed.List(factors_df["timestamp"].tolist()),
+            nb.typed.List(factors_df["hfq_factor"].tolist()),
             nb.typed.List(bars_df["timestamp"].tolist())
         )
 

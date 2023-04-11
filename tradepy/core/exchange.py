@@ -57,5 +57,4 @@ class AStockExchange:
     def get_quote() -> pd.DataFrame:
         df = tradepy.ak_api.get_current_quote()
         df["market"] = df.index.map(convert_code_to_market)
-        selector = df["market"].map(lambda market: market in tradepy.config.market_types)
-        return df[selector]
+        return df

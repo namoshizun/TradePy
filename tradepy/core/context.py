@@ -1,8 +1,8 @@
-import pandas as pd
 import numpy as np
 from datetime import date
 from copy import deepcopy
 from dataclasses import dataclass
+from tradepy.core.adjust_factors import AdjustFactors
 
 from tradepy.utils import get_latest_trade_date
 
@@ -25,18 +25,7 @@ class Context:
 
     # Misc
     signals_percent_range = (0, 100)  # in percentage
-    hfq_adjust_factors: pd.DataFrame | None = None  # TODO: should be instance of AdjustFactos or None
-
-    def __post_init__(self):
-        if self.hfq_adjust_factors is not None:
-            adj_fac_cols = ["code", "timestamp", "hfq_factor"]
-            assert set(cols := self.hfq_adjust_factors.columns).issubset(set(adj_fac_cols)), cols
-
-            _adf = self.hfq_adjust_factors.copy()
-            _adf.reset_index(inplace=True)
-            _adf.set_index("code", inplace=True)
-            _adf.sort_values(["code", "timestamp"], inplace=True)
-            self.hfq_adjust_factors = _adf
+    adjust_factors: AdjustFactors | None = None
 
     def get_trade_date(self) -> date:
         return get_latest_trade_date()

@@ -43,7 +43,7 @@ class TradingEngine:
         self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
         self.workspace.mkdir(exist_ok=True, parents=True)
 
-        factors_df = AdjustFactorDepot.load()
+        self.adjust_factors: AdjustFactors = AdjustFactorDepot.load()
         ctx_args = dict(
             cash_amount=0,  # NOTE: no meaning for live trading
             trading_unit=int(os.environ["TRADE_UNIT"]),
@@ -51,14 +51,13 @@ class TradingEngine:
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
             max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),
             max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
-            hfq_adjust_factors=factors_df,
+            adjust_factors=self.adjust_factors,
         )
         ctx_args.update(_load_ctx_vars_from_env())
         self.ctx = Context.build(**ctx_args)
 
         self.account = BrokerAPI.get_account()
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
-        self.adjust_factors: AdjustFactors = AdjustFactors(factors_df)
 
     @cached_property
     def redis_client(self):

@@ -8,6 +8,7 @@ from functools import cache, partial
 
 import tradepy
 from tradepy.conversion import convert_code_to_market
+from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.utils import get_latest_trade_date
 
 
@@ -215,14 +216,15 @@ class AdjustFactorDepot:
 
     @staticmethod
     @cache
-    def load() -> pd.DataFrame:
+    def load() -> AdjustFactors:
         path = AdjustFactorDepot.file_path()
         df = pd.read_csv(path, dtype={
             "code": str,
             "date": str,
             "hfq_factor": float
         }, index_col="code")
-        return df
+        df.sort_values(["code", "timestamp"], inplace=True)
+        return AdjustFactors(df)
 
 
 class ListingDepot:
