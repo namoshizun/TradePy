@@ -5,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 import tradepy
-from broker_proxy.qmt.views import router as api_router
-from broker_proxy.qmt.connector import xt_conn
-from broker_proxy.decorators import repeat_every
-from broker_proxy.qmt.sync import AssetsSyncer
+from qmt_proxy.views import router as api_router
+from qmt_proxy.connector import xt_conn
+from qmt_proxy.decorators import repeat_every
+from qmt_proxy.sync import AssetsSyncer
 from tradepy.constants import CacheKeys
 from tradepy.core.exceptions import AssetsSyncError
 from tradepy.decorators import timeit

@@ -5,10 +5,10 @@ from loguru import logger
 from xtquant.xttype import XtOrder, XtPosition, XtAsset
 from xtquant import xtconstant
 
-from broker_proxy.decorators import use_cache, with_redis_lock
-from broker_proxy.cache import OrderCache, PositionCache, AccountCache, use_redis
-from broker_proxy.qmt.connector import xt_conn
-from broker_proxy.qmt.conversion import (
+from qmt_proxy.decorators import use_cache, with_redis_lock
+from qmt_proxy.cache import OrderCache, PositionCache, AccountCache, use_redis
+from qmt_proxy.connector import xt_conn
+from qmt_proxy.conversion import (
     xtorder_to_tradepy,
     xtposition_to_tradepy,
     xtaccount_to_tradepy,
