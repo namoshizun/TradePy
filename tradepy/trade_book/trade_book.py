@@ -66,7 +66,6 @@ class TradeBook:
         chg = pos.chg_at(pos.latest_price)
         pct_chg = pos.pct_chg_at(pos.latest_price)
         sold_vol = pos.yesterday_vol
-        # sold_vol = pos.vol
 
         return {
             "timestamp": timestamp,

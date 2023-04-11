@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from tradepy.core.order import Order
+from tradepy.types import TradeActionType
 from tradepy.utils import calc_pct_chg, round_val
 
 
@@ -15,20 +16,21 @@ class Position(BaseModel):
     avail_vol: int
     yesterday_vol: int = 0
 
-    def to_sell_order(self, timestamp, **annotations) -> Order:
+    def to_sell_order(self, timestamp, action: TradeActionType) -> Order:
         assert self.latest_price, f'Position is not yet closed: {self}'
+        price = self.latest_price
         order = Order(
             id=Order.make_id(self.code),
             timestamp=timestamp,
             code=self.code,
-            price=self.latest_price,
+            price=price,
             vol=self.avail_vol,
             direction="sell",
             status="pending"
         )
-        if annotations:
-            order.annotate(**annotations)
 
+        pct_chg = self.pct_chg_at(price)
+        order.set_sell_remark(action, price, self.avail_vol, pct_chg)
         return order
 
     @property

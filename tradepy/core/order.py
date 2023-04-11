@@ -1,8 +1,9 @@
 import uuid
-import json
 from datetime import date, datetime
-from typing import Literal
+from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
+
+from tradepy.types import TradeActionType
 
 OrderDirection = Literal['buy', 'sell']
 
@@ -14,6 +15,20 @@ OrderStatus = Literal[
     'unknown',
     'invalid'
 ]
+
+
+class SellRemark(TypedDict):
+    action: TradeActionType
+    price: float
+    vol: int
+    pct_chg: float
+
+
+ACTION_TO_CODE: dict[TradeActionType, str] = {
+    "平仓": "EX",
+    "止盈": "TP",
+    "止损": "SL",
+}
 
 
 class Order(BaseModel):
@@ -76,10 +91,41 @@ class Order(BaseModel):
     def serialize_tags(self) -> str:
         if not self.tags:
             return ''
-        return json.dumps(self.tags)
+        return ';'.join(f'{k}={v}' for k, v in self.tags.items())
 
-    def annotate(self, **kv):
-        self.tags.update(kv)
+    def set_sell_remark(self,
+                        action: TradeActionType,
+                        price: float,
+                        vol: int,
+                        pct_chg: float):
+        action_code = ACTION_TO_CODE[action]
+
+        remark = f'{action_code}:{price:.2f},{vol},{pct_chg:.2%}'
+        self.tags["sell_remark"] = remark
+
+    def get_sell_remark(self, raw=True) -> SellRemark | str | None:
+        if "sell_remark" not in self.tags:
+            return None
+
+        if raw:
+            return self.tags["sell_remark"]
+        return self._parse_sell_remark()
+
+    def _parse_sell_remark(self) -> SellRemark:
+        remark = self.tags.get("sell_remark")
+        if not remark:
+            raise ValueError(f'委托单 {self.id} 没有卖出备注')
+
+        action_code, rest = remark.split(':')
+        price, vol, pct_chg = rest.split(',')
+        action = {v: k for k, v in ACTION_TO_CODE.items()}[action_code]
+
+        return {
+            "action": action,  # type: ignore
+            "price": float(price),
+            "vol": int(vol),
+            "pct_chg": pct_chg,
+        }
 
     def __str__(self) -> str:
         return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}] ' + self.serialize_tags()

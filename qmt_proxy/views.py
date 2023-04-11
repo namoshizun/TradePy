@@ -1,4 +1,4 @@
-import os
+from collections import defaultdict
 from datetime import datetime, date
 from fastapi import APIRouter
 from loguru import logger
@@ -17,6 +17,7 @@ from qmt_proxy.conversion import (
 )
 
 import tradepy
+from tradepy.core.order import SellRemark
 from tradepy.trade_book import TradeBook
 from tradepy.constants import CacheKeys
 from tradepy.core.models import Position, Order, Account
@@ -115,7 +116,7 @@ async def place_order(orders: list[Order]):
                 order_volume=order.vol,
                 price_type=xtconstant.FIX_PRICE,
                 price=round(order.price, 2),
-                order_remark=order.serialize_tags(),
+                order_remark=order.get_sell_remark(raw=True),  # type: ignore
             )
 
             if order_id == -1:
@@ -163,6 +164,11 @@ async def flush_cache():
     trade_book.log_closing_capitals(today, account)
 
     logger.info("导出持仓变动记录")
+    sell_orders: dict[str, list[Order]] = defaultdict(list)
+    for order in await get_orders():
+        if order.is_sell:
+            sell_orders[order.code].append(order)
+
     positions = await get_positions()
     for pos in positions:
         if pos.is_new:
@@ -170,20 +176,32 @@ async def flush_cache():
             trade_book.buy(today, pos)
 
         elif pos.is_closed:
-            # FIXME: the reason to close this position should be somehow retrieved instead of infered from the position!
-            stop_loss = float(os.environ["TRADE_STOP_LOSS"])
-            take_profit = float(os.environ["TRADE_TAKE_PROFIT"])
-            pct_chg = pos.pct_chg_at(pos.latest_price)
+            orders = sell_orders[pos.code]
+            if not orders:
+                logger.error(f'未找到对应的卖出委托: {pos}')
+                continue
 
-            if pct_chg >= take_profit:
-                logger.info(f'[止盈] {pos}')
-                trade_book.take_profit(today, pos)
-            elif pct_chg <= -stop_loss:
-                logger.info(f'[止损] {pos}')
-                trade_book.stop_loss(today, pos)
-            else:
-                logger.info(f'[平仓] {pos}')
+            if len(orders) > 1:
+                logger.error(f'找到多个对应的卖出委托: {pos}, {orders}')
+                continue
+
+            # Patch the position info
+            order = orders[0]
+            remark: SellRemark | None = order.get_sell_remark(raw=False)  # type: ignore
+            if not remark:
+                logger.error(f'未找到对应的卖出委托备注: {pos}, {order}')
+                continue
+
+            open_price = remark["price"] * (1 - remark["pct_chg"] * 1e-2)
+            pos.price = open_price
+            pos.latest_price = order.filled_price
+
+            # Log it
+            if remark["action"] == "平仓":
                 trade_book.close(today, pos)
-            # FIXME: this is so BAD!!!!!
+            elif remark["action"] == "止损":
+                trade_book.stop_loss(today, pos)
+            elif remark["action"] == "止盈":
+                trade_book.take_profit(today, pos)
 
     return "ok"
