@@ -100,7 +100,7 @@ class Order(BaseModel):
                         pct_chg: float):
         action_code = ACTION_TO_CODE[action]
 
-        remark = f'{action_code}:{price:.2f},{vol},{pct_chg:.2%}'
+        remark = f'{action_code}:{price:.2f},{vol},{pct_chg:.2f}'
         self.tags["sell_remark"] = remark
 
     def get_sell_remark(self, raw=True) -> SellRemark | str | None:
