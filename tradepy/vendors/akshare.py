@@ -88,7 +88,7 @@ class AkShareClient:
 
         df = convert_akshare_hist_data(df)
 
-        indicators_df = retry()(ak.stock_a_lg_indicator)(symbol=code)
+        indicators_df = retry()(ak.stock_a_indicator_lg)(symbol=code)
         assert isinstance(indicators_df, pd.DataFrame)
         indicators_df.rename(columns={
             "trade_date": "timestamp",

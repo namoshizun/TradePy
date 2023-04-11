@@ -26,6 +26,8 @@ def warm_broker_db():
     if (res := BrokerAPI.warm_db()) != '"ok"':
         logger.error(f"数据库预热失败, 可能导致未预期结果! {res}")
 
+    logger.info("数据库预热成功")
+
 
 @shared_task(
     name="tradepy.fetch_market_quote",
@@ -81,6 +83,9 @@ def flush_broker_db():
 
     if (res := BrokerAPI.flush_cache()) != '"ok"':
         logger.error(f"缓存落盘失败! {res}")
+        return
+
+    logger.info("缓存落盘成功")
 
 
 @shared_task(name="tradepy.update_data_sources", expires=60 * 60)
