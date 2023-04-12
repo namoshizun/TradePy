@@ -124,7 +124,7 @@ class Order(BaseModel):
             "action": action,  # type: ignore
             "price": float(price),
             "vol": int(vol),
-            "pct_chg": pct_chg,
+            "pct_chg": float(pct_chg),
         }
 
     def __str__(self) -> str:

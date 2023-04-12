@@ -82,6 +82,14 @@ async def place_order(orders: list[Order]):
     succ, fail = [], []
 
     with use_redis(tradepy.config.get_redis_client()):
+        # Filter out buy orders whose volume is 500 (thanks to the weird behavior of QMT)
+        if xt_conn.is_simulation:
+            n = len(orders)
+            orders = [o for o in orders if o.is_buy and o.vol != 500]
+            m = len(orders)
+            if n != m:
+                logger.warning(f'过滤掉 {n - m} 个数量为 500 的买入委托')
+
         # Pre-dudct account free cash (buy orders)
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:

@@ -25,6 +25,10 @@ class XtQuantConnection:
     def connected(self) -> bool:
         return self._trader.connected
 
+    @property
+    def is_simulation(self) -> bool:
+        return os.environ.get("XTQUANT_SIMULATION", "yes").lower() == "yes"
+
     def init_trader(self) -> XtQuantTrader:
         session_id = random.randint(100000, 999999)
         return XtQuantTrader(self.data_path, session_id)
