@@ -1,4 +1,5 @@
 import os
+import random
 import pickle
 import pandas as pd
 from functools import cached_property
@@ -11,7 +12,7 @@ from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
 from tradepy.core.models import Order, Position
 from tradepy.core.strategy import LiveStrategy
-from tradepy.decorators import timeout
+from tradepy.decorators import require_mode, timeout
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
 from tradepy.warehouse import AdjustFactorDepot
@@ -59,9 +60,19 @@ class TradingEngine:
         self.account = BrokerAPI.get_account()
         self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
 
+        self.take_profit_slip: float = 0.03
+        self.stop_loss_slip: float = 0.06
+
     @cached_property
     def redis_client(self):
         return tradepy.config.get_redis_client()
+
+    def _jit_sell_price(self, price: float, slip_pct: float) -> float:
+        slip = slip_pct * 1e-2
+        if tradepy.config.mode == "mock-trading":
+            jitter = random.uniform(0, slip)
+            return price * (1 - jitter)
+        return price * (1 - slip)
 
     def _read_dataframe_from_cache(self, cache_key: str) -> pd.DataFrame | None:
         if not self.redis_client.exists(cache_key):
@@ -171,12 +182,12 @@ class TradingEngine:
 
             # Take profit
             if take_profit_price := self.strategy.should_take_profit(bar, pos):
-                pos.close(take_profit_price)
+                pos.close(self._jit_sell_price(take_profit_price, self.take_profit_slip))
                 sell_orders.append(pos.to_sell_order(trade_date, action="止盈"))
 
             # Stop loss
             elif stop_loss_price := self.strategy.should_stop_loss(bar, pos):
-                pos.close(stop_loss_price * 0.99)  # to secure the order fulfillment
+                pos.close(self._jit_sell_price(stop_loss_price, self.stop_loss_slip))
                 sell_orders.append(pos.to_sell_order(trade_date, action="止损"))
 
         if sell_orders:
@@ -225,7 +236,7 @@ class TradingEngine:
         for pos in positions:
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
             real_price = self.adjust_factors.to_real_price(pos.code, bar["close"])
-            pos.close(real_price * 0.99)
+            pos.close(real_price)
             sell_orders.append(pos.to_sell_order(trade_date, action="平仓"))
 
         if sell_orders:
@@ -260,6 +271,7 @@ class TradingEngine:
         if isinstance(ind_df, pd.DataFrame):
             self._pre_close_trade(ind_df)
 
+    @require_mode("live-trading", "mock-trading")
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
         trade_date = str(self.ctx.get_trade_date())
         quote_df["timestamp"] = trade_date

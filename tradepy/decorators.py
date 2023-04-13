@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 import tradepy
 from tradepy.core.conf import ModeType
-from tradepy.core.exceptions import OperationForbiddne
+from tradepy.core.exceptions import OperationForbidden
 from tradepy.core.indicator import Indicator
 
 
@@ -59,11 +59,11 @@ def tag(outputs=list(), notna=False):
     return inner
 
 
-def require_mode(mode: ModeType):
+def require_mode(*modes: ModeType):
     def inner(fun):
         def decor(*args, **kwargs):
-            if tradepy.config.mode != mode:
-                raise OperationForbiddne(f'Method {fun} is not allowed in {mode} mode')
+            if tradepy.config.mode not in modes:
+                raise OperationForbidden(f'Method {fun} is only allowed in {modes} modes')
             return fun(*args, **kwargs)
         return decor
     return inner

@@ -2,7 +2,7 @@ import os
 import pathlib
 import importlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Type
+from typing import TYPE_CHECKING, Literal, Type, get_args
 from dotenv import load_dotenv
 from redis import Redis, ConnectionPool
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from tradepy.core.strategy import LiveStrategy
 
 
-ModeType = Literal["backtest", "trading"]
+ModeType = Literal["backtest", "mock-trading", "live-trading"]
 
 load_dotenv()
 getenv = os.environ.get
@@ -20,7 +20,7 @@ getenv = os.environ.get
 class Config:
     # Common Conf
     database_dir: pathlib.Path = pathlib.Path(os.getcwd()) / "database"
-    mode: ModeType = "backtest"
+    mode: ModeType = getenv("MODE", "backtest")  # type: ignore
 
     # Trading Mode Conf
     tick_fetch_interval = int(getenv("TICK_FETCH_INTERVAL", "5"))
@@ -33,6 +33,10 @@ class Config:
 
     # global states
     redis_connection_pool: ConnectionPool | None = None
+
+    def __post_init__(self):
+        if self.mode not in get_args(ModeType):
+            raise ValueError(f"无效的MODE参数: {self.mode}")
 
     def get_strategy_class(self) -> Type["LiveStrategy"]:
         assert self.strategy_class

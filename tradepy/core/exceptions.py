@@ -1,4 +1,4 @@
-class OperationForbiddne(Exception):
+class OperationForbidden(Exception):
     ...
 
 
