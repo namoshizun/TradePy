@@ -206,10 +206,13 @@ async def flush_cache():
 
             # Log it
             if remark["action"] == "平仓":
+                logger.info(f'[平仓] {pos}')
                 trade_book.close(today, pos)
             elif remark["action"] == "止损":
+                logger.info(f'[止损] {pos}')
                 trade_book.stop_loss(today, pos)
             elif remark["action"] == "止盈":
+                logger.info(f'[止盈] {pos}')
                 trade_book.take_profit(today, pos)
             else:
                 logger.error(f'无法识别的卖出委托备注: {pos}, {order}')
