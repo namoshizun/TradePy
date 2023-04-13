@@ -102,10 +102,10 @@ class Order(BaseModel):
         action_code = ACTION_TO_CODE[action]
         self.tags["sell_remark"] = f'{action_code}:{price:.2f},{vol},{pct_chg:.2f}'
 
-    def get_sell_remark(self, raw=True) -> SellRemark | str | None:
+    def get_sell_remark(self, raw=True) -> SellRemark | str:
         if "sell_remark" not in self.tags:
             logger.warning(f'委托单 {self.id} 没有卖出备注')
-            return None
+            return ""
 
         remark_slug = self.tags["sell_remark"]
         assert isinstance(remark_slug, str), remark_slug

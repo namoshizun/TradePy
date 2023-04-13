@@ -83,12 +83,12 @@ async def place_order(orders: list[Order]):
 
     with use_redis(tradepy.config.get_redis_client()):
         # Filter out buy orders whose volume is 500 (thanks to the weird behavior of QMT)
-        if xt_conn.is_simulation:
+        if tradepy.config.mode == "mock-trading":
             n = len(orders)
-            orders = [o for o in orders if o.is_buy and o.vol != 500]
+            orders = [o for o in orders if o.vol != 500]
             m = len(orders)
             if n != m:
-                logger.warning(f'过滤掉 {n - m} 个数量为 500 的买入委托')
+                logger.warning(f'过滤掉 {n - m} 个数量为 500 的委托')
 
         # Pre-dudct account free cash (buy orders)
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
@@ -211,5 +211,7 @@ async def flush_cache():
                 trade_book.stop_loss(today, pos)
             elif remark["action"] == "止盈":
                 trade_book.take_profit(today, pos)
+            else:
+                logger.error(f'无法识别的卖出委托备注: {pos}, {order}')
 
     return "ok"
