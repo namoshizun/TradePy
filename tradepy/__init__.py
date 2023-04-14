@@ -27,8 +27,7 @@ def _check_conf():
                         'StocksListingCollector first or tradepy might not work.')
 
 
-def initialize(mode: ModeType, dataset_dir: str | pathlib.Path | None = None):
-    config.set_mode(mode)
+def initialize(dataset_dir: str | pathlib.Path | None = None):
     if dataset_dir:
         config.set_database_dir(dataset_dir)
 

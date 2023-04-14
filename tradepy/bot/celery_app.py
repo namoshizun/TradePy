@@ -6,7 +6,7 @@ import tradepy
 
 crontab(hour=20, minute=0)
 
-tradepy.initialize("trading")
+tradepy.initialize()
 
 
 tconf = tradepy.config
