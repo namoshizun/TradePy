@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from tradepy.stocks import StocksPool
 from tradepy.vendors.akshare import AkShareClient
-from tradepy.core.conf import Config, ModeType
+from tradepy.core.conf import Config
 from tradepy.warehouse import ListingDepot
 
 

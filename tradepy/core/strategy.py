@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from tradepy import LOG
 from tradepy.core.context import Context
-from tradepy.backtest.backtester import Backtester
 from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
 from tradepy.core.position import Position
@@ -73,8 +72,15 @@ class StrategyBase(Generic[BarDataType]):
         self.ctx = ctx
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[1:]
         self.close_indicators: list[str] = inspect.getfullargspec(self.should_close).args[1:]
+        self.stop_loss_indicators: list[str] = inspect.getfullargspec(self.should_stop_loss).args[3:]
+        self.take_profit_indicators: list[str] = inspect.getfullargspec(self.should_take_profit).args[3:]
 
-        self._required_indicators: list[str] = list(self.buy_indicators + self.close_indicators)
+        self._required_indicators: list[str] = list(
+            self.buy_indicators +
+            self.close_indicators +
+            self.stop_loss_indicators +
+            self.take_profit_indicators
+        )
 
     def __getattr__(self, name: str):
         return getattr(self.ctx, name)
@@ -99,11 +105,11 @@ class StrategyBase(Generic[BarDataType]):
         return self.indicators_registry.get_specs(self)
 
     @abc.abstractmethod
-    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
+    def should_stop_loss(self, tick: BarDataType, position: Position, *indicators) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
+    def should_take_profit(self, tick: BarDataType, position: Position, *indicators) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -297,6 +303,7 @@ class BacktestStrategy(StrategyBase[BarData]):
 
     @classmethod
     def backtest(cls, bars_df: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
+        from tradepy.backtest.backtester import Backtester
         instance = cls(ctx)
         bt = Backtester(ctx)
         return bt.run(bars_df.copy(), instance)

@@ -13,6 +13,7 @@ from tradepy.core.context import Context
 from tradepy.core.models import Order, Position
 from tradepy.core.strategy import LiveStrategy
 from tradepy.decorators import require_mode, timeout
+from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
 from tradepy.warehouse import AdjustFactorDepot
@@ -38,7 +39,7 @@ def _load_ctx_vars_from_env():
     }
 
 
-class TradingEngine:
+class TradingEngine(TradeMixin):
 
     def __init__(self) -> None:
         self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
@@ -181,12 +182,12 @@ class TradingEngine:
             bar = quote_df.loc[pos.code].to_dict()  # type: ignore
 
             # Take profit
-            if take_profit_price := self.strategy.should_take_profit(bar, pos):
+            if take_profit_price := self.should_take_profit(self.strategy, bar, pos):
                 pos.close(self._jit_sell_price(take_profit_price, self.take_profit_slip))
                 sell_orders.append(pos.to_sell_order(trade_date, action="止盈"))
 
             # Stop loss
-            elif stop_loss_price := self.strategy.should_stop_loss(bar, pos):
+            elif stop_loss_price := self.should_stop_loss(self.strategy, bar, pos):
                 pos.close(self._jit_sell_price(stop_loss_price, self.stop_loss_slip))
                 sell_orders.append(pos.to_sell_order(trade_date, action="止损"))
 

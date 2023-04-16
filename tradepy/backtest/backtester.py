@@ -8,14 +8,15 @@ from tradepy import LOG
 from tradepy.core.account import BacktestAccount
 from tradepy.core.order import Order
 from tradepy.core.position import Position
+from tradepy.mixins import TradeMixin
 from tradepy.trade_book import TradeBook
 from tradepy.core.context import Context
 
 if TYPE_CHECKING:
-    from tradepy.core.strategy import StrategyBase, BarDataType
+    from tradepy.core.strategy import StrategyBase
 
 
-class Backtester:
+class Backtester(TradeMixin):
 
     def __init__(self, ctx: Context) -> None:
         self.account = BacktestAccount(
@@ -103,16 +104,16 @@ class Backtester:
                     # Not a tradable day, so nothing to do
                     continue
 
-                bar: BarDataType = sub_df.loc[index].to_dict()  # type: ignore
+                bar = sub_df.loc[index].to_dict()  # type: ignore
 
                 # [1] Take profit
-                if take_profit_price := strategy.should_take_profit(bar, pos):
+                if take_profit_price := self.should_take_profit(strategy, bar, pos):
                     pos.close(take_profit_price)
                     trade_book.take_profit(timestamp, pos)
                     sell_positions.append(pos)
 
                 # [2] Stop loss
-                elif stop_loss_price := strategy.should_stop_loss(bar, pos):
+                elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
                     pos.close(stop_loss_price)
                     trade_book.stop_loss(timestamp, pos)
                     sell_positions.append(pos)
