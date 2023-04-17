@@ -53,6 +53,7 @@ class TradingEngine(TradeMixin):
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
             max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),
             max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
+            min_trade_amount=int(os.environ.get("TRADE_MIN_TRADE_AMOUNT", 0)),
             adjust_factors=self.adjust_factors,
         )
         ctx_args.update(_load_ctx_vars_from_env())

@@ -218,3 +218,12 @@ async def flush_cache():
                 logger.error(f'无法识别的卖出委托备注: {pos}, {order}')
 
     return "ok"
+
+
+@router.get("/control/checks")
+async def check():
+    return {
+        "today": date.today().isoformat(),
+        "now": datetime.now().isoformat(),
+        "cache_prefix": CacheKeys.prefix,
+    }

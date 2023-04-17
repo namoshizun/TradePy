@@ -3,6 +3,7 @@ import sys
 import inspect
 import talib
 import pandas as pd
+import numpy as np
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
@@ -161,20 +162,28 @@ class StrategyBase(Generic[BarDataType]):
             return []
 
         # Calculate the minimum number of shares to buy per stock
-        num_stocks = len(port_df)
+        _port_df = port_df.copy()
+        num_stocks = len(_port_df)
 
-        port_df["trade_unit_price"] = port_df["order_price"] * self.trading_unit
-        port_df["trade_units"] = budget / num_stocks // port_df["trade_unit_price"]
+        _port_df["trade_unit_price"] = _port_df["order_price"] * self.trading_unit
+        _port_df["trade_units"] = budget / num_stocks // _port_df["trade_unit_price"]
+        _port_df["trade_cost"] = _port_df["trade_unit_price"] * _port_df["trade_units"]
 
         # Gather the remaining budget
-        remaining_budget = budget - (port_df["trade_unit_price"] * port_df["trade_units"]).sum()
+        remaining_budget = budget - _port_df["trade_cost"].sum()
 
         # Distribute that budget again, starting from the big guys
-        port_df.sort_values("trade_unit_price", inplace=True, ascending=False)
-        for row in port_df.itertuples():
+        _port_df.sort_values("trade_unit_price", inplace=True, ascending=False)
+        for row in _port_df.itertuples():
             if residual_shares := remaining_budget // row.trade_unit_price:
-                port_df.at[row.Index, "trade_units"] += residual_shares
+                _port_df.at[row.Index, "trade_units"] += residual_shares
                 remaining_budget -= residual_shares * row.trade_unit_price
+
+        min_trade_cost = (_port_df["trade_unit_price"] * _port_df["trade_units"]).min()
+        if min_trade_cost < self.min_trade_amount:
+            # Randomly drop an option from the portfolio to increase the average trading amount per stock
+            removed_idx = np.random.choice(_port_df.index, 1)
+            return self.generate_buy_orders(port_df.drop(removed_idx), budget)
 
         return [
             Order(
@@ -185,7 +194,7 @@ class StrategyBase(Generic[BarDataType]):
                 vol=row.trade_units * self.trading_unit,
                 direction="buy",
             )
-            for row in port_df.reset_index().itertuples()
+            for row in _port_df.reset_index().itertuples()
             if row.trade_units > 0
         ]
 

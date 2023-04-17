@@ -19,9 +19,10 @@ class Context:
     broker_commission_rate: float = 0
     stamp_duty_rate: float = 0
 
-    # Position sizing
+    # Position control
     max_position_size: float = np.inf
     max_position_opens: float = np.inf
+    min_trade_amount: float = 0
 
     # Misc
     signals_percent_range = (0, 100)  # in percentage
