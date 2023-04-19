@@ -98,18 +98,23 @@ class TradingEngine(TradeMixin):
                          positions: list[Position]) -> pd.DataFrame:
         already_traded = set(x.code for x in orders + positions)
         codes_and_prices = [
-            (code, self.adjust_factors.to_real_price(code, price))
+            (
+                code,
+                self.adjust_factors.to_real_price(code, price_and_weight[0]),
+                price_and_weight[1]
+            )
             for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)
-            if (code not in already_traded) and (price := self.strategy.should_buy(*indicators))
+            if (code not in already_traded) and (price_and_weight := self.strategy.should_buy(*indicators))
         ]
 
         if not codes_and_prices:
             return pd.DataFrame()
 
-        codes, prices = zip(*codes_and_prices)
+        codes, prices, weights, = zip(*codes_and_prices)
         timestamp = ind_df.iloc[0]["timestamp"]
         return pd.DataFrame({
             "order_price": prices,
+            "weight": weights,
             "timestamp": [timestamp] * len(prices),
         }, index=pd.Index(codes, name="code"))
 

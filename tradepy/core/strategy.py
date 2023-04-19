@@ -39,7 +39,7 @@ BarDataType = TypeVar("BarDataType", bound=BarData)
 
 Price = float
 Weight = float
-BuyOption =tuple[Price, Weight]
+BuyOption = tuple[Price, Weight]
 
 
 class IndicatorsRegistry:
