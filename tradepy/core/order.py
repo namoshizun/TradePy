@@ -53,7 +53,13 @@ class Order(BaseModel):
         return self.filled_price * self.filled_vol
 
     @property
-    def place_value(self):
+    def cancelled_value(self) -> float:
+        if self.status == "cancelled":
+            return self.placed_value - self.filled_value
+        return 0
+
+    @property
+    def placed_value(self):
         return self.price * self.vol
 
     @property
