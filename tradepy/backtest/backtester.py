@@ -48,17 +48,18 @@ class Backtester(TradeMixin):
         jitter_price = lambda p: p * random.uniform(1 - 1e-4 * 5, 1 + 1e-4 * 5)  # 0.05% slip
 
         indices_and_prices = [
-            (index, jitter_price(price))
+            (index, jitter_price(price_and_weight[0]), price_and_weight[1])
             for index, *indicators in bars_df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
-            if (index[1] not in sold_or_holding_codes) and (price := strategy.should_buy(*indicators))
+            if (index[1] not in sold_or_holding_codes) and (price_and_weight := strategy.should_buy(*indicators))
         ]
 
         if not indices_and_prices:
             return pd.DataFrame()
 
-        indices, prices = zip(*indices_and_prices)
+        indices, prices, weights = zip(*indices_and_prices)
         return pd.DataFrame({
             "order_price": prices,
+            "weight": weights,
         }, index=pd.MultiIndex.from_tuples(indices, names=["timestamp", "code"]))
 
     def get_close_signals(self, df: pd.DataFrame, strategy: "StrategyBase") -> list[Any]:

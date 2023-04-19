@@ -37,6 +37,11 @@ class BarData(TypedDict):
 BarDataType = TypeVar("BarDataType", bound=BarData)
 
 
+Price = float
+Weight = float
+BuyOption =tuple[Price, Weight]
+
+
 class IndicatorsRegistry:
 
     def __init__(self) -> None:
@@ -114,7 +119,7 @@ class StrategyBase(Generic[BarDataType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def should_buy(self, *indicators) -> bool | float:
+    def should_buy(self, *indicators) -> BuyOption | None:
         raise NotImplementedError
 
     def should_close(self, *indicators) -> bool:
@@ -142,7 +147,7 @@ class StrategyBase(Generic[BarDataType]):
 
         # Limit number of new opens
         if n_options > max_position_opens:
-            port_df = port_df.sample(n=max_position_opens)
+            port_df = port_df.sample(n=max_position_opens, weights=port_df["weight"])
 
         # Limit position budget allocation
         min_position_allocation = budget // n_options
