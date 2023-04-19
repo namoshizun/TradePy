@@ -74,11 +74,11 @@ class AssetsSyncer:
         free_cash_amount, frozen_cash_amount = open_capitals["free_cash_amount"], 0
         for o in orders.values():
             if o.is_buy:
-                free_cash_amount -= o.trade_value
-                if not o.is_filled:
-                    frozen_cash_amount += o.trade_value
+                free_cash_amount -= o.place_value
+                frozen_cash_amount += o.place_value
+                frozen_cash_amount -= o.filled_value
             elif o.is_sell and o.is_filled:
-                free_cash_amount += o.trade_value
+                free_cash_amount += o.place_value
 
         assert free_cash_amount >= 0 and frozen_cash_amount >= 0, f"资金计算错误: 可用 = {free_cash_amount}, 冻结 = {frozen_cash_amount}"
         AccountCache.set(Account(

@@ -38,8 +38,8 @@ class Order(BaseModel):
     code: str  # e.g., 000333
     price: float
     vol: int
-    filled_price: float | None = None
-    filled_vol: int | None = None
+    filled_price: float = 0
+    filled_vol: int = 0
     status: OrderStatus = "created"
     direction: Literal["buy", "sell"]
     tags: dict = Field(default_factory=dict)
@@ -49,9 +49,11 @@ class Order(BaseModel):
         return datetime.fromisoformat(self.tags["created_at"])
 
     @property
-    def trade_value(self):
-        if self.is_filled:
-            return self.filled_price * self.filled_vol  # type: ignore
+    def filled_value(self) -> float:
+        return self.filled_price * self.filled_vol
+
+    @property
+    def place_value(self):
         return self.price * self.vol
 
     @property
