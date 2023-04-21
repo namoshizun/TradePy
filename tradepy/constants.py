@@ -35,6 +35,10 @@ class CacheKeys:
         return f'{self.prefix}:dataset:indicators-dataframe'
 
     @classproperty
+    def close_indicators_df(self):
+        return f'{self.prefix}:dataset:close-indicators-dataframe'
+
+    @classproperty
     def compute_open_indicators(self):
         return f'{self.prefix}:lock:compute-open-indicators'
 

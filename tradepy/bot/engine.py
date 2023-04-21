@@ -166,9 +166,19 @@ class TradingEngine(TradeMixin):
                 LOG.info("当前没有可平仓位。")
                 return
 
-            ind_df = ind_df.loc[closable_positions_codes].copy()
-            df = self.strategy.compute_close_indicators(quote_df.copy(), ind_df)
-            return df
+            cache_key = CacheKeys.close_indicators_df
+            if not self.redis_client.exists(cache_key):
+                ind_df = ind_df.loc[closable_positions_codes].copy()
+                df = self.strategy.compute_close_indicators(quote_df.copy(), ind_df)
+
+                self.redis_client.set(cache_key, pickle.dumps(df))
+                df.to_pickle(self.workspace / f"{cache_key}.pkl")
+                return df
+            else:
+                LOG.info("已从缓存读取了收盘指标，不再重复计算。交易行为应该与上次相同。")
+                val = self._read_dataframe_from_cache(cache_key)
+                assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
+                return val
 
     def _inday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
         positions: list[Position] = BrokerAPI.get_positions(available_only=True)  # type: ignore

@@ -44,7 +44,7 @@ class AStockExchange:
 
         elif 13 <= hour < 15:
             if hour == 14:
-                if 53 <= minute < 57:
+                if 54 <= minute < 57:
                     return _.CONT_TRADE_PRE_CLOSE
                 if minute >= 57:
                     return _.PRE_CLOSE_CALL

@@ -49,6 +49,12 @@ class Order(BaseModel):
         return datetime.fromisoformat(self.tags["created_at"])
 
     @property
+    def cancelled_vol(self) -> int:
+        if self.status == "cancelled":
+            return self.vol - self.filled_vol
+        return 0
+
+    @property
     def filled_value(self) -> float:
         return self.filled_price * self.filled_vol
 

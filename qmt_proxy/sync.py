@@ -48,16 +48,15 @@ class AssetsSyncer:
             return []
 
         for p in positions:
-            # print(p)
             p.vol, p.avail_vol = p.yesterday_vol, p.yesterday_vol
             for o in orders.values():
                 if o.code == p.code:
-                    if o.is_buy and o.is_filled:
-                        p.vol += o.filled_vol  # type: ignore
+                    if o.is_buy:
+                        p.vol += o.filled_vol
                     elif o.is_sell:
                         p.avail_vol -= o.vol
-                        if o.is_filled:
-                            p.vol -= o.filled_vol  # type: ignore
+                        p.avail_vol += o.cancelled_vol
+                        p.vol -= o.filled_vol
 
                     if p.vol < 0 or p.avail_vol < 0:
                         pos_str = "\n".join(map(str, positions))
