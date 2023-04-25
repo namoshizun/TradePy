@@ -61,6 +61,10 @@ class BacktestAccount(BaseModel):
         self.sell(all_positions)
 
     @round_val
+    def get_buy_commissions(self, amount: float) -> float:
+        return amount * (self.broker_commission_rate * 1e-2)
+
+    @round_val
     def add_buy_commissions(self, amount: float) -> float:
         return amount * (1 + self.broker_commission_rate * 1e-2)
 

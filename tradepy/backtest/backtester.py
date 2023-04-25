@@ -77,6 +77,7 @@ class Backtester(TradeMixin):
         ]
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
+        random.seed()
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
             LOG.info('>>> 重建索引 [timestamp, code]')
             # Index by timestamp: trade in the day order
@@ -131,9 +132,12 @@ class Backtester(TradeMixin):
             # Buy
             port_df = self.get_buy_options(sub_df, strategy, sell_positions)  # list[DF_Index, BuyPrice]
             if not port_df.empty:
+                free_cash = self.account.free_cash_amount
+                budget = free_cash - self.account.get_buy_commissions(free_cash)
+
                 port_df, budget = strategy.adjust_portfolio_and_budget(
                     port_df=port_df,
-                    budget=self.account.free_cash_amount,
+                    budget=budget,
                     n_stocks=len(sub_df),
                     total_asset_value=self.account.total_asset_value
                 )

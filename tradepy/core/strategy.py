@@ -171,7 +171,7 @@ class StrategyBase(Generic[BarDataType]):
         num_stocks = len(_port_df)
 
         _port_df["trade_unit_price"] = _port_df["order_price"] * self.trading_unit
-        _port_df["trade_units"] = budget / num_stocks // _port_df["trade_unit_price"]
+        _port_df["trade_units"] = budget // num_stocks // _port_df["trade_unit_price"]
         _port_df["trade_cost"] = _port_df["trade_unit_price"] * _port_df["trade_units"]
 
         # Gather the remaining budget
@@ -180,9 +180,9 @@ class StrategyBase(Generic[BarDataType]):
         # Distribute that budget again, starting from the big guys
         _port_df.sort_values("trade_unit_price", inplace=True, ascending=False)
         for row in _port_df.itertuples():
-            if residual_shares := remaining_budget // row.trade_unit_price:
-                _port_df.at[row.Index, "trade_units"] += residual_shares
-                remaining_budget -= residual_shares * row.trade_unit_price
+            if residual_units := remaining_budget // row.trade_unit_price:
+                _port_df.at[row.Index, "trade_units"] += residual_units
+                remaining_budget -= residual_units * row.trade_unit_price
 
         min_trade_cost = (_port_df["trade_unit_price"] * _port_df["trade_units"]).min()
         if min_trade_cost < self.min_trade_amount:

@@ -1,3 +1,4 @@
+import random
 import pathlib
 import warnings
 from redis import Redis
@@ -10,6 +11,8 @@ from tradepy.warehouse import ListingDepot
 
 
 tqdm.pandas()
+
+random.seed()
 
 ak_api = AkShareClient()
 
