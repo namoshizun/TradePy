@@ -74,6 +74,41 @@ class AkShareClient:
     # ------
     # Stocks
     def get_daily(self, code: str, start_date: datetime.date | str):
+        def fetch_legu_indicators():
+            indicators_df = ak.stock_a_indicator_lg(symbol=code)
+            assert isinstance(indicators_df, pd.DataFrame)
+            indicators_df.rename(columns={
+                "trade_date": "timestamp",
+                "total_mv": "mkt_cap",
+            }, inplace=True)
+            indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
+            indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
+            indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
+            return indicators_df
+
+        def fetch_baidu_indicators(start_date: datetime.date):
+            today = datetime.date.today()
+            date_diff = today - start_date
+
+            if date_diff.days < 365:
+                period = "近一年"
+            elif date_diff.days < 365 * 3:
+                period = "近三年"
+            elif date_diff.days < 365 * 5:
+                period = "近五年"
+            elif date_diff.days < 365 * 10:
+                period = "近十年"
+            else:
+                period = "全部"
+
+            res = ak.stock_zh_valuation_baidu(symbol=code, indicator="总市值", period=period)
+            res.rename(columns={
+                "date": "timestamp",
+                "value": "mkt_cap",  # already is in 100 mils
+            }, inplace=True)
+            res["timestamp"] = res["timestamp"].astype(str)
+            return res
+
         if isinstance(start_date, str):
             start_date = datetime.date.fromisoformat(start_date)
 
@@ -91,33 +126,29 @@ class AkShareClient:
         df = convert_akshare_hist_data(df)
 
         try:
-            indicators_df = retry()(ak.stock_a_indicator_lg)(symbol=code)
-            assert isinstance(indicators_df, pd.DataFrame)
-            indicators_df.rename(columns={
-                "trade_date": "timestamp",
-                "total_mv": "mkt_cap",
-            }, inplace=True)
-            indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
-            indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
-            indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
+            indicators_df = fetch_legu_indicators()
         except Exception:
-            logger.warning(f'重试后依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
-            fields = ['timestamp', 'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm', 'dv_ratio', 'dv_ttm', 'mkt_cap']
+            logger.warning(f'无法从乐咕获取{code}的资产技术指标数据, 将使用百度的数据!')
             try:
-                indicators_df = (
-                    StocksDailyBarsDepot()
-                    .load([code], fields=",".join(fields))
-                    .sort_values("timestamp")
-                    .iloc[-1]
-                    .to_frame()
-                    .T
-                )
-            except FileNotFoundError:
-                logger.error(f'无法获取{code}的资产技术指标数据, 请检查是否已经下载过该股票的日线数据!')
-                return pd.DataFrame()
+                indicators_df = retry()(fetch_baidu_indicators)(start_date)
+            except Exception:
+                logger.warning(f'依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
+                fields = ['timestamp', 'mkt_cap']
+                try:
+                    indicators_df = (
+                        StocksDailyBarsDepot()
+                        .load([code], fields=",".join(fields))
+                        .sort_values("timestamp")
+                        .iloc[-1]
+                        .to_frame()
+                        .T
+                    )
+                except FileNotFoundError:
+                    logger.error(f'无法在本地找到{code}的资产技术指标数据, 请检查是否已经下载过该股票的日线数据!')
+                    return pd.DataFrame()
 
-            indicators_df.reset_index(inplace=True)
-            indicators_df = indicators_df[fields]
+                indicators_df.reset_index(inplace=True)
+                indicators_df = indicators_df[fields]
 
         return pd.merge(df, indicators_df, on="timestamp")
 
