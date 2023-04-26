@@ -103,14 +103,19 @@ class AkShareClient:
         except Exception:
             logger.warning(f'重试后依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
             fields = ['timestamp', 'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm', 'dv_ratio', 'dv_ttm', 'mkt_cap']
-            indicators_df = (
-                StocksDailyBarsDepot()
-                .load([code], fields=",".join(fields))
-                .sort_values("timestamp")
-                .iloc[-1]
-                .to_frame()
-                .T
-            )
+            try:
+                indicators_df = (
+                    StocksDailyBarsDepot()
+                    .load([code], fields=",".join(fields))
+                    .sort_values("timestamp")
+                    .iloc[-1]
+                    .to_frame()
+                    .T
+                )
+            except FileNotFoundError:
+                logger.error(f'无法获取{code}的资产技术指标数据, 请检查是否已经下载过该股票的日线数据!')
+                return pd.DataFrame()
+
             indicators_df.reset_index(inplace=True)
             indicators_df = indicators_df[fields]
 

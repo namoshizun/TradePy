@@ -22,6 +22,10 @@ class GenericBarsDepot:
         self.folder = tradepy.config.database_dir / self.folder_name
         self.folder.mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def clear_cache(cls):
+        cls.caches.clear()
+
     def size(self) -> int:
         return sum(1 for _ in self.folder.iterdir())
 
