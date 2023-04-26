@@ -47,14 +47,19 @@ class GenericBarsDepot:
     def exists(self, name: str):
         return (self.folder / f'{name}.csv').exists()
 
-    def traverse(self, always_load=False):
-        load = partial(pd.read_csv)
-        if (total := sum(1 for _ in self.folder.iterdir())) > 1000:
-            miniters = total // 20  # to console per 5%
-        else:
-            miniters = 0  # auto
+    def find(self, codes: list[str] | None = None, always_load=False):
+        def get_iterator():
+            if not codes:
+                if (total := sum(1 for _ in self.folder.iterdir())) > 1000:
+                    miniters = total // 20  # to console per 5%
+                else:
+                    miniters = 0  # auto
+                return tqdm(self.folder.iterdir(), miniters=miniters)
 
-        for path in tqdm(self.folder.iterdir(), miniters=miniters):
+            return (self.folder / f'{code}.csv' for code in codes)
+
+        load = partial(pd.read_csv)
+        for path in get_iterator():
             if str(path).endswith('.csv'):
                 if always_load:
                     yield path.stem, load(path)
@@ -75,7 +80,7 @@ class GenericBarsDepot:
             del self.caches[cache_key]
 
         def loader() -> Generator[pd.DataFrame, None, None]:
-            for code, df in self.traverse(always_load=True):
+            for code, df in self.find(always_load=True):
                 df["code"] = code
                 yield df
 
@@ -104,16 +109,17 @@ class GenericBarsDepot:
 class StocksDailyBarsDepot(GenericBarsDepot):
 
     folder_name = "daily-stocks"
-    default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap_rank"
+    default_loaded_fields = "timestamp,code,company,market,open,high,low,close,vol,chg,pct_chg,mkt_cap,mkt_cap_rank"
 
     def _load(self,
-             index_by: str | list[str] = "code",
-             since_date: str | None = None,
-             until_date: str | None = None,
-             fields: str = default_loaded_fields) -> pd.DataFrame:
+              codes: list[str] | None = None,
+              index_by: str | list[str] = "code",
+              since_date: str | None = None,
+              until_date: str | None = None,
+              fields: str = default_loaded_fields) -> pd.DataFrame:
 
         def loader() -> Generator[pd.DataFrame, None, None]:
-            source_iter = self.traverse()
+            source_iter = self.find(codes)
 
             while True:
                 try:

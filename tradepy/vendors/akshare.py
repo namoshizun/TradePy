@@ -3,6 +3,7 @@ import time
 import traceback
 import pandas as pd
 import akshare as ak
+from loguru import logger
 from typing import Any, Literal
 from functools import wraps
 
@@ -22,6 +23,7 @@ from tradepy.conversion import (
     convert_akshare_sector_current_quote,
 )
 from tradepy.utils import get_latest_trade_date
+from tradepy.warehouse import StocksDailyBarsDepot
 
 
 def retry(max_retries=3, wait_interval=5):
@@ -88,15 +90,30 @@ class AkShareClient:
 
         df = convert_akshare_hist_data(df)
 
-        indicators_df = retry()(ak.stock_a_indicator_lg)(symbol=code)
-        assert isinstance(indicators_df, pd.DataFrame)
-        indicators_df.rename(columns={
-            "trade_date": "timestamp",
-            "total_mv": "mkt_cap",
-        }, inplace=True)
-        indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
-        indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
-        indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
+        try:
+            indicators_df = retry()(ak.stock_a_indicator_lg)(symbol=code)
+            assert isinstance(indicators_df, pd.DataFrame)
+            indicators_df.rename(columns={
+                "trade_date": "timestamp",
+                "total_mv": "mkt_cap",
+            }, inplace=True)
+            indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
+            indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
+            indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
+        except Exception:
+            logger.warning(f'重试后依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
+            fields = ['timestamp', 'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm', 'dv_ratio', 'dv_ttm', 'mkt_cap']
+            indicators_df = (
+                StocksDailyBarsDepot()
+                .load([code], fields=",".join(fields))
+                .sort_values("timestamp")
+                .iloc[-1]
+                .to_frame()
+                .T
+            )
+            indicators_df.reset_index(inplace=True)
+            indicators_df = indicators_df[fields]
+
         return pd.merge(df, indicators_df, on="timestamp")
 
     def get_minute_bar(self,

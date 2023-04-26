@@ -23,7 +23,7 @@ class StockDayBarsCollector(DataCollector):
 
     def _jobs_generator(self):
         LOG.info(f"检查本地个股数据是否需要更新. 起始日期 {self.since_date}")
-        repo_iter = self.repo.traverse(always_load=True)
+        repo_iter = self.repo.find(always_load=True)
         curr_codes = list()
 
         for code, df in repo_iter:
