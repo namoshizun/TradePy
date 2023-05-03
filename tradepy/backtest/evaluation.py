@@ -33,6 +33,7 @@ class ResultEvaluator:
         # Capital logs
         cap_returns = trade_book.cap_logs_df["pct_chg"]
         sharp_ratio = round(qs.stats.sharpe(cap_returns), 2)
+        max_drawdown = qs.stats.max_drawdown(trade_book.cap_logs_df["capital"])
 
         print(f'''
 ===========
@@ -41,6 +42,7 @@ class ResultEvaluator:
 止盈 = {action_counts["止盈"]}
 平仓亏损 = {close_lose}
 平仓盈利 = {close_wins}
+最大回撤 = {round(100 * max_drawdown, 2)}%
 
 胜率 {succ_rate}%
 平均收益: {avg_pct_chg}% (标准差: {std_pct_chg}%)
