@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 import tradepy
+from tradepy.blacklist import Blacklist
 from tradepy.constants import CacheKeys, Timeouts
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
@@ -104,7 +105,9 @@ class TradingEngine(TradeMixin):
                 price_and_weight[1]
             )
             for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)
-            if (code not in already_traded) and (price_and_weight := self.strategy.should_buy(*indicators))
+            if (code not in already_traded) and
+               (not Blacklist.contains(code)) and
+               (price_and_weight := self.strategy.should_buy(*indicators))
         ]
 
         if not codes_and_prices:

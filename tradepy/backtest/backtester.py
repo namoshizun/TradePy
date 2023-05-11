@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
 from tradepy import LOG
+from tradepy.blacklist import Blacklist
 from tradepy.core.account import BacktestAccount
 from tradepy.core.order import Order
 from tradepy.core.position import Position
@@ -47,10 +48,16 @@ class Backtester(TradeMixin):
             set(pos.code for pos in sell_positions)
         jitter_price = lambda p: p * random.uniform(1 - 1e-4 * 5, 1 + 1e-4 * 5)  # 0.05% slip
 
+        # Looks ugly but it's fast...
         indices_and_prices = [
-            (index, jitter_price(price_and_weight[0]), price_and_weight[1])
-            for index, *indicators in bars_df[strategy.buy_indicators].itertuples(name=None)  # twice faster than the default .itertuples options
-            if (index[1] not in sold_or_holding_codes) and (price_and_weight := strategy.should_buy(*indicators))
+            (
+                index, jitter_price(price_and_weight[0]),
+                price_and_weight[1]
+            )
+            for index, *indicators in bars_df[strategy.buy_indicators].itertuples(name=None)
+            if (index[1] not in sold_or_holding_codes) and
+               (not Blacklist.contains(index[1])) and
+               (price_and_weight := strategy.should_buy(*indicators))
         ]
 
         if not indices_and_prices:

@@ -34,6 +34,13 @@ class Config:
     # global states
     redis_connection_pool: ConnectionPool | None = None
 
+    @property
+    def blacklist_path(self) -> pathlib.Path | None:
+        path = getenv("BLACKLIST_PATH")
+        if not path:
+            return None
+        return pathlib.Path(path)
+
     def __post_init__(self):
         if self.mode not in get_args(ModeType):
             raise ValueError(f"无效的MODE参数: {self.mode}")
