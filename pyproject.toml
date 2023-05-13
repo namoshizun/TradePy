@@ -30,6 +30,7 @@ uvicorn = {extras = ["standard"], version = "^0.21.1"}
 pydantic = "^1.10.7"
 ta-lib = "0.4.26"
 quantstats = "^0.0.59"
+dask = {extras = ["distributed"], version = "^2023.5.0"}
 
 [tool.poetry.extras]
 bot = ["celery"]
