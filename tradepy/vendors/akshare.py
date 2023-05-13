@@ -126,11 +126,11 @@ class AkShareClient:
         df = convert_akshare_hist_data(df)
 
         try:
-            indicators_df = fetch_legu_indicators()
+            indicators_df = retry()(fetch_baidu_indicators)(start_date)
         except Exception:
-            logger.warning(f'无法从乐咕获取{code}的资产技术指标数据, 将使用百度的数据!')
+            logger.warning(f'无法从百度获取{code}的资产技术指标数据, 将使用乐估的数据!')
             try:
-                indicators_df = retry()(fetch_baidu_indicators)(start_date)
+                indicators_df = fetch_legu_indicators()
             except Exception:
                 logger.warning(f'依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
                 fields = ['timestamp', 'mkt_cap']
