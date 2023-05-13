@@ -1,10 +1,11 @@
 import os
 import pathlib
-import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Type, get_args
 from dotenv import load_dotenv
 from redis import Redis, ConnectionPool
+
+from tradepy.utils import import_class
 
 if TYPE_CHECKING:
     from tradepy.core.strategy import LiveStrategy
@@ -46,11 +47,7 @@ class Config:
             raise ValueError(f"无效的MODE参数: {self.mode}")
 
     def get_strategy_class(self) -> Type["LiveStrategy"]:
-        assert self.strategy_class
-        *module_path, class_name = self.strategy_class.split('.')
-        module_path = '.'.join(module_path)
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
+        return import_class(self.strategy_class)
 
     def get_redis_client(self) -> Redis:
         if self.redis_connection_pool is None:

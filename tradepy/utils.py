@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import importlib
 from functools import wraps
 from datetime import date
 from dateutil import parser as date_parser
@@ -76,3 +77,10 @@ def optimize_dtype_memory(df: pd.DataFrame):
                     else:
                         df[col] = df[col].astype(np.float64)
     return df
+
+
+def import_class(path: str) -> type:
+    *module_path, class_name = path.split('.')
+    module_path = '.'.join(module_path)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
