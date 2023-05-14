@@ -1,5 +1,6 @@
 import os
 import pathlib
+from functools import cached_property
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Type, get_args
 from dotenv import load_dotenv
@@ -38,7 +39,7 @@ class Config:
     # Optimizer conf
     optimizer_class: str = getenv("OPTIMIZER_CLASS", "tradepy.optimization.optimizers.grid_search.GridSearch")
 
-    @property
+    @cached_property
     def blacklist_path(self) -> pathlib.Path | None:
         path = getenv("BLACKLIST_PATH")
         if not path:

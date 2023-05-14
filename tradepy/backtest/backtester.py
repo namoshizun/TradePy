@@ -101,7 +101,7 @@ class Backtester(TradeMixin):
             assert isinstance(timestamp, str)
 
             # Opening
-            price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]
+            price_lookup = lambda code: sub_df.loc[(timestamp, code), "close"]  # NOTE: slow
             self.account.update_holdings(price_lookup)
 
             # Sell
