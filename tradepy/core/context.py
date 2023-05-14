@@ -11,7 +11,7 @@ from tradepy.utils import get_latest_trade_date
 class Context:
     # Account settings
     cash_amount: float
-    trading_unit: int
+    trade_lot_vol: int
     broker_commission_rate: float = 0
     stamp_duty_rate: float = 0
 
@@ -53,7 +53,7 @@ class Context:
 
 def china_market_context(**kwargs) -> Context:
     data_args = {
-        "trading_unit": 100,
+        "trade_lot_vol": 100,
         "broker_commission_rate": 0.05,  # percent
         "stamp_duty_rate": 0.1,  # percent
     }

@@ -49,7 +49,7 @@ class TradingEngine(TradeMixin):
         self.adjust_factors: AdjustFactors = AdjustFactorDepot.load()
         ctx_args = dict(
             cash_amount=0,  # NOTE: no meaning for live trading
-            trading_unit=int(os.environ["TRADE_UNIT"]),
+            trade_lot_vol=int(os.environ["TRADE_UNIT"]),
             stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
             take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
             max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),

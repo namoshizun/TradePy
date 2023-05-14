@@ -3,7 +3,6 @@ import sys
 import inspect
 import talib
 import pandas as pd
-import numpy as np
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
@@ -19,6 +18,7 @@ from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
 from tradepy.core import Indicator, IndicatorSet
 from tradepy.core.adjust_factors import AdjustFactors
+from tradepy.core.budget_allocator import evenly_distribute
 
 
 class BarData(TypedDict):
@@ -166,29 +166,18 @@ class StrategyBase(Generic[BarDataType]):
         if port_df.empty or budget <= 0:
             return []
 
-        # Calculate the minimum number of shares to buy per stock
-        _port_df = port_df.copy()
-        num_stocks = len(_port_df)
-
-        _port_df["trade_unit_price"] = _port_df["order_price"] * self.trading_unit
-        _port_df["trade_units"] = budget // num_stocks // _port_df["trade_unit_price"]
-        _port_df["trade_cost"] = _port_df["trade_unit_price"] * _port_df["trade_units"]
-
-        # Gather the remaining budget
-        remaining_budget = budget - _port_df["trade_cost"].sum()
-
-        # Distribute that budget again, starting from the big guys
-        _port_df.sort_values("trade_unit_price", inplace=True, ascending=False)
-        for row in _port_df.itertuples():
-            if residual_units := remaining_budget // row.trade_unit_price:
-                _port_df.at[row.Index, "trade_units"] += residual_units
-                remaining_budget -= residual_units * row.trade_unit_price
-
-        min_trade_cost = (_port_df["trade_unit_price"] * _port_df["trade_units"]).min()
-        if min_trade_cost < self.min_trade_amount:
-            # Randomly drop an option from the portfolio to increase the average trading amount per stock
-            removed_idx = np.random.choice(_port_df.index, 1)
-            return self.generate_buy_orders(port_df.drop(removed_idx), budget)
+        _port_df = port_df.reset_index()
+        _port_df["temp_index"] = _port_df.index.values
+        allocations = evenly_distribute(
+            _port_df[["temp_index", "order_price"]].values,
+            budget=budget,
+            min_trade_cost=self.min_trade_amount,
+            trade_lot_vol=self.trade_lot_vol
+        )
+        _port_df["total_lots"] = pd.Series(
+            allocations[:, 1],
+            index=allocations[:, 0]
+        )
 
         return [
             Order(
@@ -196,11 +185,11 @@ class StrategyBase(Generic[BarDataType]):
                 timestamp=row.timestamp,
                 code=row.code,
                 price=row.order_price,
-                vol=row.trade_units * self.trading_unit,
+                vol=row.total_lots * self.trade_lot_vol,
                 direction="buy",
             )
-            for row in _port_df.reset_index().itertuples()
-            if row.trade_units > 0
+            for row in _port_df.itertuples()
+            if row.total_lots > 0
         ]
 
     def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
