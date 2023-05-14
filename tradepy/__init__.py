@@ -30,10 +30,12 @@ def _check_conf():
                         'StocksListingCollector first or tradepy might not work.')
 
 
-def initialize(dataset_dir: str | pathlib.Path | None = None):
+def initialize(dataset_dir: str | pathlib.Path | None = None,
+               **overrides):
     if dataset_dir:
         config.set_database_dir(dataset_dir)
 
+    config.update(**overrides)
     _check_conf()
 
 

@@ -27,7 +27,7 @@ class TradeBook:
             df = df.join(code_to_company, on="code")
             df.rename(columns={"name": "company"}, inplace=True)
         except FileNotFoundError:
-            logger.warning('未找到股票列表数据, 无法在交易历史中添加公司名称')
+            logger.debug('未找到股票列表数据, 无法在交易历史中添加公司名称')
         return df
 
     @cached_property

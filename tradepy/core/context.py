@@ -9,15 +9,15 @@ from tradepy.utils import get_latest_trade_date
 
 @dataclass
 class Context:
-    # Trade params
-    stop_loss: float
-    take_profit: float
-
     # Account settings
     cash_amount: float
     trading_unit: int
     broker_commission_rate: float = 0
     stamp_duty_rate: float = 0
+
+    # Trade params
+    stop_loss: float = 0
+    take_profit: float = 0
 
     # Position control
     max_position_size: float = np.inf
@@ -33,13 +33,13 @@ class Context:
 
     @classmethod
     def build(cls, **kwargs):
-        # Pluck args not defined in the vanilia context definition
+        # Pluck args not defined in the vanilla context definition
         extra_args = dict()
         for key, value in kwargs.items():
             if key not in Context.__annotations__:
                 extra_args[key] = deepcopy(value)
 
-        # Build the vanilia context object
+        # Build the vanilla context object
         for key in extra_args.keys():
             kwargs.pop(key)
         ctx = cls(**kwargs)

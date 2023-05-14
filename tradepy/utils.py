@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+import importlib
 from functools import wraps
 from datetime import date
 from dateutil import parser as date_parser
@@ -44,3 +47,40 @@ def round_val(fun):
         val = fun(*args, **kwargs)
         return round(val, 2)
     return inner
+
+
+def optimize_dtype_memory(df: pd.DataFrame):
+    for col in df.columns:
+        if df[col].dtype.kind in 'bifc':
+            numeric_data = df[col].dropna()
+            if numeric_data.empty:
+                continue
+
+            min_val = numeric_data.min()
+            max_val = numeric_data.max()
+
+            if np.isfinite(min_val) and np.isfinite(max_val):
+                if np.issubdtype(numeric_data.dtype, np.integer):
+                    if min_val >= np.iinfo(np.int8).min and max_val <= np.iinfo(np.int8).max:
+                        df[col] = df[col].astype(np.int8)
+                    elif min_val >= np.iinfo(np.int16).min and max_val <= np.iinfo(np.int16).max:
+                        df[col] = df[col].astype(np.int16)
+                    elif min_val >= np.iinfo(np.int32).min and max_val <= np.iinfo(np.int32).max:
+                        df[col] = df[col].astype(np.int32)
+                    else:
+                        df[col] = df[col].astype(np.int64)
+                else:
+                    if min_val >= np.finfo(np.float16).min and max_val <= np.finfo(np.float16).max:
+                        df[col] = df[col].astype(np.float16)
+                    elif min_val >= np.finfo(np.float32).min and max_val <= np.finfo(np.float32).max:
+                        df[col] = df[col].astype(np.float32)
+                    else:
+                        df[col] = df[col].astype(np.float64)
+    return df
+
+
+def import_class(path: str) -> type:
+    *module_path, class_name = path.split('.')
+    module_path = '.'.join(module_path)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
