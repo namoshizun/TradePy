@@ -1,25 +1,34 @@
 from typing import Any, Generator
 from itertools import product
-from tradepy.backtest.evaluation import ResultEvaluator
 
+from tradepy.backtest.evaluation import ResultEvaluator
 from tradepy.optimization.base import ParameterOptimizer
-from tradepy.optimization.types import ParameterValuesBatch
+from tradepy.optimization.types import ParameterValuesBatch, TaskResult
 from tradepy.trade_book.trade_book import TradeBook
 
 
 class GridSearch(ParameterOptimizer):
 
     def generate_parameters_batch(self) -> Generator[ParameterValuesBatch, None, None]:
-        keys = [param['name'] for param in self.parameters]
-        values = [param['choices'] for param in self.parameters]
-        combinations = product(*values)
+        def flatten(values):
+            for p in list(values.keys()):
+                v = values[p]
+                if isinstance(v, (list, tuple)):
+                    for _p, _v in zip(p, v):
+                        values[_p] = _v
+                    del values[p]
 
+            return values
+
+        keys = [param.name for param in self.parameters]
+        values = [param.choices for param in self.parameters]
+        combinations = product(*values)
         yield [
-            dict(zip(keys, combination))
+            flatten(dict(zip(keys, combination)))
             for combination in combinations
         ]
 
-    def consume_batch_result(self, *args, **kwargs):
+    def consume_batch_result(self, results: list[TaskResult]):
         pass
 
     @classmethod

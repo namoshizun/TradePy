@@ -4,13 +4,12 @@ from kombu import Queue
 
 import tradepy
 
-crontab(hour=20, minute=0)
 
 tradepy.initialize()
 
 
 tconf = tradepy.config
-app = Celery('tradepy', fixups=[])
+app = Celery('tradepy-tradebot', fixups=[])
 
 app.conf.broker_url = f"redis://:{tconf.redis_password}@{tconf.redis_host}:{tconf.redis_port}/{tconf.redis_db}"
 app.conf.task_routes = {

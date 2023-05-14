@@ -1,33 +1,32 @@
 import os
 import json
 from pathlib import Path
-from dataclasses import dataclass, field
 from datetime import datetime
 import pickle
-from typing import Generator, Type
-
+from typing import Type
+from loguru import logger
 import pandas as pd
-from tradepy.core.context import china_market_context
+
+import tradepy
+from tradepy.core.context import Context
 from tradepy.core.strategy import BacktestStrategy
+from tradepy.decorators import timeit
 from tradepy.trade_book.trade_book import TradeBook
 from tradepy.utils import import_class
-from tradepy.optimization.base import ParameterOptimizer, get_default_optimizer_class
+from tradepy.optimization.base import ParameterOptimizer
 from tradepy.optimization.types import TaskRequest, TaskResult
 
 
-def get_default_workspace_dir() -> Path:
-    path = os.path.expanduser(f"~/.tradepy/worker/{datetime.now().isoformat()[:19]}")
-    return Path(path)
-
-
-@dataclass
 class Worker:
-    cluster_url: str
-    workspace_dir: Path = field(default_factory=get_default_workspace_dir)
-    optimizer_class: Type[ParameterOptimizer] = field(default_factory=get_default_optimizer_class)
 
-    def fetch_task(self) -> Generator[TaskRequest, None, None]:
-        ...
+    def __init__(self, workspace_dir: str | Path | None = None) -> None:
+        if not workspace_dir:
+            now = datetime.now()
+            workspace_dir = os.path.expanduser(f"~/.tradepy/worker/{now.date()}/{now.isoformat()[11:19]}")
+
+        self.workspace_dir = Path(workspace_dir)
+        self.workspace_dir.mkdir(parents=True, exist_ok=True)
+        self.optimizer_class: Type[ParameterOptimizer] = import_class(tradepy.config.optimizer_class)
 
     def create_task_dir(self, id: str) -> Path:
         path = self.workspace_dir / id
@@ -45,8 +44,7 @@ class Worker:
             pickle.dump(trade_book, f)
 
     def backtest(self, task: TaskRequest) -> TradeBook:
-        strategy_class: Type[BacktestStrategy] = import_class(task["strategy"])
-        ctx = china_market_context(**task["context"])
+        # Load dataset
         dataset_path = task["dataset_path"]
 
         if dataset_path.endswith("csv"):
@@ -56,11 +54,18 @@ class Worker:
         else:
             raise ValueError(f"不支持的数据格式: {os.path.splitext(dataset_path)[1]}")
 
+        # Patch strategy parameters to the context object
+        ctx = Context.build(**task["base_context"], **task["parameters"])
+
+        # Run backtest
+        strategy_class: Type[BacktestStrategy] = import_class(task["strategy"])
         _, trade_book = strategy_class.backtest(df, ctx)
         return trade_book
 
-    def run(self):
-        for request in self.fetch_task():
+    def run(self, request: TaskRequest) -> TaskResult:
+        logger.info(f'开始执行任务: {request["id"]}')
+
+        with timeit() as timer:
             task_dir = self.create_task_dir(request["id"])
             self.write_task_data(task_dir, request)
 
@@ -68,5 +73,8 @@ class Worker:
             self.write_trade_book(task_dir, trade_book)
 
             metrics = self.optimizer_class.evaluate_trades(trade_book)
-            self.write_task_data(task_dir, dict(**request, metrics=metrics))
-            # TODO: return metrics to cluster
+            result: TaskResult = dict(metrics=metrics, **request)  # type: ignore
+            self.write_task_data(task_dir, result)
+
+        logger.info(f'任务执行完成: {request["id"]}, 耗时: {timer["seconds"]}s')
+        return result

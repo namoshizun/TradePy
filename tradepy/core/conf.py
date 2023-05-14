@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from tradepy.core.strategy import LiveStrategy
 
 
-ModeType = Literal["backtest", "mock-trading", "live-trading"]
+ModeType = Literal["optimization", "backtest", "mock-trading", "live-trading"]
 
 load_dotenv()
 getenv = os.environ.get
@@ -28,12 +28,15 @@ class Config:
     assets_sync_interval = int(getenv("ASSETS_SYNC_INTERVAL", "3"))
     redis_host: str = getenv("REDIS_HOST", "localhost")
     redis_port: int = int(getenv("REDIS_PORT", 6379))
-    redis_db: int = int(getenv("REDIS_DB", 0))
     redis_password: str = getenv("REDIS_PASSWORD", "")
+    redis_db: int = int(getenv("REDIS_DB", 0))
     strategy_class: str = getenv("TRADE_STRATEGY_CLASS", "")
 
-    # global states
+    # Global states
     redis_connection_pool: ConnectionPool | None = None
+
+    # Optimizer conf
+    optimizer_class: str = getenv("OPTIMIZER_CLASS", "tradepy.optimization.optimizers.grid_search.GridSearch")
 
     @property
     def blacklist_path(self) -> pathlib.Path | None:
@@ -59,6 +62,10 @@ class Config:
                 decode_responses=True
             )
         return Redis(connection_pool=self.redis_connection_pool)
+
+    def update(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     def set_database_dir(self, path: str | pathlib.Path):
         if isinstance(path, str):

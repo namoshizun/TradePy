@@ -3,22 +3,17 @@ from typing import Any, TypedDict
 
 Number = float | int
 
-
-class Parameter(TypedDict):
-    name: str
-    choices: list[Number]
-
-
 ParameterValuesBatch = list[dict[str, Number]]
 
 
 class TaskRequest(TypedDict):
+    workspace_id: str
     id: str
-    batch: int
+    batch_id: str
     parameters: dict[str, Number]
     strategy: str
     dataset_path: str
-    context: dict[str, Any]
+    base_context: dict[str, Any]
 
 
 class TaskResult(TaskRequest):
