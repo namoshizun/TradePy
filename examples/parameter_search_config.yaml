@@ -1,0 +1,30 @@
+---
+base_context:
+  cash_amount: 100_000
+  broker_commission_rate: 0.01
+  max_position_opens: 10
+  max_position_size: 0.25
+  min_trade_amount: 8_500
+
+
+parameters:
+  - name: ma60_support_thres
+    choices: [2.5, 2.0]
+  - name: min_volatility
+    choices: [0.85, 1.5]
+  - name: signal_below_support_thres
+    choices: [0, 0.75, 0.5, 1.0]
+  - name: [stop_loss, take_profit]
+    choices: [
+      [1.8, 4],
+      [2.45, 4.5],
+      [1.6, 3.2],
+    ]
+
+dask:
+  n_workers: 4
+  threads_per_worker: 1
+
+dataset: /root/ma60_support_2016.pkl
+strategy: playground.ma60_support_v1.MA60SupportStrategyV1
+repetition: 40

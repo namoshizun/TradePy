@@ -3,13 +3,13 @@ from typing import Generator
 from dataclasses import dataclass
 
 from tradepy.optimization.types import ParameterValuesBatch, TaskResult
-from tradepy.optimization.parameter import Parameter
+from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.trade_book.trade_book import TradeBook
 
 
 @dataclass
 class ParameterOptimizer:
-    parameters: list[Parameter]
+    parameters: list[Parameter | ParameterGroup]
 
     @abc.abstractmethod
     def generate_parameters_batch(self) -> Generator[ParameterValuesBatch, None, None]:
