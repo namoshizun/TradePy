@@ -10,7 +10,7 @@ from dask.distributed import Client as DaskClient
 
 import tradepy
 from tradepy.core.context import Context
-from tradepy.optimization.parameter import Parameter
+from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
 from tradepy.optimization.base import ParameterOptimizer
 from tradepy.optimization.worker import Worker
@@ -34,7 +34,7 @@ def get_random_id() -> str:
 @dataclass
 class Scheduler:
 
-    parameters: list[Parameter]
+    parameters: list[Parameter | ParameterGroup]
     context: Context
     dataset_path: str
     strategy: str
