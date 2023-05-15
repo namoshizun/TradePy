@@ -63,7 +63,7 @@ class ResultEvaluator:
 
     @coerce_type(int)
     def get_number_of_close(self) -> int:
-        return (self.trades_df["action"] == "平常").sum()
+        return (self.trades_df["action"] == "平仓").sum()
 
     def html_report(self, **kwargs):
         qs.reports.html(self.trade_book.cap_logs_df["pct_chg"], **kwargs)

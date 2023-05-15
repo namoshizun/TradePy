@@ -42,10 +42,14 @@ class Blacklist:
 
     @classmethod
     def contains(cls, code: str, timestamp: str | None = None) -> bool:
+        stocks = cls.read()
+        if not stocks:
+            return False
+
         try:
             stock = next(
                 stock
-                for stock in cls.read()
+                for stock in stocks
                 if stock.code == code
             )
 
