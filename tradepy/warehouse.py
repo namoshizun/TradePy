@@ -249,3 +249,19 @@ class ListingDepot:
     def load() -> pd.DataFrame:
         path = ListingDepot.file_path()
         return pd.read_csv(path, index_col="code", dtype={"code": str})
+
+
+class RestrictedSharesReleaseDepot:
+
+    file_name = "restricted_shares_release.csv"
+
+    @staticmethod
+    def file_path() -> Path:
+        return tradepy.config.database_dir / RestrictedSharesReleaseDepot.file_name
+
+    @staticmethod
+    @cache
+    def load() -> pd.DataFrame:
+        print('Nihao')
+        path = RestrictedSharesReleaseDepot.file_path()
+        return pd.read_csv(path, index_col="code", dtype={"code": str})

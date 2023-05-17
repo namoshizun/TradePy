@@ -21,6 +21,7 @@ from tradepy.conversion import (
     convert_akshare_stock_index_ticks,
     convert_code_to_market,
     convert_akshare_sector_current_quote,
+    convert_akshare_restricted_releases_records
 )
 from tradepy.utils import get_latest_trade_date
 from tradepy.warehouse import StocksDailyBarsDepot
@@ -35,24 +36,48 @@ def retry(max_retries=3, wait_interval=5):
                 try:
                     return fun(*args, **kwargs)
                 except Exception:
-                    tradepy.LOG.warn(f'接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次. \n\n {traceback.format_exc()}')
+                    tradepy.LOG.warn(
+                        f"接口报错，{wait_interval}秒后尝试第{n + 1}/{max_retries}次. \n\n {traceback.format_exc()}"
+                    )
                     time.sleep(wait_interval)
                     n += 1
+
         return inner
+
     return decor
 
 
 class AkShareClient:
-
     # ----
     # Misc
+    def get_restricted_releases(
+        self,
+        start_date: datetime.date | str,
+        end_date: datetime.date | str | None = None,
+    ) -> pd.DataFrame:
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+
+        if isinstance(end_date, str):
+            end_date = datetime.date.fromisoformat(end_date)
+
+        if not end_date:
+            today = datetime.date.today()
+            end_date = datetime.date(today.year, 12, 31)
+
+        df = ak.stock_restricted_release_detail_em(
+            start_date=start_date.strftime("%Y%m%d"),
+            end_date=end_date.strftime("%Y%m%d"),
+        )
+        return convert_akshare_restricted_releases_records(df)
+
     def get_adjust_factor(self, code: str, adjust: Literal["hfq", "qfq"] = "hfq"):
         if code == "689009":
             # Oh well...
             return pd.DataFrame()
 
         exchange = convert_code_to_exchange(code)
-        symbol = f'{exchange.lower()}{code}'
+        symbol = f"{exchange.lower()}{code}"
 
         df = retry()(ak.stock_zh_a_daily)(symbol=symbol, adjust=f"{adjust}-factor")
         assert isinstance(df, pd.DataFrame)
@@ -77,13 +102,16 @@ class AkShareClient:
         def fetch_legu_indicators():
             indicators_df = ak.stock_a_indicator_lg(symbol=code)
             assert isinstance(indicators_df, pd.DataFrame)
-            indicators_df.rename(columns={
-                "trade_date": "timestamp",
-                "total_mv": "mkt_cap",
-            }, inplace=True)
+            indicators_df.rename(
+                columns={
+                    "trade_date": "timestamp",
+                    "total_mv": "mkt_cap",
+                },
+                inplace=True,
+            )
             indicators_df["mkt_cap"] *= 1e-4  # Convert to 100 mils
             indicators_df["mkt_cap"] = indicators_df["mkt_cap"].round(4)
-            indicators_df['timestamp'] = indicators_df['timestamp'].astype(str)
+            indicators_df["timestamp"] = indicators_df["timestamp"].astype(str)
             return indicators_df
 
         def fetch_baidu_indicators(start_date: datetime.date):
@@ -101,11 +129,16 @@ class AkShareClient:
             else:
                 period = "全部"
 
-            res = ak.stock_zh_valuation_baidu(symbol=code, indicator="总市值", period=period)
-            res.rename(columns={
-                "date": "timestamp",
-                "value": "mkt_cap",  # already is in 100 mils
-            }, inplace=True)
+            res = ak.stock_zh_valuation_baidu(
+                symbol=code, indicator="总市值", period=period
+            )
+            res.rename(
+                columns={
+                    "date": "timestamp",
+                    "value": "mkt_cap",  # already is in 100 mils
+                },
+                inplace=True,
+            )
             res["timestamp"] = res["timestamp"].astype(str)
             return res
 
@@ -113,14 +146,12 @@ class AkShareClient:
             start_date = datetime.date.fromisoformat(start_date)
 
         df = retry()(ak.stock_zh_a_hist)(
-            symbol=code,
-            start_date=start_date.strftime('%Y%m%d'),
-            period="daily"
+            symbol=code, start_date=start_date.strftime("%Y%m%d"), period="daily"
         )
 
         assert isinstance(df, pd.DataFrame)
         if df.empty:
-            print(f'未找到{code}日K数据. 起始日期{start_date}')
+            print(f"未找到{code}日K数据. 起始日期{start_date}")
             return df
 
         df = convert_akshare_hist_data(df)
@@ -128,12 +159,12 @@ class AkShareClient:
         try:
             indicators_df = retry()(fetch_baidu_indicators)(start_date)
         except Exception:
-            logger.warning(f'无法从百度获取{code}的资产技术指标数据, 将使用乐估的数据!')
+            logger.warning(f"无法从百度获取{code}的资产技术指标数据, 将使用乐估的数据!")
             try:
                 indicators_df = fetch_legu_indicators()
             except Exception:
-                logger.warning(f'依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!')
-                fields = ['timestamp', 'mkt_cap']
+                logger.warning(f"依旧无法获取{code}的资产技术指标数据, 将使用最近一日的指标!")
+                fields = ["timestamp", "mkt_cap"]
                 try:
                     indicators_df = (
                         StocksDailyBarsDepot()
@@ -144,7 +175,7 @@ class AkShareClient:
                         .T
                     )
                 except FileNotFoundError:
-                    logger.error(f'无法在本地找到{code}的资产技术指标数据, 请检查是否已经下载过该股票的日线数据!')
+                    logger.error(f"无法在本地找到{code}的资产技术指标数据, 请检查是否已经下载过该股票的日线数据!")
                     return pd.DataFrame()
 
                 indicators_df.reset_index(inplace=True)
@@ -152,24 +183,24 @@ class AkShareClient:
 
         return pd.merge(df, indicators_df, on="timestamp")
 
-    def get_minute_bar(self,
-                       code: str,
-                       start_date: datetime.date | str,
-                       period="1") -> pd.DataFrame:
+    def get_minute_bar(
+        self, code: str, start_date: datetime.date | str, period="1"
+    ) -> pd.DataFrame:
         if isinstance(start_date, str):
             start_date = datetime.date.fromisoformat(start_date)
 
-        df = ak.stock_zh_a_hist_min_em(symbol=code, start_date=str(start_date), period=period)
+        df = ak.stock_zh_a_hist_min_em(
+            symbol=code, start_date=str(start_date), period=period
+        )
         df = convert_akshare_minute_bar(df)
         return df
 
     def get_stock_info(self, code: str) -> dict[str, Any]:
         df = ak.stock_individual_info_em(symbol=code)
 
-        return convert_akshare_stock_info({
-            row["item"]: row["value"]
-            for _, row in df.iterrows()
-        })
+        return convert_akshare_stock_info(
+            {row["item"]: row["value"] for _, row in df.iterrows()}
+        )
 
     def get_current_quote(self) -> pd.DataFrame:
         df = ak.stock_zh_a_spot_em()
@@ -181,10 +212,7 @@ class AkShareClient:
     # Index
     def get_sector_index_day_bars(self, name: str) -> pd.DataFrame:
         df = ak.stock_board_industry_hist_em(
-            symbol=name,
-            start_date="20000101",
-            end_date="20990101",
-            period="日k"
+            symbol=name, start_date="20000101", end_date="20990101", period="日k"
         )
         df = convert_akshare_sector_day_bars(df)
         df["name"] = name
@@ -192,22 +220,21 @@ class AkShareClient:
 
     def get_sector_index_current_quote(self, name_or_code: str) -> dict[str, Any]:
         df = ak.stock_board_industry_spot_em(name_or_code)
-        data = convert_akshare_sector_current_quote({
-            row.item: row.value
-            for row in df.itertuples()
-        })
+        data = convert_akshare_sector_current_quote(
+            {row.item: row.value for row in df.itertuples()}
+        )
         data["timestamp"] = str(get_latest_trade_date())  # type: ignore
         return data
 
     def get_sectors_listing(self) -> pd.DataFrame:
         return convert_akshare_sector_listing(ak.stock_board_industry_name_em())
 
-    def get_broad_based_index_day_bars(self,
-                                       code: str,
-                                       start_date: str = "1900-01-01") -> pd.DataFrame:
+    def get_broad_based_index_day_bars(
+        self, code: str, start_date: str = "1900-01-01"
+    ) -> pd.DataFrame:
         df = ak.stock_zh_index_daily(symbol=code)
         df = convert_akshare_stock_index_ticks(df)
-        return df.query('timestamp >= @start_date')
+        return df.query("timestamp >= @start_date")
 
     def get_broad_based_index_current_quote(self, *names: str):
         df = ak.stock_zh_index_spot()

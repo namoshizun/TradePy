@@ -14,6 +14,7 @@ from tradepy.bot.celery_app import app as celery_app
 from tradepy.collectors.day_bars import StockDayBarsCollector
 from tradepy.collectors.market_index import EastMoneySectorIndexCollector, BroadBasedIndexCollector
 from tradepy.collectors.adjust_factor import AdjustFactorCollector
+from tradepy.collectors.release_restricted_shares import EastMoneyRestrictedSharesReleaseCollector
 
 
 @shared_task(name="tradepy.warm_broker_db", expires=10)
@@ -91,6 +92,7 @@ def flush_broker_db():
 @shared_task(name="tradepy.update_data_sources", expires=60 * 60)
 def update_data_sources():
     StockDayBarsCollector().run(batch_size=25, iteration_pause=1)
-    EastMoneySectorIndexCollector().run(since_date="2016-01-01")
+    EastMoneySectorIndexCollector().run(start_date="2016-01-01")
     BroadBasedIndexCollector().run()
     AdjustFactorCollector().run()
+    EastMoneyRestrictedSharesReleaseCollector().run(start_date="2016-01-01")

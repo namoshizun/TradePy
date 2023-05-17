@@ -13,7 +13,8 @@ from tradepy.core.indicator import Indicator
 
 
 def tag(outputs=list(), notna=False):
-    from tradepy.core.strategy import StrategyBase
+    from tradepy.strategy.base import StrategyBase
+
     assert isinstance(outputs, list)
 
     def inner(ind_fun):
@@ -32,30 +33,27 @@ def tag(outputs=list(), notna=False):
         dec.__doc__ = ind_fun.__doc__
         dec.__wrapped__ = ind_fun
         dec.__qualname__ = ind_fun.__qualname__
-        dec.__kwdefaults__ = getattr(ind_fun, '__kwdefaults__', None)
+        dec.__kwdefaults__ = getattr(ind_fun, "__kwdefaults__", None)
         dec.__dict__.update(ind_fun.__dict__)
 
         # Reigster the indicator
-        strategy_class_name, indicator_name = ind_fun.__qualname__.split('.')
+        strategy_class_name, indicator_name = ind_fun.__qualname__.split(".")
         indicator = Indicator(
             name=indicator_name,
             notna=notna,
             outputs=outputs,
-            predecessors=[x.name for x in dec_params[1:]]
+            predecessors=[x.name for x in dec_params[1:]],
         )
         StrategyBase.indicators_registry.register(strategy_class_name, indicator)
 
         # Reigster its external outputs, which are assumed to inherit the same requirements
         for out in outputs:
             assert out != indicator_name
-            out_ind = Indicator(
-                name=out,
-                notna=notna,
-                predecessors=[indicator_name]
-            )
+            out_ind = Indicator(name=out, notna=notna, predecessors=[indicator_name])
             StrategyBase.indicators_registry.register(strategy_class_name, out_ind)
 
         return dec
+
     return inner
 
 
@@ -63,9 +61,13 @@ def require_mode(*modes: ModeType):
     def inner(fun):
         def decor(*args, **kwargs):
             if tradepy.config.mode not in modes:
-                raise OperationForbidden(f'Method {fun} is only allowed in {modes} modes')
+                raise OperationForbidden(
+                    f"Method {fun} is only allowed in {modes} modes"
+                )
             return fun(*args, **kwargs)
+
         return decor
+
     return inner
 
 

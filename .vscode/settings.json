@@ -2,7 +2,10 @@
     "python.languageServer": "Pylance",
     "python.linting.flake8Enabled": true,
     "python.linting.enabled": true,
-    "editor.formatOnSave": false,
-    "python.formatting.provider": "autopep8",
+    "editor.formatOnSave": true,
+    "python.formatting.provider": "none",
     "python.analysis.typeCheckingMode": "basic",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
 }

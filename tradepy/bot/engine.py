@@ -12,7 +12,7 @@ from tradepy.constants import CacheKeys, Timeouts
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.context import Context
 from tradepy.core.models import Order, Position
-from tradepy.core.strategy import LiveStrategy
+from tradepy.strategy.base import LiveStrategy
 from tradepy.decorators import require_mode, timeout
 from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
@@ -41,7 +41,6 @@ def _load_ctx_vars_from_env():
 
 
 class TradingEngine(TradeMixin):
-
     def __init__(self) -> None:
         self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
         self.workspace.mkdir(exist_ok=True, parents=True)
@@ -93,33 +92,41 @@ class TradingEngine(TradeMixin):
         except UnicodeDecodeError as e:
             return pickle.loads(e.object)
 
-    def _get_buy_options(self,
-                         ind_df: pd.DataFrame,
-                         orders: list[Order],
-                         positions: list[Position]) -> pd.DataFrame:
+    def _get_buy_options(
+        self, ind_df: pd.DataFrame, orders: list[Order], positions: list[Position]
+    ) -> pd.DataFrame:
         already_traded = set(x.code for x in orders + positions)
         codes_and_prices = [
             (
                 code,
                 self.adjust_factors.to_real_price(code, price_and_weight[0]),
-                price_and_weight[1]
+                price_and_weight[1],
             )
-            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(name=None)
-            if (code not in already_traded) and
-               (not Blacklist.contains(code)) and
-               (price_and_weight := self.strategy.should_buy(*indicators))
+            for code, *indicators in ind_df[self.strategy.buy_indicators].itertuples(
+                name=None
+            )
+            if (code not in already_traded)
+            and (not Blacklist.contains(code))
+            and (price_and_weight := self.strategy.should_buy(*indicators))
         ]
 
         if not codes_and_prices:
             return pd.DataFrame()
 
-        codes, prices, weights, = zip(*codes_and_prices)
+        (
+            codes,
+            prices,
+            weights,
+        ) = zip(*codes_and_prices)
         timestamp = ind_df.iloc[0]["timestamp"]
-        return pd.DataFrame({
-            "order_price": prices,
-            "weight": weights,
-            "timestamp": [timestamp] * len(prices),
-        }, index=pd.Index(codes, name="code"))
+        return pd.DataFrame(
+            {
+                "order_price": prices,
+                "weight": weights,
+                "timestamp": [timestamp] * len(prices),
+            },
+            index=pd.Index(codes, name="code"),
+        )
 
     def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:
         if not self.strategy.close_indicators:
@@ -127,7 +134,9 @@ class TradingEngine(TradeMixin):
 
         return [
             code
-            for code, *indicators in ind_df[self.strategy.close_indicators].itertuples(name=None)
+            for code, *indicators in ind_df[self.strategy.close_indicators].itertuples(
+                name=None
+            )
             if self.strategy.should_close(*indicators)
         ]
 
@@ -137,7 +146,9 @@ class TradingEngine(TradeMixin):
             LOG.info("已经有其他进程在计算开盘指标了，不再重复计算。")
             return
 
-        with self.redis_client.lock(lock_key, timeout=Timeouts.compute_open_indicators, sleep=1):
+        with self.redis_client.lock(
+            lock_key, timeout=Timeouts.compute_open_indicators, sleep=1
+        ):
             cache_key = CacheKeys.indicators_df
             if not self.redis_client.exists(cache_key):
                 ind_df = self.strategy.compute_open_indicators(quote_df)
@@ -148,21 +159,25 @@ class TradingEngine(TradeMixin):
             else:
                 LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
                 val = self._read_dataframe_from_cache(cache_key)
-                assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
+                assert (
+                    isinstance(val, pd.DataFrame) and not val.empty
+                ), "Indicators cache was set but the value is either not found or empty??"
                 return val
 
-    def _compute_close_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame | None:
+    def _compute_close_indicators(
+        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
+    ) -> pd.DataFrame | None:
         lock_key = CacheKeys.compute_close_indicators
         if self.redis_client.get(lock_key):
             LOG.info("已经有其他进程在计算收盘指标了，不再重复计算。")
             return
 
-        with self.redis_client.lock(lock_key, timeout=Timeouts.compute_close_indicators, sleep=1):
+        with self.redis_client.lock(
+            lock_key, timeout=Timeouts.compute_close_indicators, sleep=1
+        ):
             positions = BrokerAPI.get_positions(available_only=True)  # type: ignore
             closable_positions_codes = [
-                pos.code
-                for pos in positions
-                if pos.code in ind_df.index
+                pos.code for pos in positions if pos.code in ind_df.index
             ]
 
             if not closable_positions_codes:
@@ -180,7 +195,9 @@ class TradingEngine(TradeMixin):
             else:
                 LOG.info("已从缓存读取了收盘指标，不再重复计算。交易行为应该与上次相同。")
                 val = self._read_dataframe_from_cache(cache_key)
-                assert isinstance(val, pd.DataFrame) and not val.empty, "Indicators cache was set but the value is either not found or empty??"
+                assert (
+                    isinstance(val, pd.DataFrame) and not val.empty
+                ), "Indicators cache was set but the value is either not found or empty??"
                 return val
 
     def _inday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
@@ -202,7 +219,9 @@ class TradingEngine(TradeMixin):
 
             # Take profit
             if take_profit_price := self.should_take_profit(self.strategy, bar, pos):
-                pos.close(self._jit_sell_price(take_profit_price, self.take_profit_slip))
+                pos.close(
+                    self._jit_sell_price(take_profit_price, self.take_profit_slip)
+                )
                 sell_orders.append(pos.to_sell_order(trade_date, action="止盈"))
 
             # Stop loss
@@ -211,13 +230,15 @@ class TradingEngine(TradeMixin):
                 sell_orders.append(pos.to_sell_order(trade_date, action="止损"))
 
         if sell_orders:
-            LOG.info('发送卖出指令')
+            LOG.info("发送卖出指令")
             LOG.log_orders(sell_orders)
             BrokerAPI.place_orders(sell_orders)
 
         # [2] Buy stocks
         orders = BrokerAPI.get_orders()  # type: ignore
-        port_df = self._get_buy_options(ind_df, orders, positions)  # list[DF_Index, BuyPrice]
+        port_df = self._get_buy_options(
+            ind_df, orders, positions
+        )  # list[DF_Index, BuyPrice]
         if not port_df.empty:
             n_bought = sum(1 for o in orders if o.direction == "buy")
             n_signals = len(port_df)
@@ -228,15 +249,18 @@ class TradingEngine(TradeMixin):
                 budget=self.account.free_cash_amount,
                 total_asset_value=self.account.total_asset_value,
                 n_stocks=len(ind_df),
-                max_position_opens=max_position_opens)
+                max_position_opens=max_position_opens,
+            )
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
-            LOG.info(f'当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, '
-                     f'当前可用资金{self.account.free_cash_amount}. '
-                     f'今日剩余开仓限额{max_position_opens}, 实际开仓{len(buy_orders)}. '
-                     f'触发买入{n_signals}')
+            LOG.info(
+                f"当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, "
+                f"当前可用资金{self.account.free_cash_amount}. "
+                f"今日剩余开仓限额{max_position_opens}, 实际开仓{len(buy_orders)}. "
+                f"触发买入{n_signals}"
+            )
             if buy_orders:
-                LOG.info('发送买入指令')
+                LOG.info("发送买入指令")
                 BrokerAPI.place_orders(buy_orders)
                 LOG.log_orders(buy_orders)
 
@@ -260,7 +284,7 @@ class TradingEngine(TradeMixin):
             sell_orders.append(pos.to_sell_order(trade_date, action="平仓"))
 
         if sell_orders:
-            LOG.info('发送卖出指令')
+            LOG.info("发送卖出指令")
             LOG.log_orders(sell_orders)
             BrokerAPI.place_orders(sell_orders)
 

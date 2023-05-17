@@ -1,5 +1,5 @@
 import pandas as pd
-from tradepy.core.strategy import GreenStreakStrategy
+from tradepy.strategy.base import GreenStreakStrategy
 
 
 df = pd.DataFrame(
@@ -9,7 +9,7 @@ df = pd.DataFrame(
         ["0003", 13],
         ["0004", 25],
     ],
-    columns=["code", "close"]
+    columns=["code", "close"],
 )
 
 budget = 1e5

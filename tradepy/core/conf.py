@@ -9,7 +9,7 @@ from redis import Redis, ConnectionPool
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
-    from tradepy.core.strategy import LiveStrategy
+    from tradepy.strategy.base import LiveStrategy
 
 
 ModeType = Literal["optimization", "backtest", "mock-trading", "live-trading"]
@@ -37,7 +37,9 @@ class Config:
     redis_connection_pool: ConnectionPool | None = None
 
     # Optimizer conf
-    optimizer_class: str = getenv("OPTIMIZER_CLASS", "tradepy.optimization.optimizers.grid_search.GridSearch")
+    optimizer_class: str = getenv(
+        "OPTIMIZER_CLASS", "tradepy.optimization.optimizers.grid_search.GridSearch"
+    )
 
     @cached_property
     def blacklist_path(self) -> pathlib.Path | None:
@@ -60,7 +62,7 @@ class Config:
                 port=self.redis_port,
                 password=self.redis_password,
                 db=self.redis_db,
-                decode_responses=True
+                decode_responses=True,
             )
         return Redis(connection_pool=self.redis_connection_pool)
 
@@ -75,12 +77,14 @@ class Config:
             _path = path
 
         if not _path.exists():
-            raise FileNotFoundError(f'Dataset directory {path} does not exist')
+            raise FileNotFoundError(f"Dataset directory {path} does not exist")
         self.database_dir = _path
 
     def set_mode(self, mode: ModeType):
         if mode == "trading":
-            assert self.redis_password, "Please provide the redis password by setting environment variable REDIS_PASSWORD"
+            assert (
+                self.redis_password
+            ), "Please provide the redis password by setting environment variable REDIS_PASSWORD"
         self.mode = mode
 
     def exit(self):

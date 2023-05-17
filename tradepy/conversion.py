@@ -21,7 +21,7 @@ def convert_code_to_market(code: str) -> MarketType:
         if code.startswith(prefix):
             return market
 
-    raise ValueError(f'Unknown code {code}')
+    raise ValueError(f"Unknown code {code}")
 
 
 def convert_code_to_exchange(code: str) -> ExchangeType:
@@ -33,7 +33,7 @@ def convert_code_to_exchange(code: str) -> ExchangeType:
             return "SZ"
         case Markets.BSE:
             return "BJ"
-    raise ValueError(f'Invalid code {code}')
+    raise ValueError(f"Invalid code {code}")
 
 
 def convert_to_ts_date(dt: date) -> str:
@@ -64,13 +64,13 @@ def convert_akshare_stock_info(data: dict) -> dict:
     to_100_mil = lambda v: v * 1e-8
 
     name_translation_and_convert = {
-        '总市值': ("mkcap", to_100_mil),
-        '行业': ("sector",),
-        '上市时间': ("listdate",),
-        '股票代码': ("code",),
-        '股票简称': ("company",),
-        '总股本': ("total_share", to_100_mil),
-        '流通股': ("float_share", to_100_mil),
+        "总市值": ("mkcap", to_100_mil),
+        "行业": ("sector",),
+        "上市时间": ("listdate",),
+        "股票代码": ("code",),
+        "股票简称": ("company",),
+        "总股本": ("total_share", to_100_mil),
+        "流通股": ("float_share", to_100_mil),
     }
 
     converted = dict()
@@ -87,13 +87,13 @@ def convert_akshare_stock_info(data: dict) -> dict:
 
 def convert_akshare_sector_listing(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
-        '板块名称': "name",
-        '板块代码': "code",
-        '最新价': "close",
-        '涨跌额': "chg",
-        '涨跌幅': "pct_chg",
-        '总市值': "mkcap",
-        '换手率': "turnover",
+        "板块名称": "name",
+        "板块代码": "code",
+        "最新价": "close",
+        "涨跌额": "chg",
+        "涨跌幅": "pct_chg",
+        "总市值": "mkcap",
+        "换手率": "turnover",
     }
     return df.rename(columns=mapping)[list(mapping.values())]
 
@@ -125,17 +125,11 @@ def convert_akshare_sector_current_quote(data: dict[str, float]) -> dict[str, fl
         "涨跌幅": "pct_chg",
         "代码": "code",
     }
-    return {
-        en_key: data[ch_key]
-        for ch_key, en_key in mapping.items()
-    }
+    return {en_key: data[ch_key] for ch_key, en_key in mapping.items()}
 
 
 def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:
-    df.rename(columns={
-        "date": "timestamp",
-        "volume": "vol"
-    }, inplace=True)
+    df.rename(columns={"date": "timestamp", "volume": "vol"}, inplace=True)
 
     df["timestamp"] = df["timestamp"].astype(str)
     return df
@@ -143,12 +137,12 @@ def convert_akshare_stock_index_ticks(df: pd.DataFrame) -> pd.DataFrame:
 
 def convert_akshare_minute_bar(df: pd.DataFrame) -> pd.DataFrame:
     mappings = {
-        '时间': 'timestamp',
-        '开盘': 'open',
-        '收盘': 'close',
-        '最高': 'high',
-        '最低': 'low',
-        '成交量': 'vol',
+        "时间": "timestamp",
+        "开盘": "open",
+        "收盘": "close",
+        "最高": "high",
+        "最低": "low",
+        "成交量": "vol",
     }
     df.rename(columns=mappings, inplace=True)
     return df[list(mappings.values())]
@@ -191,7 +185,7 @@ def convert_broad_based_index_name_to_code(name: str) -> str:
     for code, index_name in broad_index_code_name_mapping.items():
         if index_name == name:
             return code
-    raise ValueError(f'Unknown index name {name}')
+    raise ValueError(f"Unknown index name {name}")
 
 
 def convert_akshare_broad_based_index_current_quote(df: pd.DataFrame) -> pd.DataFrame:
@@ -208,3 +202,21 @@ def convert_akshare_broad_based_index_current_quote(df: pd.DataFrame) -> pd.Data
     }
     df.rename(columns=mapping, inplace=True)
     return df[list(mapping.values())]
+
+
+def convert_akshare_restricted_releases_records(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "股票代码": "code",
+        "股票简称": "company",
+        "解禁时间": "timestamp",
+        "限售股类型": "shares_category",
+        "解禁数量": "num_shares",
+        "实际解禁数量": "num_shares_released",
+        "实际解禁市值": "mkcap_released",
+        "占解禁前流通市值比例": "pct_shares",
+    }
+    df = df.rename(columns=mapping)[list(mapping.values())]
+    df["timestamp"] = df["timestamp"].astype(str)
+    df["pct_shares"] *= 100
+    df.set_index("code", inplace=True)
+    return df.round(3)

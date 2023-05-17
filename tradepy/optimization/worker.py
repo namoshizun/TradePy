@@ -9,7 +9,7 @@ import pandas as pd
 
 import tradepy
 from tradepy.core.context import Context
-from tradepy.core.strategy import BacktestStrategy
+from tradepy.strategy.base import BacktestStrategy
 from tradepy.decorators import timeit
 from tradepy.trade_book.trade_book import TradeBook
 from tradepy.utils import import_class
@@ -18,15 +18,18 @@ from tradepy.optimization.types import TaskRequest, TaskResult
 
 
 class Worker:
-
     def __init__(self, workspace_dir: str | Path | None = None) -> None:
         if not workspace_dir:
             now = datetime.now()
-            workspace_dir = os.path.expanduser(f"~/.tradepy/worker/{now.date()}/{now.isoformat()[11:19]}")
+            workspace_dir = os.path.expanduser(
+                f"~/.tradepy/worker/{now.date()}/{now.isoformat()[11:19]}"
+            )
 
         self.workspace_dir = Path(workspace_dir)
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
-        self.optimizer_class: Type[ParameterOptimizer] = import_class(tradepy.config.optimizer_class)
+        self.optimizer_class: Type[ParameterOptimizer] = import_class(
+            tradepy.config.optimizer_class
+        )
 
     def create_task_dir(self, id: str) -> Path:
         path = self.workspace_dir / id

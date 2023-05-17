@@ -1,14 +1,13 @@
 import re
 import pandas as pd
-from tradepy.core.strategy import BacktestStrategy
+from tradepy.strategy.base import BacktestStrategy
 from tradepy.decorators import tag
 
 
 class GreenStreakStrategy(BacktestStrategy):
-
     def pre_process(self, bars_df: pd.DataFrame):
         company = bars_df.iloc[0]["company"]
-        if re.match(r'^.*(ST|银行)', company, re.I):
+        if re.match(r"^.*(ST|银行)", company, re.I):
             return pd.DataFrame()
 
         return bars_df
