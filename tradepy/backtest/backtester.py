@@ -97,10 +97,11 @@ class Backtester(TradeMixin):
         random.seed()
         if list(getattr(df.index, "names", [])) != ["timestamp", "code"]:
             LOG.info(">>> 重建索引 [timestamp, code]")
-            # Index by timestamp: trade in the day order
-            #          code: look up the current price for positions in holding
-            df.reset_index(inplace=True)
-            df.set_index(["timestamp", "code"], inplace=True)
+            try:
+                df.reset_index(inplace=True)
+            except ValueError:
+                df.reset_index(inplace=True, drop=True)
+            df.set_index(["timestamp", "code"], inplace=True, drop=False)
             df.sort_index(inplace=True)
 
         LOG.info(">>> 交易中 ...")

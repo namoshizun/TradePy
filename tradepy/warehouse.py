@@ -13,7 +13,6 @@ from tradepy.utils import get_latest_trade_date
 
 
 class GenericBarsDepot:
-
     folder_name: str
     caches: dict[str, Any] = dict()
 
@@ -30,11 +29,11 @@ class GenericBarsDepot:
         return sum(1 for _ in self.folder.iterdir())
 
     def save(self, df: pd.DataFrame, filename: str):
-        assert filename.endswith('csv')
+        assert filename.endswith("csv")
         df.to_csv(self.folder / filename, index=False)
 
     def append(self, df: pd.DataFrame, filename: str):
-        assert filename.endswith('csv')
+        assert filename.endswith("csv")
         path = self.folder / filename
 
         if not path.exists():
@@ -42,14 +41,10 @@ class GenericBarsDepot:
 
         _df = pd.read_csv(path, index_col=None)
 
-        (
-            pd.concat([df, _df])
-            .drop_duplicates()
-            .to_csv(path, index=False)
-        )
+        (pd.concat([df, _df]).drop_duplicates().to_csv(path, index=False))
 
     def exists(self, name: str):
-        return (self.folder / f'{name}.csv').exists()
+        return (self.folder / f"{name}.csv").exists()
 
     def find(self, codes: list[str] | None = None, always_load=False):
         def get_iterator():
@@ -60,11 +55,11 @@ class GenericBarsDepot:
                     miniters = 0  # auto
                 return tqdm(self.folder.iterdir(), miniters=miniters)
 
-            return (self.folder / f'{code}.csv' for code in codes)
+            return (self.folder / f"{code}.csv" for code in codes)
 
         load = partial(pd.read_csv)
         for path in get_iterator():
-            if str(path).endswith('.csv'):
+            if str(path).endswith(".csv"):
                 if always_load:
                     yield path.stem, load(path)
                 else:
@@ -72,11 +67,9 @@ class GenericBarsDepot:
                     if should_load:
                         yield load(path)
 
-    def _generic_load_bars(self,
-                           index_by: str | list[str] = "code",
-                           cache_key=None,
-                           cache=False) -> pd.DataFrame:
-
+    def _generic_load_bars(
+        self, index_by: str | list[str] = "code", cache_key=None, cache=False
+    ) -> pd.DataFrame:
         if cache_key in self.caches:
             assert cache_key
             if cache:
@@ -111,17 +104,17 @@ class GenericBarsDepot:
 
 
 class StocksDailyBarsDepot(GenericBarsDepot):
-
     folder_name = "daily-stocks"
     default_loaded_fields = "timestamp,code,company,market,open,high,low,close,turnover,vol,chg,pct_chg,mkt_cap,mkt_cap_rank"
 
-    def _load(self,
-              codes: list[str] | None = None,
-              index_by: str | list[str] = "code",
-              since_date: str | None = None,
-              until_date: str | None = None,
-              fields: str = default_loaded_fields) -> pd.DataFrame:
-
+    def _load(
+        self,
+        codes: list[str] | None = None,
+        index_by: str | list[str] = "code",
+        since_date: str | None = None,
+        until_date: str | None = None,
+        fields: str = default_loaded_fields,
+    ) -> pd.DataFrame:
         def loader() -> Generator[pd.DataFrame, None, None]:
             source_iter = self.find(codes)
 
@@ -138,15 +131,17 @@ class StocksDailyBarsDepot(GenericBarsDepot):
                 assert isinstance(df, pd.DataFrame)
                 df["code"] = code
 
-                if not set(["company", "market"]).issubset(df.columns) or \
-                    df[["company", "market"]].isna().any(axis=1).any():
+                if (
+                    not set(["company", "market"]).issubset(df.columns)
+                    or df[["company", "market"]].isna().any(axis=1).any()
+                ):
                     company = tradepy.listing.get_by_code(code).name
                     market = convert_code_to_market(code)
                     df[["company", "market"]] = company, market
                 if since_date or until_date:
                     _since_date = since_date or "2000-01-01"  # noqa
                     _until_date = until_date or "3000-01-01"  # noqa
-                    yield df.query('@_until_date >= timestamp >= @_since_date')
+                    yield df.query("@_until_date >= timestamp >= @_since_date")
                 else:
                     yield df
 
@@ -156,48 +151,47 @@ class StocksDailyBarsDepot(GenericBarsDepot):
         for col in cat_columns:
             df[col] = df[col].astype("category")
 
-        df.set_index(index_by, inplace=True)
-        df.sort_index(inplace=True)
+        df.set_index(index_by, inplace=True, drop=False)
+        df.sort_values("timestamp", inplace=True)
 
         if fields != "all":
             _fields = fields.split(",")
-            if isinstance(index_by, str) and index_by in _fields:
-                _fields.remove(index_by)
-            else:
-                _fields = list(set(_fields) - set(index_by))
             return df[_fields]
         return df
 
 
 class StockMinuteBarsDepot(GenericBarsDepot):
-
     folder_name = "daily-stocks-minutes"
 
     @staticmethod
     def file_path() -> Path:
         return tradepy.config.database_dir / AdjustFactorDepot.file_name
 
-    def _load(self, index_by: str | list[str] = "timestamp", date: str | None = None,) -> pd.DataFrame:
+    def _load(
+        self,
+        index_by: str | list[str] = "timestamp",
+        date: str | None = None,
+    ) -> pd.DataFrame:
         date = date or str(get_latest_trade_date())
         if not self.exists(date):
-            raise FileNotFoundError(f'Minute bars data not found for date: {date}')
+            raise FileNotFoundError(f"Minute bars data not found for date: {date}")
 
-        path = tradepy.config.database_dir / self.folder_name / f'{date}.csv'
+        path = tradepy.config.database_dir / self.folder_name / f"{date}.csv"
         df = pd.read_csv(path, index_col=index_by, dtype={"code": str})
         df.sort_index(inplace=True)
         return df
 
 
 class BroadBasedIndexBarsDepot(GenericBarsDepot):
-
     folder_name = "daily-broad-based"
 
     def _load(self, index_by: str | list[str] = "code", cache=True) -> pd.DataFrame:
-        return self._generic_load_bars(index_by, cache_key=self.folder_name, cache=cache)
+        return self._generic_load_bars(
+            index_by, cache_key=self.folder_name, cache=cache
+        )
 
 
 class SectorIndexBarsDepot(GenericBarsDepot):
-
     folder_name = "daily-sectors"
 
     def _load(self, index_by: str | list[str] = "name", cache=True) -> pd.DataFrame:
@@ -217,7 +211,6 @@ class SectorIndexBarsDepot(GenericBarsDepot):
 
 
 class AdjustFactorDepot:
-
     file_name = "adjust_factors.csv"
 
     @staticmethod
@@ -228,17 +221,16 @@ class AdjustFactorDepot:
     @cache
     def load() -> AdjustFactors:
         path = AdjustFactorDepot.file_path()
-        df = pd.read_csv(path, dtype={
-            "code": str,
-            "date": str,
-            "hfq_factor": float
-        }, index_col="code")
+        df = pd.read_csv(
+            path,
+            dtype={"code": str, "date": str, "hfq_factor": float},
+            index_col="code",
+        )
         df.sort_values(["code", "timestamp"], inplace=True)
         return AdjustFactors(df)
 
 
 class ListingDepot:
-
     file_name = "listing.csv"
 
     @staticmethod
@@ -252,7 +244,6 @@ class ListingDepot:
 
 
 class RestrictedSharesReleaseDepot:
-
     file_name = "restricted_shares_release.csv"
 
     @staticmethod
@@ -262,6 +253,7 @@ class RestrictedSharesReleaseDepot:
     @staticmethod
     @cache
     def load() -> pd.DataFrame:
-        print('Nihao')
         path = RestrictedSharesReleaseDepot.file_path()
-        return pd.read_csv(path, index_col="code", dtype={"code": str})
+        df = pd.read_csv(path, index_col=["code", "index"], dtype={"code": str})
+        df.sort_values(["code", "index"], inplace=True)
+        return df

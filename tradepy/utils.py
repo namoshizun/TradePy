@@ -18,12 +18,12 @@ def get_latest_trade_date() -> date:
         elif trade_date < today_str:
             return date_parser.parse(tradepy.trade_cal.trade_cal[idx]).date()
 
-    raise Exception('Unexpectedly unable to find the latest trade date?!')
+    raise Exception("Unexpectedly unable to find the latest trade date?!")
 
 
 def chunks(lst, batch_size: int):
     for i in range(0, len(lst), batch_size):
-        yield lst[i: i + batch_size]
+        yield lst[i : i + batch_size]
 
 
 def calc_pct_chg(base_price, then_price) -> float:
@@ -46,12 +46,13 @@ def round_val(fun):
     def inner(*args, **kwargs):
         val = fun(*args, **kwargs)
         return round(val, 2)
+
     return inner
 
 
 def optimize_dtype_memory(df: pd.DataFrame):
     for col in df.columns:
-        if df[col].dtype.kind in 'bifc':
+        if df[col].dtype.kind in "bifc":
             numeric_data = df[col].dropna()
             if numeric_data.empty:
                 continue
@@ -61,18 +62,33 @@ def optimize_dtype_memory(df: pd.DataFrame):
 
             if np.isfinite(min_val) and np.isfinite(max_val):
                 if np.issubdtype(numeric_data.dtype, np.integer):
-                    if min_val >= np.iinfo(np.int8).min and max_val <= np.iinfo(np.int8).max:
+                    if (
+                        min_val >= np.iinfo(np.int8).min
+                        and max_val <= np.iinfo(np.int8).max
+                    ):
                         df[col] = df[col].astype(np.int8)
-                    elif min_val >= np.iinfo(np.int16).min and max_val <= np.iinfo(np.int16).max:
+                    elif (
+                        min_val >= np.iinfo(np.int16).min
+                        and max_val <= np.iinfo(np.int16).max
+                    ):
                         df[col] = df[col].astype(np.int16)
-                    elif min_val >= np.iinfo(np.int32).min and max_val <= np.iinfo(np.int32).max:
+                    elif (
+                        min_val >= np.iinfo(np.int32).min
+                        and max_val <= np.iinfo(np.int32).max
+                    ):
                         df[col] = df[col].astype(np.int32)
                     else:
                         df[col] = df[col].astype(np.int64)
                 else:
-                    if min_val >= np.finfo(np.float16).min and max_val <= np.finfo(np.float16).max:
+                    if (
+                        min_val >= np.finfo(np.float16).min
+                        and max_val <= np.finfo(np.float16).max
+                    ):
                         df[col] = df[col].astype(np.float16)
-                    elif min_val >= np.finfo(np.float32).min and max_val <= np.finfo(np.float32).max:
+                    elif (
+                        min_val >= np.finfo(np.float32).min
+                        and max_val <= np.finfo(np.float32).max
+                    ):
                         df[col] = df[col].astype(np.float32)
                     else:
                         df[col] = df[col].astype(np.float64)
@@ -80,7 +96,7 @@ def optimize_dtype_memory(df: pd.DataFrame):
 
 
 def import_class(path: str) -> type:
-    *module_path, class_name = path.split('.')
-    module_path = '.'.join(module_path)
+    *module_path, class_name = path.split(".")
+    module_path = ".".join(module_path)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)

@@ -4,7 +4,7 @@ import numba as nb
 from functools import cached_property
 
 
-@nb.njit
+@nb.njit(cache=True)
 def _assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
     i = 0
 
@@ -19,7 +19,6 @@ def _assign_factor_value_to_day(fac_ts, fac_vals, timestamps):
 
 
 class AdjustFactors:
-
     def __init__(self, factors_df: pd.DataFrame):
         adj_fac_cols = set(["code", "timestamp", "hfq_factor"])
         assert set(cols := factors_df.columns).issubset(adj_fac_cols), cols
@@ -33,12 +32,7 @@ class AdjustFactors:
 
     @cached_property
     def latest_factors(self) -> pd.DataFrame:
-        return (
-            self.factors_df
-            .groupby("code")
-            .tail(2)
-            .dropna()  # drop the end padding
-        )
+        return self.factors_df.groupby("code").tail(2).dropna()  # drop the end padding
 
     def to_real_price(self, code: str, price: float) -> float:
         factor: float = self.latest_factors.loc[code, "hfq_factor"]  # type: ignore
@@ -54,16 +48,22 @@ class AdjustFactors:
         factor_vals = _assign_factor_value_to_day(
             nb.typed.List(factors_df["timestamp"].tolist()),
             nb.typed.List(factors_df["hfq_factor"].tolist()),
-            nb.typed.List(bars_df["timestamp"].tolist())
+            nb.typed.List(bars_df["timestamp"].tolist()),
         )
 
         # Adjust prices accordingly
-        bars_df[["open", "close", "high", "low"]] *= np.array(factor_vals).reshape(-1, 1)
+        bars_df[["open", "close", "high", "low"]] *= np.array(factor_vals).reshape(
+            -1, 1
+        )
         bars_df["chg"] = (bars_df["close"] - bars_df["close"].shift(1)).fillna(0)
-        bars_df["pct_chg"] = (100 * (bars_df['chg'] / bars_df['close'].shift(1))).fillna(0)
+        bars_df["pct_chg"] = (
+            100 * (bars_df["chg"] / bars_df["close"].shift(1))
+        ).fillna(0)
         return bars_df.round(2)
 
-    def backward_adjust_stocks_latest_prices(self, bars_df: pd.DataFrame) -> pd.DataFrame:
+    def backward_adjust_stocks_latest_prices(
+        self, bars_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """
         bars_df: stocks' candlestick bars (one per stock).
         """

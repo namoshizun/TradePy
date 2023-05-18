@@ -8,7 +8,6 @@ import tradepy
 
 @dataclass
 class BlacklistStock:
-
     code: str
     until: str | None
 
@@ -17,7 +16,6 @@ class BlacklistStock:
 
 
 class Blacklist:
-
     cached: set[BlacklistStock] | None = None
     thing = dict()
 
@@ -33,10 +31,7 @@ class Blacklist:
             return set()
 
         df = pd.read_csv(path, index_col=None, dtype=str)
-        cls.cached = set(
-            BlacklistStock(code, until)
-            for code, until in df.values
-        )
+        cls.cached = set(BlacklistStock(code, until) for code, until in df.values)
 
         return cls.cached
 
@@ -47,11 +42,7 @@ class Blacklist:
             return False
 
         try:
-            stock = next(
-                stock
-                for stock in stocks
-                if stock.code == code
-            )
+            stock = next(stock for stock in stocks if stock.code == code)
 
             if not stock.until:
                 return True
@@ -62,13 +53,12 @@ class Blacklist:
             return False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Create a tempfile, write some black listed stock code and until-date into it, then test the function
-    with tempfile.NamedTemporaryFile('w') as f:
-        stocks = pd.DataFrame({
-            "code": ["000001", "000002"],
-            "until": ["2021-01-01", "2030-01-02"]
-        }).set_index("code")
+    with tempfile.NamedTemporaryFile("w") as f:
+        stocks = pd.DataFrame(
+            {"code": ["000001", "000002"], "until": ["2021-01-01", "2030-01-02"]}
+        ).set_index("code")
         stocks.to_csv(f.name)
         os.environ["BLACKLIST_PATH"] = f.name
 

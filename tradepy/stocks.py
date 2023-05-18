@@ -8,24 +8,20 @@ from tradepy.types import MarketType
 
 def _fuzzy_match(target, texts) -> str:
     return sorted(
-        (
-            (text, fuzz.ratio(text, target))
-            for text in texts
-        ),
-        key=lambda x: -x[1]
+        ((text, fuzz.ratio(text, target)) for text in texts), key=lambda x: -x[1]
     )[0][0]
 
 
 class StocksPool:
-
     @cached_property
     def df(self):
         from tradepy.warehouse import ListingDepot
+
         return ListingDepot.load()
 
     @property
     def names(self) -> list[str]:
-        return self.df['name'].unique().tolist()
+        return self.df["name"].unique().tolist()
 
     @property
     def codes(self) -> list[str]:
@@ -34,14 +30,14 @@ class StocksPool:
     def _build_stock_obj(self, row: pd.Series):
         d = row.to_dict()
         return Stock(
-            code=d['code'],
-            name=d['name'],
-            industry=d['sector'],
-            total_share=d["total_share"]
+            code=d["code"],
+            name=d["name"],
+            industry=d["sector"],
+            total_share=d["total_share"],
         )
 
     @cache
-    def get_by_name(self, name: str, fuzzy=False) -> 'Stock':
+    def get_by_name(self, name: str, fuzzy=False) -> "Stock":
         if fuzzy:
             name = _fuzzy_match(name, self.names)
 
@@ -49,9 +45,9 @@ class StocksPool:
         return self._build_stock_obj(data.reset_index().iloc[0])
 
     @cache
-    def get_by_code(self, code: str) -> 'Stock':
+    def get_by_code(self, code: str) -> "Stock":
         data = self.df.loc[code].copy()
-        data['code'] = code
+        data["code"] = code
         return self._build_stock_obj(data)
 
     def has_code(self, code: str) -> bool:
@@ -62,12 +58,7 @@ class StocksPool:
 
 
 class Stock:
-
-    def __init__(self,
-                 code: str,
-                 name: str,
-                 industry: str,
-                 total_share: float) -> None:
+    def __init__(self, code: str, name: str, industry: str, total_share: float) -> None:
         self.code = code
         self.name = name
         self.industry = industry
@@ -78,7 +69,7 @@ class Stock:
         return price * self.total_share
 
     def __str__(self) -> str:
-        return f'{self.name} ({self.code}) - {self.industry}, {self.market}'
+        return f"{self.name} ({self.code}) - {self.industry}, {self.market}"
 
     def __repr__(self) -> str:
         return str(self)

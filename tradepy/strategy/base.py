@@ -43,7 +43,6 @@ BuyOption = tuple[Price, Weight]
 
 
 class IndicatorsRegistry:
-
     def __init__(self) -> None:
         self.registry: dict[str, IndicatorSet] = defaultdict(IndicatorSet)
 
@@ -53,8 +52,7 @@ class IndicatorsRegistry:
     @cache
     def get_specs(self, strategy: "StrategyBase") -> list[Indicator]:
         ind_iter = chain.from_iterable(
-            self.registry[kls.__name__]
-            for kls in strategy.__class__.__mro__
+            self.registry[kls.__name__] for kls in strategy.__class__.__mro__
         )
         return list(ind_iter)
 
@@ -71,21 +69,28 @@ class IndicatorsRegistry:
 
 
 class StrategyBase(Generic[BarDataType]):
-
     indicators_registry: IndicatorsRegistry = IndicatorsRegistry()
 
     def __init__(self, ctx: Context) -> None:
         self.ctx = ctx
-        self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[1:]
-        self.close_indicators: list[str] = inspect.getfullargspec(self.should_close).args[1:]
-        self.stop_loss_indicators: list[str] = inspect.getfullargspec(self.should_stop_loss).args[3:]
-        self.take_profit_indicators: list[str] = inspect.getfullargspec(self.should_take_profit).args[3:]
+        self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[
+            1:
+        ]
+        self.close_indicators: list[str] = inspect.getfullargspec(
+            self.should_close
+        ).args[1:]
+        self.stop_loss_indicators: list[str] = inspect.getfullargspec(
+            self.should_stop_loss
+        ).args[3:]
+        self.take_profit_indicators: list[str] = inspect.getfullargspec(
+            self.should_take_profit
+        ).args[3:]
 
         self._required_indicators: list[str] = list(
-            self.buy_indicators +
-            self.close_indicators +
-            self.stop_loss_indicators +
-            self.take_profit_indicators
+            self.buy_indicators
+            + self.close_indicators
+            + self.stop_loss_indicators
+            + self.take_profit_indicators
         )
 
     def __getattr__(self, name: str):
@@ -111,11 +116,15 @@ class StrategyBase(Generic[BarDataType]):
         return self.indicators_registry.get_specs(self)
 
     @abc.abstractmethod
-    def should_stop_loss(self, tick: BarDataType, position: Position, *indicators) -> float | None:
+    def should_stop_loss(
+        self, tick: BarDataType, position: Position, *indicators
+    ) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def should_take_profit(self, tick: BarDataType, position: Position, *indicators) -> float | None:
+    def should_take_profit(
+        self, tick: BarDataType, position: Position, *indicators
+    ) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -125,13 +134,15 @@ class StrategyBase(Generic[BarDataType]):
     def should_close(self, *indicators) -> bool:
         return False
 
-    def adjust_portfolio_and_budget(self,  # THE ABSOLUTELY WORST INTERFACE IN THIS PROJECT!
-                                 port_df: pd.DataFrame,
-                                 budget: float,
-                                 n_stocks: int,
-                                 total_asset_value: float,
-                                 max_position_opens: int | None = None,
-                                 max_position_size: float | None = None) -> tuple[pd.DataFrame, float]:
+    def adjust_portfolio_and_budget(
+        self,  # THE ABSOLUTELY WORST INTERFACE IN THIS PROJECT!
+        port_df: pd.DataFrame,
+        budget: float,
+        n_stocks: int,
+        total_asset_value: float,
+        max_position_opens: int | None = None,
+        max_position_size: float | None = None,
+    ) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
         min_sig, max_sig = self.signals_percent_range
         n_options = len(port_df)
@@ -172,12 +183,9 @@ class StrategyBase(Generic[BarDataType]):
             _port_df[["temp_index", "order_price"]].values,
             budget=budget,
             min_trade_cost=self.min_trade_amount,
-            trade_lot_vol=self.trade_lot_vol
+            trade_lot_vol=self.trade_lot_vol,
         )
-        _port_df["total_lots"] = pd.Series(
-            allocations[:, 1],
-            index=allocations[:, 0]
-        )
+        _port_df["total_lots"] = pd.Series(allocations[:, 1], index=allocations[:, 0])
 
         return [
             Order(
@@ -238,7 +246,7 @@ class StrategyBase(Generic[BarDataType]):
         return self.post_process(bars_df)
 
     def compute_all_indicators_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        LOG.info('>>> 获取待计算因子')
+        LOG.info(">>> 获取待计算因子")
         indicators = [
             ind
             for ind in self.indicators_registry.resolve_execute_order(self)
@@ -246,26 +254,27 @@ class StrategyBase(Generic[BarDataType]):
         ]
 
         if not indicators:
-            LOG.info('- 所有因子已存在, 不用再计算')
+            LOG.info("- 所有因子已存在, 不用再计算")
             return df
-        LOG.info(f'- 待计算: {indicators}')
+        LOG.info(f"- 待计算: {indicators}")
 
-        LOG.info('>>> 重建索引')
         if df.index.name != "code":
+            LOG.info(">>> 重建索引")
             df.reset_index(inplace=True)
-            df.set_index("code", inplace=True)
+            df.set_index("code", inplace=True, drop=False)
 
-        LOG.info('>>> 计算每支个股的技术因子')
+        LOG.info(">>> 计算每支个股的技术因子")
         n_codes = df.index.nunique()
         miniters = n_codes // 20  # print progress every 5%
         return pd.concat(
             self._adjust_then_compute(bars_df.copy(), indicators)
-            for _, bars_df in tqdm(df.groupby(level="code"), file=sys.stdout, miniters=miniters)
+            for _, bars_df in tqdm(
+                df.groupby(level="code"), file=sys.stdout, miniters=miniters
+            )
         )
 
 
 class BacktestStrategy(StrategyBase[BarData]):
-
     def should_stop_loss(self, tick: BarData, position: Position) -> float | None:
         # During opening
         open_pct_chg = calc_pct_chg(position.price, tick["open"])
@@ -305,33 +314,43 @@ class BacktestStrategy(StrategyBase[BarData]):
         return talib.SMA(close, 250).round(2)
 
     @classmethod
-    def backtest(cls, bars_df: pd.DataFrame, ctx: Context) -> tuple[pd.DataFrame, TradeBook]:
+    def backtest(
+        cls, bars_df: pd.DataFrame, ctx: Context
+    ) -> tuple[pd.DataFrame, TradeBook]:
         from tradepy.backtest.backtester import Backtester
+
         instance = cls(ctx)
         bt = Backtester(ctx)
         return bt.run(bars_df.copy(), instance)
 
 
 class LiveStrategy(StrategyBase[BarDataType]):
-
     def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, tick["close"])
         if pct_chg <= -self.stop_loss:
-            return tick["close"]  # TODO: may be slightly lower to improve the chance of selling
+            return tick[
+                "close"
+            ]  # TODO: may be slightly lower to improve the chance of selling
 
     def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, tick["close"])
         if pct_chg >= self.take_profit:
-            return tick["close"]  # TODO: may be slightly higher to improve the chance of buying
+            return tick[
+                "close"
+            ]  # TODO: may be slightly higher to improve the chance of buying
 
     @abc.abstractmethod
     def compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def compute_close_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_close_indicators(
+        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
+    ) -> pd.DataFrame:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def compute_intraday_indicators(self, quote_df: pd.DataFrame, ind_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_intraday_indicators(
+        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
+    ) -> pd.DataFrame:
         raise NotImplementedError()

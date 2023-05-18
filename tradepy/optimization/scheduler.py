@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import random
+from uuid import uuid4
 from loguru import logger
 from pathlib import Path
 from typing import Type
@@ -23,22 +23,25 @@ def get_default_optimizer_class() -> Type["ParameterOptimizer"]:
 
 def get_default_workspace_dir() -> Path:
     now = datetime.now()
-    path = os.path.expanduser(f"~/.tradepy/optimizer/{now.date()}/{now.isoformat()[11:19]}")
+    path = os.path.expanduser(
+        f"~/.tradepy/optimizer/{now.date()}/{now.isoformat()[11:19]}"
+    )
     return Path(path)
 
 
 def get_random_id() -> str:
-    return str(random.randint(0, 999999)).zfill(6)
+    return str(uuid4())
 
 
 @dataclass
 class Scheduler:
-
     parameters: list[Parameter | ParameterGroup]
     context: Context
     dataset_path: str
     strategy: str
-    optimizer_class: Type["ParameterOptimizer"] = field(default_factory=get_default_optimizer_class)
+    optimizer_class: Type["ParameterOptimizer"] = field(
+        default_factory=get_default_optimizer_class
+    )
     workspace_dir: Path = field(default_factory=get_default_workspace_dir)
 
     def __post_init__(self):
@@ -48,7 +51,9 @@ class Scheduler:
     def task_log_file_path(self) -> Path:
         return self.workspace_dir / "tasks.csv"
 
-    def _make_task_request(self, batch_id: str, param_values: dict[str, Number]) -> TaskRequest:
+    def _make_task_request(
+        self, batch_id: str, param_values: dict[str, Number]
+    ) -> TaskRequest:
         ctx = asdict(self.context)
 
         # Remove context values that are part of parameters.
@@ -63,7 +68,7 @@ class Scheduler:
             "parameters": param_values,
             "strategy": self.strategy,
             "dataset_path": self.dataset_path,
-            "base_context": ctx
+            "base_context": ctx,
         }
 
     def _update_tasks_log(self, batch_df: pd.DataFrame):
@@ -82,26 +87,26 @@ class Scheduler:
         except FileNotFoundError:
             batch_df.to_csv(self.task_log_file_path)
 
-    def _submit_tasks_and_patch_results(self,
-                                        dask_client: DaskClient,
-                                        batch_df: pd.DataFrame) -> list[TaskResult]:
+    def _submit_tasks_and_patch_results(
+        self, dask_client: DaskClient, batch_df: pd.DataFrame
+    ) -> list[TaskResult]:
         def executor(request: TaskRequest) -> TaskResult:
             now = datetime.now()
-            workspace_dir = os.path.expanduser(f'~/.tradepy/worker/{now.date()}/{request["workspace_id"]}')
+            workspace_dir = os.path.expanduser(
+                f'~/.tradepy/worker/{now.date()}/{request["workspace_id"]}'
+            )
             return Worker(workspace_dir).run(request)
 
-        logger.info(f'提交{len(batch_df)}个任务')
-        futures = dask_client.map(executor, batch_df.reset_index().to_dict(orient="records"))
+        logger.info(f"提交{len(batch_df)}个任务")
+        futures = dask_client.map(
+            executor, batch_df.reset_index().to_dict(orient="records")
+        )
         results: list[TaskResult] = dask_client.gather(futures)  # type: ignore
 
         # Update metrics
-        metrics_df = pd.DataFrame([
-            {
-                "id": r["id"],
-                "metrics": r["metrics"]
-            }
-            for r in results
-        ]).set_index("id")
+        metrics_df = pd.DataFrame(
+            [{"id": r["id"], "metrics": r["metrics"]} for r in results]
+        ).set_index("id")
         batch_df["metrics"] = metrics_df["metrics"]
         return results
 
@@ -113,14 +118,13 @@ class Scheduler:
             try:
                 params_batch = next(params_batch_generator)
                 batch_count += 1
-                logger.info(f'获取第{batch_count}个参数批, 批数量 = {len(params_batch)}')
+                logger.info(f"获取第{batch_count}个参数批, 批数量 = {len(params_batch)}")
             except StopIteration:
                 break
 
-            batch_id = f'{run_id}-{batch_count}'
+            batch_id = f"{run_id}-{batch_count}"
             requests = [
-                self._make_task_request(batch_id, values)
-                for values in params_batch
+                self._make_task_request(batch_id, values) for values in params_batch
             ]
 
             # Make task batch dataframe
@@ -139,13 +143,15 @@ class Scheduler:
 
         try:
             info = dask_client.scheduler_info()
-            logger.info(f'启动Dask集群: id={info["id"]}, dashboard port={info["services"]["dashboard"]}, {dask_client}')
+            logger.info(
+                f'启动Dask集群: id={info["id"]}, dashboard port={info["services"]["dashboard"]}, {dask_client}'
+            )
 
             for rep in range(1, repetitions + 1):
-                logger.info(f'第{rep}次执行')
+                logger.info(f"第{rep}次执行")
                 self._run_once(dask_client, rep)
         except Exception as exc:
             logger.exception(exc)
         finally:
             dask_client.close()
-            logger.info('关闭Dask集群')
+            logger.info("关闭Dask集群")

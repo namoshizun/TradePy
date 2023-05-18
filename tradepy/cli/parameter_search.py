@@ -7,7 +7,7 @@ from tradepy.core.context import china_market_context
 
 
 def _read_config_yaml_file(path):
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
@@ -17,17 +17,13 @@ def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGrou
         return Parameter(name, tuple(choices))
 
     assert isinstance(choices, list) and all(len(c) == len(name) for c in choices)
-    return ParameterGroup(
-        name=tuple(name),
-        choices=tuple(map(tuple, choices))
-    )
+    return ParameterGroup(name=tuple(name), choices=tuple(map(tuple, choices)))
 
 
 def start(config):
-    base_ctx = china_market_context(**config['base_context'])
+    base_ctx = china_market_context(**config["base_context"])
     parameters = [
-        _make_parameter(p["name"], p["choices"])
-        for p in config['parameters']
+        _make_parameter(p["name"], p["choices"]) for p in config["parameters"]
     ]
 
     scheduler = Scheduler(
@@ -40,15 +36,15 @@ def start(config):
     scheduler.run(
         repetitions=config["repetition"],
         dask_args={
-            "n_workers": 11,
-            "threads_per_worker": 1
-        }
+            "n_workers": config["dask"]["n_workers"],
+            "threads_per_worker": config["dask"]["threads_per_worker"],
+        },
     )
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='运行模型寻参, 当前仅支持Grid Search')
-    parser.add_argument('--config', type=str, help='Path to the configuration file')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="运行模型寻参, 当前仅支持Grid Search")
+    parser.add_argument("--config", type=str, help="Path to the configuration file")
     # TODO: allow using custom parameter search algorithm
     args = parser.parse_args()
 

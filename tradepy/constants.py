@@ -16,7 +16,7 @@ class classproperty:
 class CacheKeys:
     @classproperty
     def prefix(cls):
-        return f'tradepy:{date.today()}'
+        return f"tradepy:{date.today()}"
 
     @classproperty
     def account(self):
@@ -32,23 +32,23 @@ class CacheKeys:
 
     @classproperty
     def indicators_df(self):
-        return f'{self.prefix}:dataset:indicators-dataframe'
+        return f"{self.prefix}:dataset:indicators-dataframe"
 
     @classproperty
     def close_indicators_df(self):
-        return f'{self.prefix}:dataset:close-indicators-dataframe'
+        return f"{self.prefix}:dataset:close-indicators-dataframe"
 
     @classproperty
     def compute_open_indicators(self):
-        return f'{self.prefix}:lock:compute-open-indicators'
+        return f"{self.prefix}:lock:compute-open-indicators"
 
     @classproperty
     def compute_close_indicators(self):
-        return f'{self.prefix}:lock:compute-close-indicators'
+        return f"{self.prefix}:lock:compute-close-indicators"
 
     @classproperty
     def update_assets(self):
-        return f'{self.prefix}:lock:cache-update'
+        return f"{self.prefix}:lock:cache-update"
 
 
 class Timeouts:

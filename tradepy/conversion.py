@@ -219,4 +219,6 @@ def convert_akshare_restricted_releases_records(df: pd.DataFrame) -> pd.DataFram
     df["timestamp"] = df["timestamp"].astype(str)
     df["pct_shares"] *= 100
     df.set_index("code", inplace=True)
+    df.sort_values(["code", "timestamp"], inplace=True)
+    df["index"] = df.groupby("code").cumcount()
     return df.round(3)

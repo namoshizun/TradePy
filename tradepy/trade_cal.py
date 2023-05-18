@@ -1,5 +1,22 @@
+import pandas as pd
+
 # Trade date list starting from 2000-01-01 to 2023-12-31 in reverse order.
 # This list is updated yearly.
+
+
+def get_nearby_trade_date(date: str) -> str:
+    """
+    Get the nearby trade date of the given date.
+    """
+    if date in trade_cal:
+        return date
+    else:
+        _date = pd.to_datetime(date)
+        while True:
+            _date -= pd.Timedelta(days=1)
+            date = str(_date.date())
+            if date in trade_cal:
+                return date
 
 
 trade_cal = [
@@ -5818,5 +5835,5 @@ trade_cal = [
     "2000-01-07",
     "2000-01-06",
     "2000-01-05",
-    "2000-01-04"
+    "2000-01-04",
 ]
