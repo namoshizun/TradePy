@@ -152,7 +152,11 @@ class StocksDailyBarsDepot(GenericBarsDepot):
             df[col] = df[col].astype("category")
 
         df.set_index(index_by, inplace=True, drop=False)
-        df.sort_values("timestamp", inplace=True)
+
+        if "timestamp" not in df.index.names:
+            df.sort_values("timestamp", inplace=True, axis="columns")
+        else:
+            df.sort_index(inplace=True, level="timestamp")
 
         if fields != "all":
             _fields = fields.split(",")

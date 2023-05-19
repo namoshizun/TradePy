@@ -11,7 +11,6 @@ from tradepy.collectors import DataCollector
 
 
 class StockDayBarsCollector(DataCollector):
-
     def __init__(self, since_date: str | date | None = None) -> None:
         if not since_date:
             since_date = get_latest_trade_date()
@@ -28,27 +27,26 @@ class StockDayBarsCollector(DataCollector):
 
         for code, df in repo_iter:
             # Legacy
-            if len(parts := code.split('.')) == 2:
+            if len(parts := code.split(".")) == 2:
                 code = parts[0]
 
             assert isinstance(df, pd.DataFrame)
             curr_codes.append(code)
 
             try:
-                latest_date = '2010-01-01'
+                latest_date = "2010-01-01"
                 if not df.empty:
-                    latest_date = df['timestamp'].max()
+                    latest_date = df["timestamp"].max()
 
                 latest_date = date.fromisoformat(latest_date)
 
                 if latest_date < self.since_date:
                     start_date = latest_date + timedelta(days=1)
-                    yield {
-                        "code": code,
-                        "start_date": start_date
-                    }
+                    yield {"code": code, "start_date": start_date}
             except Exception as exc:
-                LOG.info(f'!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!')
+                LOG.info(
+                    f"!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!"
+                )
                 raise exc
 
         LOG.info("添加新个股")
@@ -56,19 +54,16 @@ class StockDayBarsCollector(DataCollector):
         for code in new_listings:
             yield {
                 "code": code,
-                "start_date": self.since_date.fromisoformat('2010-01-01')
+                "start_date": self.since_date.fromisoformat("2010-01-01"),
             }
 
     def _compute_mkt_cap_percentile_ranks(self, df: pd.DataFrame):
-        for _, day_df in tqdm(df.groupby("timestamp")):
+        for _, day_df in tqdm(df.groupby(level="timestamp")):
             if ("mkt_cap_rank" in day_df) and (day_df["mkt_cap_rank"].notnull().all()):
                 yield day_df
                 continue
 
-            mkt_cap_lst = [
-                row.mkt_cap
-                for row in day_df.itertuples()
-            ]
+            mkt_cap_lst = [row.mkt_cap for row in day_df.itertuples()]
 
             mkt_cap_percentiles = np.percentile(mkt_cap_lst, q=range(100))
             day_df["mkt_cap_rank"] = [
@@ -78,25 +73,26 @@ class StockDayBarsCollector(DataCollector):
             yield day_df
 
     def run(self, batch_size=50, iteration_pause=5):
-        LOG.info('=============== 开始更新个股日K数据 ===============')
+        LOG.info("=============== 开始更新个股日K数据 ===============")
         jobs = list(self._jobs_generator())
 
         results_gen = self.run_batch_jobs(
             jobs,
             batch_size,
             iteration_pause=iteration_pause,
-            fun=tradepy.ak_api.get_daily)
+            fun=tradepy.ak_api.get_daily,
+        )
         for args, ticks_df in results_gen:
             if ticks_df.empty:
                 LOG.info(f"找不到{args['code']}日K数据. Args = {args}")
             else:
                 code = args["code"]
-                self.repo.append(ticks_df, f'{code}.csv')
+                self.repo.append(ticks_df, f"{code}.csv")
 
         LOG.info("计算个股的每日市值分位")
         df = self.repo.load(index_by="timestamp", fields="all")
         df = pd.concat(self._compute_mkt_cap_percentile_ranks(df))
-        df.reset_index(inplace=True, drop=False)
+        df.reset_index(inplace=True, drop=True)
 
         LOG.info("保存中")
         for code, sub_df in df.groupby("code"):

@@ -12,16 +12,21 @@ from tradepy.decorators import timeit
 from tradepy.types import MarketPhase
 from tradepy.bot.celery_app import app as celery_app
 from tradepy.collectors.day_bars import StockDayBarsCollector
-from tradepy.collectors.market_index import EastMoneySectorIndexCollector, BroadBasedIndexCollector
+from tradepy.collectors.market_index import (
+    EastMoneySectorIndexCollector,
+    BroadBasedIndexCollector,
+)
 from tradepy.collectors.adjust_factor import AdjustFactorCollector
-from tradepy.collectors.release_restricted_shares import EastMoneyRestrictedSharesReleaseCollector
+from tradepy.collectors.release_restricted_shares import (
+    EastMoneyRestrictedSharesReleaseCollector,
+)
 
 
 @shared_task(name="tradepy.warm_broker_db", expires=10)
 def warm_broker_db():
     phase = AStockExchange.market_phase_now()
     if phase == MarketPhase.CLOSED:
-        logger.warning('已休市，不预热数据库')
+        logger.warning("已休市，不预热数据库")
         return
 
     if (res := BrokerAPI.warm_db()) != '"ok"':
@@ -31,14 +36,15 @@ def warm_broker_db():
 
 
 @shared_task(
-    name="tradepy.fetch_market_quote",
-    expires=tradepy.config.tick_fetch_interval * 0.95)
+    name="tradepy.fetch_market_quote", expires=tradepy.config.tick_fetch_interval * 0.95
+)
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()
     if phase not in (
         MarketPhase.PRE_OPEN_CALL_P2,
         MarketPhase.CONT_TRADE,
-        MarketPhase.CONT_TRADE_PRE_CLOSE):
+        MarketPhase.CONT_TRADE_PRE_CLOSE,
+    ):
         return
 
     with timeit() as timer:
@@ -51,11 +57,13 @@ def fetch_market_quote():
 
     celery_app.send_task(
         "tradepy.handle_tick",
-        kwargs=dict(payload={
-            "timestamp": datetime.now(),
-            "market_phase": phase,
-            "market_quote": content_buff.read()
-        }),
+        kwargs=dict(
+            payload={
+                "timestamp": datetime.now(),
+                "market_phase": phase,
+                "market_quote": content_buff.read(),
+            }
+        ),
     )
 
     tradepy.LOG.info(f'行情获取API 耗时: {timer["seconds"]}s')
@@ -75,11 +83,11 @@ def handle_tick(payload):
 def flush_broker_db():
     phase = AStockExchange.market_phase_now()
     if phase != MarketPhase.CLOSED:
-        logger.warning('未休市, 不应将当日缓存导出到数据库')
+        logger.warning("未休市, 不应将当日缓存导出到数据库")
         return
 
     if not AStockExchange.is_today_trade_day():
-        logger.warning('非交易日, 不更新数据库')
+        logger.warning("非交易日, 不更新数据库")
         return
 
     if (res := BrokerAPI.flush_cache()) != '"ok"':
