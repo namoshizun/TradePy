@@ -147,14 +147,14 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
         df = pd.concat(loader())
 
-        cat_columns = ["company", "market"]
+        cat_columns = ["company", "market", "code", "timestamp"]
         for col in cat_columns:
             df[col] = df[col].astype("category")
 
         df.set_index(index_by, inplace=True, drop=False)
 
         if "timestamp" not in df.index.names:
-            df.sort_values("timestamp", inplace=True, axis="columns")
+            df.sort_values("timestamp", inplace=True)
         else:
             df.sort_index(inplace=True, level="timestamp")
 
