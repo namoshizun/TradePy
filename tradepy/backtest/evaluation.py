@@ -1,20 +1,23 @@
-from dataclasses import dataclass
+import numpy as np
 import pandas as pd
 import quantstats as qs
+from dataclasses import dataclass
 from tradepy.trade_book import TradeBook
+from tradepy.trade_cal import trade_cal
 
 
 def coerce_type(type_):
     def inner(func):
         def dec(*args, **kwargs):
             return type_(func(*args, **kwargs))
+
         return dec
+
     return inner
 
 
 @dataclass
 class ResultEvaluator:
-
     trade_book: TradeBook
 
     @property
@@ -78,7 +81,9 @@ class ResultEvaluator:
         action_counts = df.groupby("action").size()
 
         wins = action_counts["止盈"] + (close_wins := close_results["win_close"].sum())
-        loses = action_counts["止损"] + (close_lose := (~close_results["win_close"]).sum())
+        loses = action_counts["止损"] + (
+            close_lose := (~close_results["win_close"]).sum()
+        )
         succ_rate = round(100 * wins / (wins + loses), 2)
 
         # Calculate return stats
@@ -86,8 +91,19 @@ class ResultEvaluator:
         avg_pct_chg = round(pct_chgs.mean(), 2)
         std_pct_chg = round(pct_chgs.std(), 2)
 
+        # Calculate hold days
+        hold_days = []
+
+        for _, group in self.trades_df.groupby("id"):
+            if len(group) < 2:
+                continue
+            start_date = group.iloc[0].name
+            end_date = group.iloc[-1].name
+            hold_days.append(abs(trade_cal.index(start_date) - trade_cal.index(end_date)))  # type: ignore
+
         # Capital logs
-        print(f'''
+        print(
+            f"""
 ===========
 开仓 = {action_counts["开仓"]}
 止损 = {action_counts["止损"]}
@@ -96,6 +112,7 @@ class ResultEvaluator:
 平仓盈利 = {close_wins}
 最大回撤 = {self.get_max_drawdown()}%
 总收益 = {self.get_total_returns()}%
+持仓日期 = 平均{np.mean(hold_days).round(2)}天, 中位数{np.median(hold_days).round(2)}天
 
 胜率 {succ_rate}%
 平均收益: {avg_pct_chg}% (标准差: {std_pct_chg}%)
@@ -104,4 +121,5 @@ class ResultEvaluator:
 平仓收益统计:
 {close_results.groupby("win_close")["pct_chg"].describe().round(2)}
 ===========
-        ''')
+        """
+        )
