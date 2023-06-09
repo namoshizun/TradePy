@@ -9,12 +9,9 @@ from tradepy.warehouse import AdjustFactorDepot
 
 
 class AdjustFactorCollector(DataCollector):
-
     def _jobs_generator(self):
         for code in tradepy.listing.codes:
-            yield {
-                "code": code
-            }
+            yield {"code": code}
 
     def _add_period_padding(self, df: pd.DataFrame):
         def pad(sub_df: pd.DataFrame):
@@ -39,8 +36,8 @@ class AdjustFactorCollector(DataCollector):
     def run(self, batch_size: int = 50):
         jobs = list(self._jobs_generator())
 
-        LOG.info('=============== 开始更新个股复权因子 ===============')
-        LOG.info('下载中')
+        LOG.info("=============== 开始更新个股复权因子 ===============")
+        LOG.info("下载中")
         results_gen = self.run_batch_jobs(
             jobs,
             batch_size,
@@ -48,17 +45,14 @@ class AdjustFactorCollector(DataCollector):
             iteration_pause=2,
         )
 
-        df = pd.concat(
-            adjust_factors_df
-            for _, adjust_factors_df in results_gen
-        )
+        df = pd.concat(adjust_factors_df for _, adjust_factors_df in results_gen)
         df.rename(columns={"date": "timestamp"}, inplace=True)
 
-        LOG.info('添加头尾时间边界1900, 3000')
+        LOG.info("添加头尾时间边界1900, 3000")
         df = self._add_period_padding(df)
         df.set_index("code", inplace=True)
 
         df.sort_values(["code", "timestamp"], inplace=True)
         df.round(4).to_csv(out_path := AdjustFactorDepot.file_path())
-        LOG.info(f'已下载至 {out_path}')
+        LOG.info(f"已下载至 {out_path}")
         return df

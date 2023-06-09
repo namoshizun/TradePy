@@ -9,6 +9,17 @@ ExchangeType = Literal[
     "BJ",
 ]
 
+BroadIndexType = Literal[
+    "SSE",
+    "SZSE",
+    "ChiNext",
+    "STAR",
+    "CSI-300",
+    "CSI-500",
+    "CSI-1000",
+    "SSE-50",
+]
+
 
 MarketType = Literal["上证主板", "深证主板", "中小板", "创业板", "北交所", "科创板", "北交所", "CDR", "新三板"]
 
