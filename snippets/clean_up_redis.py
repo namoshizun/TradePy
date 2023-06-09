@@ -5,11 +5,7 @@ r = tradepy.config.get_redis_client()
 
 today = date.today()
 
-keys = [
-    k
-    for k in r.keys("tradepy:*")
-    if not k.startswith(f"tradepy:{today}")
-]
+keys = [k for k in r.keys("tradepy:*") if not k.startswith(f"tradepy:{today}")]
 
 if keys:
     r.delete(*keys)

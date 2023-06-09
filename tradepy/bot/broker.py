@@ -8,7 +8,9 @@ from tradepy.core.order import Order
 
 
 LOG = tradepy.LOG
-BROKER_API_URL = f'http://{os.environ["TRADE_BROKER_HOST"]}:{os.environ["TRADE_BROKER_PORT"]}'
+BROKER_API_URL = (
+    f'http://{os.environ["TRADE_BROKER_HOST"]}:{os.environ["TRADE_BROKER_PORT"]}'
+)
 
 
 def get_url(path) -> str:
@@ -16,7 +18,6 @@ def get_url(path) -> str:
 
 
 class BrokerAPI:
-
     @staticmethod
     def warm_db() -> str:
         res = rq.get(get_url("control/warm-db"))
@@ -34,9 +35,7 @@ class BrokerAPI:
 
     @staticmethod
     def get_positions(available_only=False) -> list[Position]:
-        res = rq.get(get_url("positions"), params={
-            "available": available_only
-        })
+        res = rq.get(get_url("positions"), params={"available": available_only})
         return [Position(**x) for x in res.json()]
 
     @staticmethod
@@ -46,10 +45,7 @@ class BrokerAPI:
 
     @staticmethod
     def place_orders(orders: list[Order]):
-        res = rq.post(get_url("orders"), json=[
-            o.dict()
-            for o in orders
-        ]).json()
+        res = rq.post(get_url("orders"), json=[o.dict() for o in orders]).json()
 
         if len(res["succ"]) != len(orders):
-            tradepy.LOG.warn(f'部分下单失败: {res}')
+            tradepy.LOG.warn(f"部分下单失败: {res}")

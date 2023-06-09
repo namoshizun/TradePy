@@ -6,16 +6,9 @@ from pydantic import BaseModel, Field
 
 from tradepy.types import TradeActionType
 
-OrderDirection = Literal['buy', 'sell']
+OrderDirection = Literal["buy", "sell"]
 
-OrderStatus = Literal[
-    "created",
-    'pending',
-    'filled',
-    'cancelled',
-    'unknown',
-    'invalid'
-]
+OrderStatus = Literal["created", "pending", "filled", "cancelled", "unknown", "invalid"]
 
 
 class SellRemark(TypedDict):
@@ -76,7 +69,7 @@ class Order(BaseModel):
     def is_filled(self) -> bool:
         yes = self.status == "filled"
         if yes and (self.filled_price is None or self.filled_vol is None):
-            raise ValueError('订单已成交, 但没有成交价格或成家笔数!')
+            raise ValueError("订单已成交, 但没有成交价格或成家笔数!")
         return yes
 
     @property
@@ -101,24 +94,22 @@ class Order(BaseModel):
 
     @staticmethod
     def make_id(code) -> str:
-        return code + "-" + str(uuid.uuid4()).split('-')[1]
+        return code + "-" + str(uuid.uuid4()).split("-")[1]
 
     def serialize_tags(self) -> str:
         if not self.tags:
-            return ''
-        return ';'.join(f'{k}={v}' for k, v in self.tags.items())
+            return ""
+        return ";".join(f"{k}={v}" for k, v in self.tags.items())
 
-    def set_sell_remark(self,
-                        action: TradeActionType,
-                        price: float,
-                        vol: int,
-                        pct_chg: float):
+    def set_sell_remark(
+        self, action: TradeActionType, price: float, vol: int, pct_chg: float
+    ):
         action_code = ACTION_TO_CODE[action]
-        self.tags["sell_remark"] = f'{action_code}:{price:.2f},{vol},{pct_chg:.2f}'
+        self.tags["sell_remark"] = f"{action_code}:{price:.2f},{vol},{pct_chg:.2f}"
 
     def get_sell_remark(self, raw=True) -> SellRemark | str:
         if "sell_remark" not in self.tags:
-            logger.warning(f'委托单 {self.id} 没有卖出备注')
+            logger.warning(f"委托单 {self.id} 没有卖出备注")
             return ""
 
         remark_slug = self.tags["sell_remark"]
@@ -130,8 +121,8 @@ class Order(BaseModel):
 
     @staticmethod
     def parse_sell_remark(remark_slug: str) -> SellRemark:
-        action_code, rest = remark_slug.split(':')
-        price, vol, pct_chg = rest.split(',')
+        action_code, rest = remark_slug.split(":")
+        price, vol, pct_chg = rest.split(",")
         action = {v: k for k, v in ACTION_TO_CODE.items()}[action_code]
 
         return {
@@ -142,4 +133,7 @@ class Order(BaseModel):
         }
 
     def __str__(self) -> str:
-        return f'[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}] ' + self.serialize_tags()
+        return (
+            f"[{self.timestamp}] {self.code} @{self.price} * {self.vol}. [{self.direction}, {self.status}] "
+            + self.serialize_tags()
+        )

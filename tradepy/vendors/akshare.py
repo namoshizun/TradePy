@@ -21,7 +21,7 @@ from tradepy.conversion import (
     convert_akshare_stock_index_ticks,
     convert_code_to_market,
     convert_akshare_sector_current_quote,
-    convert_akshare_restricted_releases_records
+    convert_akshare_restricted_releases_records,
 )
 from tradepy.utils import get_latest_trade_date
 from tradepy.warehouse import StocksDailyBarsDepot

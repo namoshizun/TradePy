@@ -5,7 +5,6 @@ from tradepy.decorators import require_mode
 
 
 class Holdings:
-
     PriceLookupFun = Callable[[str], float]
 
     def __init__(self):
@@ -26,7 +25,7 @@ class Holdings:
 
         for pos in positions:
             if pos.code in self.positions:
-                raise ValueError(f'{pos.code} already in position')
+                raise ValueError(f"{pos.code} already in position")
 
             self.positions[pos.code] = pos
             total += pos.cost
@@ -39,7 +38,9 @@ class Holdings:
 
         for pos in positions:
             if pos.code not in self.positions:
-                raise ValueError(f"Position not found: {pos}. Current positions: {self.positions}")
+                raise ValueError(
+                    f"Position not found: {pos}. Current positions: {self.positions}"
+                )
 
             pos = self.positions.pop(pos.code)
             total += pos.latest_price * pos.yesterday_vol
@@ -47,10 +48,7 @@ class Holdings:
         return total
 
     def get_total_market_value(self):
-        return sum(
-            pos.total_value_at(pos.latest_price)
-            for _, pos in self
-        )
+        return sum(pos.total_value_at(pos.latest_price) for _, pos in self)
 
     def has(self, code) -> bool:
         return code in self.positions

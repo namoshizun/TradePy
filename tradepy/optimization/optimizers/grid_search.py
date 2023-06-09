@@ -8,7 +8,6 @@ from tradepy.trade_book.trade_book import TradeBook
 
 
 class GridSearch(ParameterOptimizer):
-
     def generate_parameters_batch(self) -> Generator[ParameterValuesBatch, None, None]:
         def flatten(values):
             for p in list(values.keys()):
@@ -23,10 +22,7 @@ class GridSearch(ParameterOptimizer):
         keys = [param.name for param in self.parameters]
         values = [param.choices for param in self.parameters]
         combinations = product(*values)
-        yield [
-            flatten(dict(zip(keys, combination)))
-            for combination in combinations
-        ]
+        yield [flatten(dict(zip(keys, combination))) for combination in combinations]
 
     def consume_batch_result(self, results: list[TaskResult]):
         pass

@@ -4,7 +4,6 @@ from tradepy.trade_book.storage import TradeBookStorage
 
 
 class InMemoryTradeBookStorage(TradeBookStorage):
-
     def __init__(self) -> None:
         self.trade_logs: list[TradeLog] = list()
         self.capital_logs: list[CapitalsLog] = list()

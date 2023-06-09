@@ -10,7 +10,6 @@ from tradepy.types import MarketPhase
 
 
 class AStockExchange:
-
     @staticmethod
     def is_today_trade_day():
         return str(date.today()) in trade_cal
@@ -27,7 +26,9 @@ class AStockExchange:
         if hour == 9:
             if minute < 15:
                 return _.PRE_OPEN
-            if minute < 25 or (minute == 25 and second < 30):  # delay a bit to ensure the upstream data sources are ready
+            if minute < 25 or (
+                minute == 25 and second < 30
+            ):  # delay a bit to ensure the upstream data sources are ready
                 return _.PRE_OPEN_CALL_P1
             elif minute < 30:
                 return _.PRE_OPEN_CALL_P2

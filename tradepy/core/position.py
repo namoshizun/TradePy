@@ -6,7 +6,6 @@ from tradepy.utils import calc_pct_chg, round_val
 
 
 class Position(BaseModel):
-
     id: str
     timestamp: str
     code: str
@@ -17,7 +16,7 @@ class Position(BaseModel):
     yesterday_vol: int = 0
 
     def to_sell_order(self, timestamp, action: TradeActionType) -> Order:
-        assert self.latest_price, f'Position is not yet closed: {self}'
+        assert self.latest_price, f"Position is not yet closed: {self}"
         price = self.latest_price
         order = Order(
             id=Order.make_id(self.code),
@@ -26,7 +25,7 @@ class Position(BaseModel):
             price=price,
             vol=self.avail_vol,
             direction="sell",
-            status="pending"
+            status="pending",
         )
 
         pct_chg = self.pct_chg_at(price)
@@ -91,7 +90,7 @@ class Position(BaseModel):
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f'[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol} ({self.avail_vol}可用, {self.yesterday_vol}隔夜)'
+        msg = f"[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol} ({self.avail_vol}可用, {self.yesterday_vol}隔夜)"
         return msg
 
     def __repr__(self):

@@ -6,7 +6,6 @@ from networkx.drawing.nx_agraph import graphviz_layout
 
 
 class IndicatorSet:
-
     def __init__(self, *indicators: "Indicator"):
         self.indicators = set(indicators)
 
@@ -44,7 +43,9 @@ class IndicatorSet:
         G.add_edges_from(edges)
         return G
 
-    def sort_by_execute_order(self, target_list: list[str] | None = None) -> list["Indicator"]:
+    def sort_by_execute_order(
+        self, target_list: list[str] | None = None
+    ) -> list["Indicator"]:
         G = self.build_graph()
         res = []
 
@@ -98,7 +99,6 @@ class IndicatorSet:
 
 @dataclass
 class Indicator:
-
     name: str
 
     notna: bool = False

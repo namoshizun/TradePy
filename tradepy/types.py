@@ -10,17 +10,7 @@ ExchangeType = Literal[
 ]
 
 
-MarketType = Literal[
-    '上证主板',
-    '深证主板',
-    '中小板',
-    '创业板',
-    '北交所',
-    '科创板',
-    "北交所",
-    'CDR',
-    "新三板"
-]
+MarketType = Literal["上证主板", "深证主板", "中小板", "创业板", "北交所", "科创板", "北交所", "CDR", "新三板"]
 
 
 class Markets:
