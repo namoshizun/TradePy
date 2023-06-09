@@ -1,27 +1,31 @@
 import talib
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 
 import tradepy.trade_cal
 from tradepy.trade_book import TradeBook
+from tradepy.types import BroadIndexType
 from tradepy.warehouse import BroadBasedIndexBarsDepot
 
 
 def plot_capital_curve(
-    trade_book: TradeBook, since_date="1900-01-01", until_date="3000-01-01"
+    trade_book: TradeBook,
+    baseline_index: BroadIndexType = "SSE",
+    since_date="1900-01-01",
+    until_date="3000-01-01",
 ):
     index_df = (
         BroadBasedIndexBarsDepot.load()
-        .loc["SSE"]
+        .loc[baseline_index]
         .set_index("timestamp")
         .rename(
             columns={
-                "close": "SSE-close",
-                "low": "SSE-low",
-                "high": "SSE-high",
-                "open": "SSE-open",
+                "close": f"{baseline_index}-close",
+                "low": f"{baseline_index}-low",
+                "high": f"{baseline_index}-high",
+                "open": f"{baseline_index}-open",
             }
         )
     )
@@ -42,10 +46,10 @@ def plot_capital_curve(
     fig.add_trace(
         go.Candlestick(
             x=cap_df.index,
-            open=cap_df["SSE-open"],
-            high=cap_df["SSE-high"],
-            low=cap_df["SSE-low"],
-            close=cap_df["SSE-close"],
+            open=cap_df[f"{baseline_index}-open"],
+            high=cap_df[f"{baseline_index}-high"],
+            low=cap_df[f"{baseline_index}-low"],
+            close=cap_df[f"{baseline_index}-close"],
             increasing_line_color="red",
             decreasing_line_color="green",
         ),
@@ -70,6 +74,30 @@ def plot_capital_curve(
     )
     fig.update_layout(
         hovermode="x unified", yaxis=dict(autorange=True, fixedrange=False)
+    )
+    fig.show()
+
+
+def plot_return_curves(
+    trade_books: list[TradeBook],
+    since_date="1900-01-01",
+    until_date="2100-01-01",
+):
+    capital_curves_df = pd.DataFrame(
+        {str(idx): book.cap_logs_df["capital"] for idx, book in enumerate(trade_books)}
+    )
+
+    capital_curves_df = capital_curves_df.reset_index().melt(
+        id_vars=("timestamp",), var_name="run_id", value_name="capital"
+    )
+
+    dataset = capital_curves_df.query("@since_date <= timestamp <= @until_date")
+    fig = px.box(dataset, x="timestamp", y="capital")
+    fig.update_traces(quartilemethod="linear")
+    fig.update_xaxes(
+        rangebreaks=[
+            dict(bounds=["sat", "mon"]),  # hide weekends
+        ],
     )
     fig.show()
 
@@ -145,54 +173,4 @@ def plot_bars(
             ),
         ],
     )
-    fig.show()
-
-
-def plot_succ_rate_vs_positions_count(trade_book: TradeBook):
-    trade_logs = pd.DataFrame(trade_book.trade_logs)
-    trade_logs["timestamp"] = pd.to_datetime(trade_logs["timestamp"])
-    trade_logs.set_index("timestamp", inplace=True)
-
-    monthly_df = pd.DataFrame(
-        [
-            {
-                "timestamp": ts,
-                "stop_loss": len(g.query('tag == "止损"')),
-                "take_profit": len(g.query('tag == "止盈"')),
-            }
-            for ts, g in trade_logs.groupby(pd.Grouper(freq="M"))
-        ]
-    ).set_index("timestamp")
-
-    monthly_df = monthly_df.replace(0, np.nan).dropna()
-    monthly_df["total_open"] = monthly_df["take_profit"] + monthly_df["stop_loss"]
-    monthly_df["succ_rate"] = (
-        100 * monthly_df["take_profit"] / monthly_df["total_open"]
-    ).round(2)
-    monthly_df["month"] = monthly_df.index.month
-    monthly_df["year"] = monthly_df.index.year
-
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(
-        go.Bar(
-            name="开仓数量",
-            x=monthly_df.index,
-            y=monthly_df["total_open"],
-            #     mode='lines',
-            #     line=dict(color='blue', width=1),
-        ),
-        secondary_y=True,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            name="胜率", x=monthly_df.index, y=monthly_df["succ_rate"], mode="markers"
-        ),
-        secondary_y=False,
-    )
-
-    fig.update_layout(
-        hovermode="x unified", yaxis=dict(autorange=True, fixedrange=False)
-    )
-
     fig.show()

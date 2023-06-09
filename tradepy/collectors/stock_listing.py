@@ -7,15 +7,12 @@ from tradepy.warehouse import ListingDepot
 
 
 class StocksListingCollector(DataCollector):
-
     def _jobs_generator(self, listing_df):
         for code in listing_df.index:
-            yield {
-                "code": code
-            }
+            yield {"code": code}
 
     def run(self, batch_size: int = 50):
-        LOG.info('=============== 开始更新A股上市公司列表 ===============')
+        LOG.info("=============== 开始更新A股上市公司列表 ===============")
         listing_df = tradepy.ak_api.get_a_stocks_list()
 
         LOG.info("获取个股的东财行业分类信息")
@@ -35,4 +32,4 @@ class StocksListingCollector(DataCollector):
         )
 
         listing_df.to_csv(out_path := ListingDepot.file_path())
-        LOG.info(f'已下载至 {out_path}')
+        LOG.info(f"已下载至 {out_path}")

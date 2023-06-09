@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import date
 from dateutil import parser as date_parse
 
-from tradepy.types import ExchangeType, MarketType, Markets
+from tradepy.types import BroadIndexType, ExchangeType, MarketType, Markets
 
 
 def convert_code_to_market(code: str) -> MarketType:
@@ -165,7 +165,7 @@ def convert_akshare_current_quotation(df: pd.DataFrame) -> pd.DataFrame:
     return df[list(mappings.values())]
 
 
-broad_index_code_name_mapping = {
+broad_index_code_name_mapping: dict[str, BroadIndexType] = {
     "sh000001": "SSE",
     "sz399001": "SZSE",
     "sz399006": "ChiNext",
