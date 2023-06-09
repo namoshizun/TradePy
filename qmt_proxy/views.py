@@ -80,7 +80,7 @@ async def place_order(orders: list[Order]):
 
     with use_redis(tradepy.config.get_redis_client()):
         # Filter out buy orders whose volume is 500 (thanks to the weird behavior of QMT)
-        if tradepy.config.mode == "mock-trading":
+        if tradepy.config.mode == "paper-trading":
             n = len(orders)
             orders = [o for o in orders if o.vol != 500]
             m = len(orders)

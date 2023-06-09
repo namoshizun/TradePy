@@ -71,7 +71,7 @@ class TradingEngine(TradeMixin):
 
     def _jit_sell_price(self, price: float, slip_pct: float) -> float:
         slip = slip_pct * 1e-2
-        if tradepy.config.mode == "mock-trading":
+        if tradepy.config.mode == "paper-trading":
             jitter = random.uniform(0, slip)
             return price * (1 - jitter)
         return price * (1 - slip)
@@ -235,7 +235,7 @@ class TradingEngine(TradeMixin):
             BrokerAPI.place_orders(sell_orders)
 
         # [2] Buy stocks
-        orders = BrokerAPI.get_orders()  # type: ignore
+        orders = BrokerAPI.get_orders()
         port_df = self._get_buy_options(
             ind_df, orders, positions
         )  # list[DF_Index, BuyPrice]
@@ -243,20 +243,20 @@ class TradingEngine(TradeMixin):
             n_bought = sum(1 for o in orders if o.direction == "buy")
             n_signals = len(port_df)
 
-            max_position_opens = max(0, self.ctx.max_position_opens - n_bought)
+            avail_opens_count = max(0, self.ctx.max_position_opens - n_bought)
             port_df, budget = self.strategy.adjust_portfolio_and_budget(
                 port_df,
                 budget=self.account.free_cash_amount,
                 total_asset_value=self.account.total_asset_value,
                 n_stocks=len(ind_df),
-                max_position_opens=max_position_opens,
+                max_position_opens=avail_opens_count,
             )
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
             LOG.info(
                 f"当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, "
                 f"当前可用资金{self.account.free_cash_amount}. "
-                f"今日剩余开仓限额{max_position_opens}, 实际开仓{len(buy_orders)}. "
+                f"今日剩余开仓限额{avail_opens_count}, 实际开仓{len(buy_orders)}. "
                 f"触发买入{n_signals}"
             )
             if buy_orders:
@@ -315,7 +315,7 @@ class TradingEngine(TradeMixin):
         if isinstance(ind_df, pd.DataFrame):
             self._pre_close_trade(ind_df)
 
-    @require_mode("live-trading", "mock-trading")
+    @require_mode("live-trading", "paper-trading")
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
         trade_date = str(self.ctx.get_trade_date())
         quote_df["timestamp"] = trade_date

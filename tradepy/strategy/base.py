@@ -188,7 +188,7 @@ class StrategyBase(Generic[BarDataType]):
         _port_df["total_lots"] = pd.Series(allocations[:, 1], index=allocations[:, 0])
 
         return [
-            Order(
+            Order(  # type: ignore
                 id=Order.make_id(row.code),
                 timestamp=row.timestamp,
                 code=row.code,

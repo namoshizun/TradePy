@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tradepy.strategy.base import LiveStrategy
 
 
-ModeType = Literal["optimization", "backtest", "mock-trading", "live-trading"]
+ModeType = Literal["optimization", "backtest", "paper-trading", "live-trading"]
 
 load_dotenv()
 getenv = os.environ.get

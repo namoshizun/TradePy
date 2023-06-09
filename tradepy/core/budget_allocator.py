@@ -3,10 +3,7 @@ import numba as nb
 
 
 @nb.njit
-def evenly_distribute(stocks,
-                      budget: float,
-                      min_trade_cost: int,
-                      trade_lot_vol: int):
+def evenly_distribute(stocks, budget: float, min_trade_cost: int, trade_lot_vol: int):
     PriceCol = 1
 
     # Calculate the minimum number of shares to buy per stock
@@ -30,8 +27,10 @@ def evenly_distribute(stocks,
         # Randomly drop an option from the portfolio to increase the average trading amount per stock
         remove_idx = np.random.randint(0, n_stocks)
         return evenly_distribute(
-            np.concatenate((stocks[:remove_idx], stocks[remove_idx + 1:])),
-            budget, min_trade_cost, trade_lot_vol
+            np.concatenate((stocks[:remove_idx], stocks[remove_idx + 1 :])),
+            budget,
+            min_trade_cost,
+            trade_lot_vol,
         )
 
     buy_lots = stocks.copy()
