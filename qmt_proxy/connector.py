@@ -8,7 +8,6 @@ from xtquant.xttype import StockAccount
 
 
 class XtQuantConnection:
-
     def __init__(self) -> None:
         self._trader = self.init_trader()
         self._account = self.init_account()
@@ -42,7 +41,7 @@ class XtQuantConnection:
         self._trader.register_callback(callback)
         res = self._trader.subscribe(self._account)
         if res != 0:
-            logger.error(f'订阅交易主推失败: {res}')
+            logger.error(f"订阅交易主推失败: {res}")
         logger.info(f"订阅交易主推成功: {res}")
 
     def connect(self):
@@ -51,7 +50,9 @@ class XtQuantConnection:
 
         res = self._trader.connect()
         if res != 0:
-            logger.error(f"连接失败, 程序即将退出。QMT数据文件路径: {self.data_path}. 账户ID: {self.account_id} 错误码: {res}")
+            logger.error(
+                f"连接失败, 程序即将退出。QMT数据文件路径: {self.data_path}. 账户ID: {self.account_id} 错误码: {res}"
+            )
             sys.exit(1)
 
     def disconnect(self):

@@ -37,7 +37,6 @@ ItemType = TypeVar("ItemType", bound=BaseModel)
 
 
 class CacheItem(Generic[ItemType]):
-
     get_key: Callable[..., str]
     item_type: type[ItemType]
 
@@ -68,7 +67,6 @@ class CacheItem(Generic[ItemType]):
 
 
 class HashmapCacheItem(CacheItem[ItemType]):
-
     @classmethod
     def set(cls, item: ItemType):
         get_redis().hset(cls.get_key(), item.id, item.json())
@@ -79,10 +77,7 @@ class HashmapCacheItem(CacheItem[ItemType]):
         with r.pipeline() as pipe:
             pipe.delete(cls.get_key())
             if items:
-                pipe.hset(cls.get_key(), mapping={
-                    i.id: i.json()
-                    for i in items
-                })
+                pipe.hset(cls.get_key(), mapping={i.id: i.json() for i in items})
             pipe.execute()
 
     @classmethod
@@ -96,25 +91,21 @@ class HashmapCacheItem(CacheItem[ItemType]):
         if not r.exists(cls.get_key()):
             return None
         return [
-            cls.item_type.parse_raw(raw)
-            for _, raw in r.hgetall(cls.get_key()).items()
+            cls.item_type.parse_raw(raw) for _, raw in r.hgetall(cls.get_key()).items()
         ]
 
 
 class PositionCache(HashmapCacheItem[Position]):
-
     get_key = lambda: CacheKeys.positions
     item_type = Position
 
 
 class OrderCache(HashmapCacheItem[Order]):
-
     get_key = CacheKeys.orders
     item_type = Order
 
 
 class AccountCache(CacheItem[Account]):
-
     get_key = CacheKeys.account
 
     @classmethod

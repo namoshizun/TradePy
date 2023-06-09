@@ -53,7 +53,7 @@ def repeat_every(
         """
         Converts the decorated function into a repeated, periodically-called version of itself.
         """
-        assert asyncio.iscoroutinefunction(func), 'The repeated function must be async'
+        assert asyncio.iscoroutinefunction(func), "The repeated function must be async"
 
         @wraps(func)
         async def wrapped() -> None:
@@ -68,9 +68,13 @@ def repeat_every(
                         await func()  # type: ignore
                         repetitions += 1
                     except Exception as exc:
-                        trace_msg = "".join(format_exception(type(exc), exc, exc.__traceback__))
+                        trace_msg = "".join(
+                            format_exception(type(exc), exc, exc.__traceback__)
+                        )
 
-                        if ignore_exceptions and isinstance(exc, tuple(ignore_exceptions)):
+                        if ignore_exceptions and isinstance(
+                            exc, tuple(ignore_exceptions)
+                        ):
                             if logger:
                                 logger.warning(f"抛出异常{type(exc)}, 但是主动忽略: {trace_msg}")
                         else:
@@ -95,7 +99,9 @@ def with_redis_lock(key: str, **lock_args):
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 return func(*args, **kwargs)
+
         return inner
+
     return decor
 
 
@@ -109,5 +115,7 @@ def use_cache(getter, setter):
             result = await func(*args, **kwargs)
             setter(result)
             return result
+
         return inner
+
     return decor

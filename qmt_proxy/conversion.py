@@ -26,7 +26,9 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
             case xtconstant.STOCK_SELL:
                 return "sell"
 
-        raise ValueError(f"Not recognized order type {_type}. No default can be decided")
+        raise ValueError(
+            f"Not recognized order type {_type}. No default can be decided"
+        )
 
     def to_status(_status: int) -> OrderStatus:
         cons = xtconstant
@@ -35,15 +37,17 @@ def xtorder_to_tradepy(o: XtOrder) -> Order:
             case cons.ORDER_UNKNOWN:
                 return "unknown"
             case cons.ORDER_JUNK:
-                return 'invalid'
+                return "invalid"
             case cons.ORDER_SUCCEEDED | cons.ORDER_PART_SUCC | cons.ORDER_PARTSUCC_CANCEL:
-                return 'filled'
+                return "filled"
             case cons.ORDER_CANCELED | cons.ORDER_PART_CANCEL:
-                return 'cancelled'
+                return "cancelled"
             case cons.ORDER_REPORTED_CANCEL | cons.ORDER_REPORTED | cons.ORDER_WAIT_REPORTING | cons.ORDER_UNREPORTED:
-                return 'pending'
+                return "pending"
 
-        logger.error(f'Not recognised order status type {_status}. Fall back to ORDER_KNOWN')
+        logger.error(
+            f"Not recognised order status type {_status}. Fall back to ORDER_KNOWN"
+        )
         return "unknown"
 
     tr_order = Order(
@@ -96,7 +100,7 @@ def xtaccount_to_tradepy(a: XtAsset) -> Account:
     return Account(
         free_cash_amount=a.cash,
         frozen_cash_amount=a.frozen_cash,
-        market_value=a.market_value
+        market_value=a.market_value,
     )
 
 
@@ -104,7 +108,7 @@ def tradepy_code_to_xtcode(code: str) -> str:
     if "." in code:
         return code
     exchange = convert_code_to_exchange(code)
-    return f'{code}.{exchange}'
+    return f"{code}.{exchange}"
 
 
 def xtcode_to_tradepy_code(code: str) -> str:

@@ -35,7 +35,7 @@ async def get_account_info():
     assets: XtAsset | None = trader.query_stock_asset(account)
 
     if assets is None:
-        logger.error('查询账户资产信息失败')
+        logger.error("查询账户资产信息失败")
         return None
 
     return xtaccount_to_tradepy(assets)
@@ -50,10 +50,7 @@ async def get_positions(available: bool = False):
         trader = xt_conn.get_trader()
         xt_positions: list[XtPosition] = trader.query_stock_positions(account)
 
-        return [
-            xtposition_to_tradepy(p)
-            for p in xt_positions
-        ]
+        return [xtposition_to_tradepy(p) for p in xt_positions]
 
     positions = await fetch()
     if available:
@@ -88,18 +85,20 @@ async def place_order(orders: list[Order]):
             orders = [o for o in orders if o.vol != 500]
             m = len(orders)
             if n != m:
-                logger.warning(f'过滤掉 {n - m} 个数量为 500 的委托')
+                logger.warning(f"过滤掉 {n - m} 个数量为 500 的委托")
 
         # Pre-dudct account free cash (buy orders)
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:
             account: Account = AccountCache.get()  # type: ignore
             if buy_total > account.free_cash_amount:
-                logger.error(f'买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}, 买入总额超过可用金额, 该委托预期将被拒绝')
+                logger.error(
+                    f"买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}, 买入总额超过可用金额, 该委托预期将被拒绝"
+                )
             else:
                 account.freeze_cash(buy_total)
                 AccountCache.set(account)
-                logger.info(f'买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}')
+                logger.info(f"买入总额 = {buy_total}, 剩余可用金额 = {account.free_cash_amount}")
 
         # Pre-deduct positions available positions (sell orders)
         sell_orders = [o for o in orders if o.is_sell]
@@ -107,7 +106,7 @@ async def place_order(orders: list[Order]):
         for order in sell_orders:
             if pos := positions.get(order.code):
                 if pos.avail_vol < order.vol:
-                    logger.error(f'卖出数量超过可用数量: {order}, 该委托预期将被拒绝')
+                    logger.error(f"卖出数量超过可用数量: {order}, 该委托预期将被拒绝")
                 else:
                     pos.avail_vol -= order.vol
 
@@ -128,7 +127,7 @@ async def place_order(orders: list[Order]):
             )
 
             if order_id == -1:
-                logger.error(f'下单失败: {order}')
+                logger.error(f"下单失败: {order}")
                 fail.append(order.id)
             else:
                 succ.append(order.id)
@@ -138,10 +137,7 @@ async def place_order(orders: list[Order]):
                 order.tags = dict(created_at=datetime.now().isoformat())
                 OrderCache.set(order)
 
-    return {
-        "succ": succ,
-        "fail": fail
-    }
+    return {"succ": succ, "fail": fail}
 
 
 @router.get("/control/warm-db")
@@ -180,24 +176,24 @@ async def flush_cache():
     positions = await get_positions()
     for pos in positions:
         if pos.is_new:
-            logger.info(f'[开仓] {pos}')
+            logger.info(f"[开仓] {pos}")
             trade_book.buy(today, pos)
 
         elif pos.is_closed:
             orders = sell_orders[pos.code]
             if not orders:
-                logger.error(f'未找到对应的卖出委托: {pos}')
+                logger.error(f"未找到对应的卖出委托: {pos}")
                 continue
 
             if len(orders) > 1:
-                logger.error(f'找到多个对应的卖出委托: {pos}, {orders}')
+                logger.error(f"找到多个对应的卖出委托: {pos}, {orders}")
                 continue
 
             # Patch the position info
             order = orders[0]
             remark: SellRemark | None = order.get_sell_remark(raw=False)  # type: ignore
             if not remark:
-                logger.error(f'未找到对应的卖出委托备注: {pos}, {order}')
+                logger.error(f"未找到对应的卖出委托备注: {pos}, {order}")
                 continue
 
             open_price = remark["price"] * (1 - remark["pct_chg"] * 1e-2)
@@ -206,16 +202,16 @@ async def flush_cache():
 
             # Log it
             if remark["action"] == "平仓":
-                logger.info(f'[平仓] {pos}')
+                logger.info(f"[平仓] {pos}")
                 trade_book.close(today, pos)
             elif remark["action"] == "止损":
-                logger.info(f'[止损] {pos}')
+                logger.info(f"[止损] {pos}")
                 trade_book.stop_loss(today, pos)
             elif remark["action"] == "止盈":
-                logger.info(f'[止盈] {pos}')
+                logger.info(f"[止盈] {pos}")
                 trade_book.take_profit(today, pos)
             else:
-                logger.error(f'无法识别的卖出委托备注: {pos}, {order}')
+                logger.error(f"无法识别的卖出委托备注: {pos}, {order}")
 
     return "ok"
 
