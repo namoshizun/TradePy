@@ -1,10 +1,7 @@
 import os
 import tradepy
 import requests as rq
-from tradepy.core.account import Account
-
-from tradepy.core.position import Position
-from tradepy.core.order import Order
+from tradepy.core.models import Account, Position, Order
 
 
 LOG = tradepy.LOG

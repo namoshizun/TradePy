@@ -121,7 +121,7 @@ async def place_order(orders: list[Order]):
                 stock_code=tradepy_code_to_xtcode(order.code),
                 order_type=tradepy_order_direction_to_xtorder_status(order.direction),
                 order_volume=order.vol,
-                price_type=xtconstant.FIX_PRICE,
+                price_type=xtconstant.FIX_PRICE,  # TODO: make it configurable
                 price=round(order.price, 2),
                 order_remark=order.get_sell_remark(raw=True),  # type: ignore
             )

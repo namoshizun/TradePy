@@ -6,8 +6,8 @@ from tqdm import tqdm
 
 from tradepy.stocks import StocksPool
 from tradepy.vendors.akshare import AkShareClient
-from tradepy.core.conf import Config
 from tradepy.depot.stocks import StockListingDepot
+from tradepy.core.conf_v1 import Config
 
 
 tqdm.pandas()

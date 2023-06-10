@@ -7,7 +7,7 @@ import functools
 from contextlib import contextmanager
 
 import tradepy
-from tradepy.core.conf import ModeType
+from tradepy.core.conf_v1 import ModeType
 from tradepy.core.exceptions import OperationForbidden
 from tradepy.core.indicator import Indicator
 

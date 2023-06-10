@@ -9,7 +9,7 @@ from tradepy.utils import get_latest_trade_date
 
 @dataclass
 class Context:
-    # Account settings
+    # Backtest settings
     cash_amount: float
     trade_lot_vol: int
     broker_commission_rate: float = 0

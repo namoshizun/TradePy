@@ -2,7 +2,7 @@ from tradepy.core.context import china_market_context
 from tradepy.core.indicator import IndicatorSet
 from playground.ma60_support_v1 import MA60SupportStrategyV1
 
-ctx = ctx = china_market_context(
+ctx = china_market_context(
     stop_loss=2.5,
     take_profit=4,
     ma60_dist_thres=0.4,
