@@ -222,3 +222,25 @@ def convert_akshare_restricted_releases_records(df: pd.DataFrame) -> pd.DataFram
     df.sort_values(["code", "timestamp"], inplace=True)
     df["index"] = df.groupby("code").cumcount()
     return df.round(3)
+
+
+def convert_etf_current_quote(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "代码": "code",
+        "名称": "name",
+        "最新价": "close",
+        "涨跌幅": "pct_chg",
+        "涨跌额": "chg",
+        "成交量": "vol",
+        "最高价": "high",
+        "最低价": "low",
+        "开盘价": "open",
+        "换手率": "turnover",
+        "总市值": "mkcap",
+    }
+    df.rename(columns=mapping, inplace=True)
+    df = df[list(mapping.values())]
+    df["mkcap"] *= 1e-8  # convert to 100 mils
+    df["mkcap"] = df["mkcap"].round(3)
+    df.sort_values("mkcap", inplace=True)
+    return df

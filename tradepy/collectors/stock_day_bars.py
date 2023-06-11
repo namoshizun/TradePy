@@ -80,7 +80,7 @@ class StockDayBarsCollector(DataCollector):
             jobs,
             batch_size,
             iteration_pause=iteration_pause,
-            fun=tradepy.ak_api.get_daily,
+            fun=tradepy.ak_api.get_stock_daily,
         )
         for args, ticks_df in results_gen:
             if ticks_df.empty:

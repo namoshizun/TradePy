@@ -9,7 +9,7 @@ from tradepy.warehouse import StockMinuteBarsDepot
 LOG = tradepy.LOG
 
 
-class StockMinueBarsCollector(DataCollector):
+class StockMinuteBarsCollector(DataCollector):
     def __init__(self, date: str | datetime.date | None = None) -> None:
         if not date:
             date = get_latest_trade_date()
