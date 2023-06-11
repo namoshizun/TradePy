@@ -4,7 +4,7 @@ import pandas as pd
 import tradepy
 from tradepy.collectors import DataCollector
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StockMinuteBarsDepot
+from tradepy.depot.stocks import StockMinuteBarsDepot
 
 LOG = tradepy.LOG
 

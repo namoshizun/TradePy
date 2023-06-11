@@ -15,9 +15,9 @@ def _fuzzy_match(target, texts) -> str:
 class StocksPool:
     @cached_property
     def df(self):
-        from tradepy.warehouse import ListingDepot
+        from tradepy.depot.stocks import StockListingDepot
 
-        return ListingDepot.load()
+        return StockListingDepot.load()
 
     @property
     def names(self) -> list[str]:

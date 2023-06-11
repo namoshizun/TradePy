@@ -5,7 +5,7 @@ from tqdm import tqdm
 import tradepy
 from tradepy import LOG
 from tradepy.collectors import DataCollector
-from tradepy.warehouse import AdjustFactorDepot
+from tradepy.depot.misc import AdjustFactorDepot
 
 
 class AdjustFactorCollector(DataCollector):

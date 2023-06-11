@@ -6,7 +6,7 @@ from tqdm import tqdm
 import tradepy
 from tradepy import LOG
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StocksDailyBarsDepot
+from tradepy.depot.stocks import StocksDailyBarsDepot
 from tradepy.collectors import DataCollector
 
 

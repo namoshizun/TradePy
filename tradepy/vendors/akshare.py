@@ -23,9 +23,10 @@ from tradepy.conversion import (
     convert_akshare_sector_current_quote,
     convert_akshare_restricted_releases_records,
     convert_etf_current_quote,
+    convert_etf_day_bar,
 )
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StocksDailyBarsDepot
+from tradepy.depot.stocks import StocksDailyBarsDepot
 
 
 def retry(max_retries=3, wait_interval=5):
@@ -257,5 +258,9 @@ class AkShareClient:
         df["timestamp"] = str(get_latest_trade_date())
         return convert_etf_current_quote(df)
 
-    def get_etf_day_bars(self) -> pd.DataFrame:
-        ...
+    def get_etf_daily(self, code: str, start_date: datetime.date | str) -> pd.DataFrame:
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+
+        df = ak.fund_etf_hist_em(symbol=code, start_date=start_date.strftime("%Y%m%d"))
+        return convert_etf_day_bar(df)

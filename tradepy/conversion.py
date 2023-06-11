@@ -244,3 +244,17 @@ def convert_etf_current_quote(df: pd.DataFrame) -> pd.DataFrame:
     df["mkcap"] = df["mkcap"].round(3)
     df.sort_values("mkcap", inplace=True)
     return df
+
+
+def convert_etf_day_bar(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "日期": "timestamp",
+        "开盘": "open",
+        "收盘": "close",
+        "最高": "high",
+        "最低": "low",
+        "成交量": "vol",
+        "换手率": "turnover",
+    }
+    df.rename(columns=mapping, inplace=True)
+    return df[list(mapping.values())]

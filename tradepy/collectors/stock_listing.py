@@ -3,7 +3,7 @@ import pandas as pd
 import tradepy
 from tradepy import LOG
 from tradepy.collectors import DataCollector
-from tradepy.warehouse import ListingDepot
+from tradepy.depot.stocks import StockListingDepot
 
 
 class StocksListingCollector(DataCollector):
@@ -31,5 +31,5 @@ class StocksListingCollector(DataCollector):
             on="code",
         )
 
-        listing_df.to_csv(out_path := ListingDepot.file_path())
+        listing_df.to_csv(out_path := StockListingDepot.file_path())
         LOG.info(f"已下载至 {out_path}")
