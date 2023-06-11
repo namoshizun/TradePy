@@ -1,61 +1,16 @@
 import numpy as np
 import pandas as pd
-from datetime import date, timedelta
 from tqdm import tqdm
 
 import tradepy
 from tradepy import LOG
-from tradepy.utils import get_latest_trade_date
-from tradepy.depot.stocks import StocksDailyBarsDepot
-from tradepy.collectors import DataCollector
+from tradepy.depot.stocks import StocksDailyBarsDepot, StockListingDepot
+from tradepy.collectors.base import DayBarsCollector
 
 
-class StockDayBarsCollector(DataCollector):
-    def __init__(self, since_date: str | date | None = None) -> None:
-        if not since_date:
-            since_date = get_latest_trade_date()
-        elif isinstance(since_date, str):
-            since_date = date.fromisoformat(since_date)
-
-        self.since_date: date = since_date
-        self.repo = StocksDailyBarsDepot()
-
-    def _jobs_generator(self):
-        LOG.info(f"检查本地个股数据是否需要更新. 起始日期 {self.since_date}")
-        repo_iter = self.repo.find(always_load=True)
-        curr_codes = list()
-
-        for code, df in repo_iter:
-            # Legacy
-            if len(parts := code.split(".")) == 2:
-                code = parts[0]
-
-            assert isinstance(df, pd.DataFrame)
-            curr_codes.append(code)
-
-            try:
-                latest_date = "2010-01-01"
-                if not df.empty:
-                    latest_date = df["timestamp"].max()
-
-                latest_date = date.fromisoformat(latest_date)
-
-                if latest_date < self.since_date:
-                    start_date = latest_date + timedelta(days=1)
-                    yield {"code": code, "start_date": start_date}
-            except Exception as exc:
-                LOG.info(
-                    f"!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!"
-                )
-                raise exc
-
-        LOG.info("添加新个股")
-        new_listings = set(tradepy.listing.codes) - set(curr_codes)
-        for code in new_listings:
-            yield {
-                "code": code,
-                "start_date": self.since_date.fromisoformat("2010-01-01"),
-            }
+class StockDayBarsCollector(DayBarsCollector):
+    bars_depot_class = StocksDailyBarsDepot
+    listing_depot_class = StockListingDepot
 
     def _compute_mkt_cap_percentile_ranks(self, df: pd.DataFrame):
         for _, day_df in tqdm(df.groupby(level="timestamp")):
@@ -74,7 +29,7 @@ class StockDayBarsCollector(DataCollector):
 
     def run(self, batch_size=50, iteration_pause=5):
         LOG.info("=============== 开始更新个股日K数据 ===============")
-        jobs = list(self._jobs_generator())
+        jobs = list(self.jobs_generator())
 
         results_gen = self.run_batch_jobs(
             jobs,
@@ -82,12 +37,12 @@ class StockDayBarsCollector(DataCollector):
             iteration_pause=iteration_pause,
             fun=tradepy.ak_api.get_stock_daily,
         )
-        for args, ticks_df in results_gen:
-            if ticks_df.empty:
+        for args, bars_df in results_gen:
+            if bars_df.empty:
                 LOG.info(f"找不到{args['code']}日K数据. Args = {args}")
             else:
                 code = args["code"]
-                self.repo.append(ticks_df, f"{code}.csv")
+                self.repo.append(bars_df, f"{code}.csv")
 
         LOG.info("计算个股的每日市值分位")
         df = self.repo.load(index_by="timestamp", fields="all")

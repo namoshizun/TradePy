@@ -1,60 +1,35 @@
-import numpy as np
-import pandas as pd
-from datetime import date, timedelta
-from tqdm import tqdm
-
 import tradepy
 from tradepy import LOG
-from tradepy.utils import get_latest_trade_date
-from tradepy.depot.etf import ETFListingDepot
-from tradepy.collectors import DataCollector
+from tradepy.depot.etf import ETFListingDepot, ETFDailyBarsDepot
+from tradepy.collectors.base import DayBarsCollector
 
 
-class ETFDayBarsCollector(DataCollector):
-    def __init__(self, since_date: str | date | None = None) -> None:
-        if not since_date:
-            since_date = get_latest_trade_date()
-        elif isinstance(since_date, str):
-            since_date = date.fromisoformat(since_date)
+class ETFDayBarsCollector(DayBarsCollector):
+    bars_depot_class = ETFDailyBarsDepot
+    listing_depot_class = ETFListingDepot
 
-        self.since_date: date = since_date
-        self.repo = ETFListingDepot()
+    def run(self, batch_size=50, iteration_pause=5, min_mkt_cap=0):
+        LOG.info("=============== 开始更新ETF日K数据 ===============")
+        listing_df = self.listing_depot_class.load()
 
-    def _jobs_generator(self):
-        LOG.info(f"检查本地ETF数据是否需要更新. 起始日期 {self.since_date}")
-        repo_iter = self.repo.find(always_load=True)
-        curr_codes = list()
+        jobs = list(self.jobs_generator())
+        if min_mkt_cap > 0:
+            jobs = [
+                job
+                for job in jobs
+                if listing_df.loc[job["code"]]["mkt_cap"] >= min_mkt_cap
+            ]
 
-        for code, df in repo_iter:
-            # Legacy
-            if len(parts := code.split(".")) == 2:
-                code = parts[0]
-
-            assert isinstance(df, pd.DataFrame)
-            curr_codes.append(code)
-
-            try:
-                latest_date = "2010-01-01"
-                if not df.empty:
-                    latest_date = df["timestamp"].max()
-
-                latest_date = date.fromisoformat(latest_date)
-
-                if latest_date < self.since_date:
-                    start_date = latest_date + timedelta(days=1)
-                    yield {"code": code, "start_date": start_date}
-            except Exception as exc:
-                LOG.info(
-                    f"!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!"
-                )
-                raise exc
-
-        LOG.info("添加新ETF")
-        new_listings = set(tradepy.listing.codes) - set(curr_codes)
-        for code in new_listings:
-            yield {
-                "code": code,
-                "start_date": self.since_date.fromisoformat("2010-01-01"),
-            }
-
-    def _compute_mkt_cap_percentile_ranks(self, df: pd.DataFrame):
+        results_gen = self.run_batch_jobs(
+            jobs,
+            batch_size,
+            iteration_pause=iteration_pause,
+            fun=tradepy.ak_api.get_etf_daily,
+        )
+        for args, bars_df in results_gen:
+            if bars_df.empty:
+                LOG.info(f"找不到{args['code']}日K数据. Args = {args}")
+            else:
+                code = args["code"]
+                bars_df["name"] = listing_df.loc[code]["name"]
+                self.repo.append(bars_df, f"{code}.csv")

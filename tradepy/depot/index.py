@@ -1,5 +1,5 @@
 import pandas as pd
-from tradepy.depot.bases import GenericBarsDepot
+from tradepy.depot.base import GenericBarsDepot
 
 
 class BroadBasedIndexBarsDepot(GenericBarsDepot):

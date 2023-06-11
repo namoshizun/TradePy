@@ -1,6 +1,6 @@
 import tradepy
 from tradepy import LOG
-from tradepy.collectors import DataCollector
+from tradepy.collectors.base import DataCollector
 from tradepy.depot.etf import ETFListingDepot
 
 

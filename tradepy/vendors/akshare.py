@@ -251,7 +251,7 @@ class AkShareClient:
     # ETF
     def get_etf_listing(self) -> pd.DataFrame:
         df = self.get_etf_current_quote()
-        return df[["code", "name", "mkcap"]].copy()
+        return df[["code", "name", "mkt_cap"]].copy()
 
     def get_etf_current_quote(self) -> pd.DataFrame:
         df = ak.fund_etf_spot_em()

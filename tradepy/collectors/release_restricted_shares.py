@@ -1,5 +1,5 @@
 import tradepy
-from tradepy.collectors import DataCollector
+from tradepy.collectors.base import DataCollector
 from tradepy.depot.misc import RestrictedSharesReleaseDepot
 
 
