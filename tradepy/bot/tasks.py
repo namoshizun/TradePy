@@ -11,7 +11,7 @@ from tradepy.core.exchange import AStockExchange
 from tradepy.decorators import timeit
 from tradepy.types import MarketPhase
 from tradepy.bot.celery_app import app as celery_app
-from tradepy.collectors.day_bars import StockDayBarsCollector
+from tradepy.collectors.stock_day_bars import StockDayBarsCollector
 from tradepy.collectors.market_index import (
     EastMoneySectorIndexCollector,
     BroadBasedIndexCollector,

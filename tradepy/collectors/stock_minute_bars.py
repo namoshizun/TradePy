@@ -2,14 +2,14 @@ import datetime
 
 import pandas as pd
 import tradepy
-from tradepy.collectors import DataCollector
+from tradepy.collectors.base import DataCollector
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StockMinuteBarsDepot
+from tradepy.depot.stocks import StockMinuteBarsDepot
 
 LOG = tradepy.LOG
 
 
-class StockMinueBarsCollector(DataCollector):
+class StockMinuteBarsCollector(DataCollector):
     def __init__(self, date: str | datetime.date | None = None) -> None:
         if not date:
             date = get_latest_trade_date()

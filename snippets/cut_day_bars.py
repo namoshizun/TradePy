@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StocksDailyBarsDepot
+from tradepy.depot.stocks import StocksDailyBarsDepot
 from tradepy.trade_cal import trade_cal
 from tqdm import tqdm
 

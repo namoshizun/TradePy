@@ -17,7 +17,7 @@ from tradepy.decorators import require_mode, timeout
 from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
-from tradepy.warehouse import AdjustFactorDepot
+from tradepy.depot.misc import AdjustFactorDepot
 
 
 LOG = tradepy.LOG

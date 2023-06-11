@@ -7,7 +7,7 @@ from tqdm import tqdm
 from tradepy.stocks import StocksPool
 from tradepy.vendors.akshare import AkShareClient
 from tradepy.core.conf import Config
-from tradepy.warehouse import ListingDepot
+from tradepy.depot.stocks import StockListingDepot
 
 
 tqdm.pandas()
@@ -25,13 +25,14 @@ redis_client: Redis | None = None
 
 def _check_conf():
     if config.mode == "backtest":
-        if not ListingDepot.file_path().exists():
-            warnings.warn('Stock listing data file is not found. Please download the listing data using'
-                        'StocksListingCollector first or tradepy might not work.')
+        if not StockListingDepot.file_path().exists():
+            warnings.warn(
+                "Stock listing data file is not found. Please download the listing data using"
+                "StocksListingCollector first or tradepy might not work."
+            )
 
 
-def initialize(dataset_dir: str | pathlib.Path | None = None,
-               **overrides):
+def initialize(dataset_dir: str | pathlib.Path | None = None, **overrides):
     if dataset_dir:
         config.set_database_dir(dataset_dir)
 

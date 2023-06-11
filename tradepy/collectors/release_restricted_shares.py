@@ -1,6 +1,6 @@
 import tradepy
-from tradepy.collectors import DataCollector
-from tradepy.warehouse import RestrictedSharesReleaseDepot
+from tradepy.collectors.base import DataCollector
+from tradepy.depot.misc import RestrictedSharesReleaseDepot
 
 
 class EastMoneyRestrictedSharesReleaseCollector(DataCollector):

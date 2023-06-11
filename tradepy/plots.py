@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import tradepy.trade_cal
 from tradepy.trade_book import TradeBook
 from tradepy.types import BroadIndexType
-from tradepy.warehouse import BroadBasedIndexBarsDepot
+from tradepy.depot.index import BroadBasedIndexBarsDepot
 
 
 def plot_capital_curve(

@@ -22,9 +22,11 @@ from tradepy.conversion import (
     convert_code_to_market,
     convert_akshare_sector_current_quote,
     convert_akshare_restricted_releases_records,
+    convert_etf_current_quote,
+    convert_etf_day_bar,
 )
 from tradepy.utils import get_latest_trade_date
-from tradepy.warehouse import StocksDailyBarsDepot
+from tradepy.depot.stocks import StocksDailyBarsDepot
 
 
 def retry(max_retries=3, wait_interval=5):
@@ -98,7 +100,7 @@ class AkShareClient:
 
     # ------
     # Stocks
-    def get_daily(self, code: str, start_date: datetime.date | str):
+    def get_stock_daily(self, code: str, start_date: datetime.date | str):
         def fetch_legu_indicators():
             indicators_df = ak.stock_a_indicator_lg(symbol=code)
             assert isinstance(indicators_df, pd.DataFrame)
@@ -202,7 +204,7 @@ class AkShareClient:
             {row["item"]: row["value"] for _, row in df.iterrows()}
         )
 
-    def get_current_quote(self) -> pd.DataFrame:
+    def get_stock_current_quote(self) -> pd.DataFrame:
         df = ak.stock_zh_a_spot_em()
         df = convert_akshare_current_quotation(df)
         df.set_index("code", inplace=True)
@@ -244,3 +246,21 @@ class AkShareClient:
         df = df.loc[codes].copy()
         df["timestamp"] = str(get_latest_trade_date())
         return df
+
+    # ---
+    # ETF
+    def get_etf_listing(self) -> pd.DataFrame:
+        df = self.get_etf_current_quote()
+        return df[["code", "name", "mkt_cap"]].copy()
+
+    def get_etf_current_quote(self) -> pd.DataFrame:
+        df = ak.fund_etf_spot_em()
+        df["timestamp"] = str(get_latest_trade_date())
+        return convert_etf_current_quote(df)
+
+    def get_etf_daily(self, code: str, start_date: datetime.date | str) -> pd.DataFrame:
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+
+        df = ak.fund_etf_hist_em(symbol=code, start_date=start_date.strftime("%Y%m%d"))
+        return convert_etf_day_bar(df)
