@@ -2,9 +2,10 @@ import os
 import sys
 import random
 from loguru import logger
-
 from xtquant.xttrader import XtQuantTrader, XtQuantTraderCallback
 from xtquant.xttype import StockAccount
+
+import tradepy
 
 
 class XtQuantConnection:
@@ -14,11 +15,11 @@ class XtQuantConnection:
 
     @property
     def data_path(self) -> str:
-        return os.environ["XTQUANT_QMT_DATA_PATH"]
+        return tradepy.config.trading.xtquant.qmt_data_path
 
     @property
     def account_id(self) -> str:
-        return os.environ["XTQUANT_ACCOUNT_ID"]
+        return tradepy.config.trading.xtquant.account_id
 
     @property
     def connected(self) -> bool:

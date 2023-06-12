@@ -78,9 +78,9 @@ async def place_order(orders: list[Order]):
     trader = xt_conn.get_trader()
     succ, fail = [], []
 
-    with use_redis(tradepy.config.get_redis_client()):
+    with use_redis(tradepy.config.trading.get_redis_client()):
         # Filter out buy orders whose volume is 500 (thanks to the weird behavior of QMT)
-        if tradepy.config.mode == "paper-trading":
+        if tradepy.config.common.mode == "paper-trading":
             n = len(orders)
             orders = [o for o in orders if o.vol != 500]
             m = len(orders)
@@ -121,7 +121,7 @@ async def place_order(orders: list[Order]):
                 stock_code=tradepy_code_to_xtcode(order.code),
                 order_type=tradepy_order_direction_to_xtorder_status(order.direction),
                 order_volume=order.vol,
-                price_type=xtconstant.FIX_PRICE,
+                price_type=xtconstant.FIX_PRICE,  # TODO: make it configurable
                 price=round(order.price, 2),
                 order_remark=order.get_sell_remark(raw=True),  # type: ignore
             )

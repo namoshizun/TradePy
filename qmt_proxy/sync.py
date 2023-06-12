@@ -107,7 +107,7 @@ class AssetsSyncer:
             logger.error("未找到今日开盘资金数据, 无法计算资产数据!")
             return
 
-        with use_redis(tradepy.config.get_redis_client()):
+        with use_redis(tradepy.config.trading.get_redis_client()):
             if not (temp := OrderCache.get_many()):
                 logger.info("今日没有委托订单, 无须更新资产数据")
                 return

@@ -11,7 +11,7 @@ class AdjustFactorDepot:
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.database_dir / AdjustFactorDepot.file_name
+        return tradepy.config.common.database_dir / AdjustFactorDepot.file_name
 
     @staticmethod
     @cache
@@ -31,7 +31,9 @@ class RestrictedSharesReleaseDepot:
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.database_dir / RestrictedSharesReleaseDepot.file_name
+        return (
+            tradepy.config.common.database_dir / RestrictedSharesReleaseDepot.file_name
+        )
 
     @staticmethod
     @cache

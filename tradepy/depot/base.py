@@ -14,7 +14,7 @@ class GenericListingDepot:
 
     @classmethod
     def file_path(cls) -> Path:
-        return tradepy.config.database_dir / cls.file_name
+        return tradepy.config.common.database_dir / cls.file_name
 
     @classmethod
     def load(cls) -> pd.DataFrame:
@@ -28,7 +28,7 @@ class GenericBarsDepot:
 
     def __init__(self) -> None:
         assert isinstance(self.folder_name, str)
-        self.folder = tradepy.config.database_dir / self.folder_name
+        self.folder = tradepy.config.common.database_dir / self.folder_name
         self.folder.mkdir(parents=True, exist_ok=True)
 
     @classmethod

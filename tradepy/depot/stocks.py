@@ -75,7 +75,7 @@ class StockMinuteBarsDepot(GenericBarsDepot):
 
     @staticmethod
     def file_path() -> Path:
-        return tradepy.config.database_dir / AdjustFactorDepot.file_name
+        return tradepy.config.common.database_dir / AdjustFactorDepot.file_name
 
     def _load(
         self,
@@ -86,7 +86,7 @@ class StockMinuteBarsDepot(GenericBarsDepot):
         if not self.exists(date):
             raise FileNotFoundError(f"Minute bars data not found for date: {date}")
 
-        path = tradepy.config.database_dir / self.folder_name / f"{date}.csv"
+        path = tradepy.config.common.database_dir / self.folder_name / f"{date}.csv"
         df = pd.read_csv(path, index_col=index_by, dtype={"code": str})
         df.sort_index(inplace=True)
         return df

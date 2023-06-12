@@ -1,7 +1,7 @@
 import tradepy
 from datetime import date
 
-r = tradepy.config.get_redis_client()
+r = tradepy.config.trading.get_redis_client()
 
 today = date.today()
 

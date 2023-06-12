@@ -3,22 +3,14 @@ import pandas as pd
 from uuid import uuid4
 from loguru import logger
 from pathlib import Path
-from typing import Type
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from dask.distributed import Client as DaskClient
 
-import tradepy
-from tradepy.core.context import Context
+from tradepy.core.conf import BacktestConf, OptimizationConf, StrategyConf
 from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
-from tradepy.optimization.base import ParameterOptimizer
 from tradepy.optimization.worker import Worker
-from tradepy.utils import import_class
-
-
-def get_default_optimizer_class() -> Type["ParameterOptimizer"]:
-    return import_class(tradepy.config.optimizer_class)
 
 
 def get_default_workspace_dir() -> Path:
@@ -36,12 +28,7 @@ def get_random_id() -> str:
 @dataclass
 class Scheduler:
     parameters: list[Parameter | ParameterGroup]
-    context: Context
-    dataset_path: str
-    strategy: str
-    optimizer_class: Type["ParameterOptimizer"] = field(
-        default_factory=get_default_optimizer_class
-    )
+    conf: OptimizationConf
     workspace_dir: Path = field(default_factory=get_default_workspace_dir)
 
     def __post_init__(self):
@@ -54,21 +41,16 @@ class Scheduler:
     def _make_task_request(
         self, batch_id: str, param_values: dict[str, Number]
     ) -> TaskRequest:
-        ctx = asdict(self.context)
-
-        # Remove context values that are part of parameters.
-        for k in list(ctx.keys()):
-            if k in param_values:
-                del ctx[k]
+        backtest_conf: BacktestConf = self.conf.backtest.copy()
+        backtest_conf.strategy.update(**param_values)
 
         return {
             "id": get_random_id(),
             "batch_id": batch_id,
             "workspace_id": self.workspace_dir.name,
-            "parameters": param_values,
-            "strategy": self.strategy,
-            "dataset_path": self.dataset_path,
-            "base_context": ctx,
+            "dataset_path": str(self.conf.dataset_path),
+            "optimizer_class": self.conf.optimizer_class,
+            "backtest_conf": backtest_conf.dict(),
         }
 
     def _update_tasks_log(self, batch_df: pd.DataFrame):
@@ -111,7 +93,7 @@ class Scheduler:
         return results
 
     def _run_once(self, dask_client: DaskClient, run_id: int = 1):
-        optimizer = self.optimizer_class(self.parameters)
+        optimizer = self.conf.load_optimizer_class()(self.parameters)
         params_batch_generator = optimizer.generate_parameters_batch()
         batch_count = 0
         while True:
@@ -137,9 +119,15 @@ class Scheduler:
             # Gather results
             optimizer.consume_batch_result(results)
 
-    def run(self, repetitions: int = 1, dask_args: dict | None = None):
-        dask_args = dask_args or dict()
-        dask_client = DaskClient(**dask_args)
+    def run(self, repetitions: int | None = None, dask_args: dict | None = None):
+        if not repetitions:
+            repetitions = self.conf.repetition
+
+        _dask_args = self.conf.dask.dict().copy()
+        if dask_args:
+            _dask_args.update(dask_args)
+
+        dask_client = DaskClient(**_dask_args)
 
         try:
             info = dask_client.scheduler_info()

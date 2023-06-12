@@ -36,7 +36,8 @@ def warm_broker_db():
 
 
 @shared_task(
-    name="tradepy.fetch_market_quote", expires=tradepy.config.tick_fetch_interval * 0.95
+    name="tradepy.fetch_market_quote",
+    expires=tradepy.config.trading.periodic_tasks.tick_fetch_interval * 0.95,
 )
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()

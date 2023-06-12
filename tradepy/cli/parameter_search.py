@@ -1,9 +1,10 @@
+from typing import Any
 import yaml
 import argparse
 
 from tradepy.optimization.scheduler import Scheduler
 from tradepy.optimization.parameter import Parameter, ParameterGroup
-from tradepy.core.context import china_market_context
+from tradepy.core.conf import OptimizationConf
 
 
 def _read_config_yaml_file(path):
@@ -20,26 +21,11 @@ def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGrou
     return ParameterGroup(name=tuple(name), choices=tuple(map(tuple, choices)))
 
 
-def start(config):
-    base_ctx = china_market_context(**config["base_context"])
-    parameters = [
-        _make_parameter(p["name"], p["choices"]) for p in config["parameters"]
-    ]
-
-    scheduler = Scheduler(
-        parameters,
-        base_ctx,
-        dataset_path=config["dataset"],
-        strategy=config["strategy"],
-    )
-
-    scheduler.run(
-        repetitions=config["repetition"],
-        dask_args={
-            "n_workers": config["dask"]["n_workers"],
-            "threads_per_worker": config["dask"]["threads_per_worker"],
-        },
-    )
+def start(conf: dict[str, Any]):
+    opt_conf = OptimizationConf.from_dict(conf["config"])
+    parameters = [_make_parameter(p["name"], p["choices"]) for p in conf["parameters"]]
+    scheduler = Scheduler(parameters, opt_conf)
+    scheduler.run()
 
 
 if __name__ == "__main__":
