@@ -130,17 +130,17 @@ class XtQuantConf(ConfBase):
 
 
 class StrategyConf(ConfBase):
-    strategy_class: str
+    strategy_class: str | None = None
     stop_loss: float = 0
     take_profit: float = 0
     take_profit_slip: float = 0.03
-    stop_loss_slip: float = 0.1
+    stop_loss_slip: float = 0.06
     adjust_prices_before_compute: bool = False
 
-    max_position_size: int = 1
+    max_position_size: float = 1
     max_position_opens: int = 10000
     min_trade_amount: int = 0
-    signals_percent_range: list[int] = [0, 100]
+    signals_percent_range: list[int] | tuple[int, int] = [0, 100]
 
     custom_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -172,6 +172,7 @@ class StrategyConf(ConfBase):
         return kls(self)
 
     def load_strategy_class(self) -> Type["StrategyBase"]:
+        assert self.strategy_class
         return import_class(self.strategy_class)
 
 

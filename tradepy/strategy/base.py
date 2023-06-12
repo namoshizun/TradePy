@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import TypedDict, Generic, TypeVar
 from tqdm import tqdm
 
+import tradepy
 from tradepy import LOG
 from tradepy.core.conf import BacktestConf, StrategyConf
 from tradepy.depot.misc import AdjustFactorDepot
@@ -189,7 +190,7 @@ class StrategyBase(Generic[BarDataType]):
             _port_df[["temp_index", "order_price"]].values,
             budget=budget,
             min_trade_cost=self.min_trade_amount,
-            trade_lot_vol=self.trade_lot_vol,
+            trade_lot_vol=tradepy.config.common.trade_lot_vol,
         )
         _port_df["total_lots"] = pd.Series(allocations[:, 1], index=allocations[:, 0])
 
@@ -199,7 +200,7 @@ class StrategyBase(Generic[BarDataType]):
                 timestamp=row.timestamp,
                 code=row.code,
                 price=row.order_price,
-                vol=row.total_lots * self.trade_lot_vol,
+                vol=row.total_lots * tradepy.config.common.trade_lot_vol,
                 direction="buy",
             )
             for row in _port_df.itertuples()

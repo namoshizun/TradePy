@@ -8,7 +8,7 @@ trading:
     stop_loss: 1.6
     take_profit: 3.2
     take_profit_slip: 0.03
-    stop_loss_slip: 0.1
+    stop_loss_slip: 0.05
     max_position_size: 1
     max_position_opens: 10000
     min_trade_amount: 0

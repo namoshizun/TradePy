@@ -22,7 +22,7 @@ def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGrou
 
 
 def start(conf: dict[str, Any]):
-    opt_conf = OptimizationConf.from_dict(**conf["config"])
+    opt_conf = OptimizationConf.from_dict(conf["config"])
     parameters = [_make_parameter(p["name"], p["choices"]) for p in conf["parameters"]]
     scheduler = Scheduler(parameters, opt_conf)
     scheduler.run()
