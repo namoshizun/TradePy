@@ -21,6 +21,7 @@ from tradepy.utils import get_latest_trade_date
 
 
 LOG = tradepy.LOG
+timeouts_conf = tradepy.config.trading.timeouts
 
 
 class TradingEngine(TradeMixin):
@@ -118,7 +119,7 @@ class TradingEngine(TradeMixin):
             return
 
         with self.redis_client.lock(
-            lock_key, timeout=Timeouts.compute_open_indicators, sleep=1
+            lock_key, timeout=timeouts_conf.compute_open_indicators, sleep=1
         ):
             cache_key = CacheKeys.indicators_df
             if not self.redis_client.exists(cache_key):
@@ -144,7 +145,7 @@ class TradingEngine(TradeMixin):
             return
 
         with self.redis_client.lock(
-            lock_key, timeout=Timeouts.compute_close_indicators, sleep=1
+            lock_key, timeout=timeouts_conf.compute_close_indicators, sleep=1
         ):
             positions = BrokerAPI.get_positions(available_only=True)  # type: ignore
             closable_positions_codes = [
@@ -265,13 +266,13 @@ class TradingEngine(TradeMixin):
             LOG.log_orders(sell_orders)
             BrokerAPI.place_orders(sell_orders)
 
-    @timeout(Timeouts.handle_pre_market_open_call)
+    @timeout(timeouts_conf.handle_pre_market_open_call)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
         ind_df = self._compute_open_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
             self._inday_trade(ind_df, quote_df)
 
-    @timeout(Timeouts.handle_cont_trade)
+    @timeout(timeouts_conf.handle_cont_trade)
     def on_cont_trade(self, quote_df: pd.DataFrame):
         if self.redis_client.get(CacheKeys.compute_open_indicators):
             LOG.warn("已进入盘中交易, 但指标计算仍在进行中!")
@@ -281,7 +282,7 @@ class TradingEngine(TradeMixin):
         ind_df = self.strategy.compute_intraday_indicators(quote_df.copy(), ind_df)
         self._inday_trade(ind_df, quote_df)
 
-    @timeout(Timeouts.handle_cont_trade_pre_close)
+    @timeout(timeouts_conf.handle_cont_trade_pre_close)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):
         if not BrokerAPI.get_positions(available_only=True):  # type: ignore
             LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")

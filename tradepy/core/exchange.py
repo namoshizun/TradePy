@@ -54,7 +54,7 @@ class AStockExchange:
         return _.CLOSED
 
     @staticmethod
-    @timeout(seconds=Timeouts.download_quote)
+    @timeout(seconds=tradepy.config.trading.timeouts.download_quote)
     def get_quote() -> pd.DataFrame:
         df = tradepy.ak_api.get_stock_current_quote()
         df["market"] = df.index.map(convert_code_to_market)

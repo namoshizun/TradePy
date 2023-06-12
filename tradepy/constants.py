@@ -49,12 +49,3 @@ class CacheKeys:
     @classproperty
     def update_assets(self):
         return f"{self.prefix}:lock:cache-update"
-
-
-class Timeouts:
-    download_quote = 3
-    handle_pre_market_open_call = 60 * 4
-    compute_open_indicators = 60 * 3.55
-    compute_close_indicators = 60 * 3
-    handle_cont_trade = 2
-    handle_cont_trade_pre_close = 60 * 2
