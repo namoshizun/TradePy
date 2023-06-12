@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import tempfile
 from datetime import date
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ class Blacklist:
         if cached := cls.cached:
             return cached
 
-        if not (path := tradepy.config.blacklist_path):
+        if not (path := tradepy.config.common.blacklist_path):
             return set()
 
         if not path.exists():
@@ -60,7 +61,7 @@ if __name__ == "__main__":
             {"code": ["000001", "000002"], "until": ["2021-01-01", "2030-01-02"]}
         ).set_index("code")
         stocks.to_csv(f.name)
-        os.environ["BLACKLIST_PATH"] = f.name
+        tradepy.config.common.blacklist_path = Path(f.name)
 
         assert Blacklist.contains("000001", stocks.loc["000001", "until"])
         assert not Blacklist.contains("000001", "2030-01-01")

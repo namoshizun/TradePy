@@ -5,11 +5,15 @@ import signal
 import inspect
 import functools
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 import tradepy
-from tradepy.core.conf_v1 import ModeType
 from tradepy.core.exceptions import OperationForbidden
 from tradepy.core.indicator import Indicator
+
+
+if TYPE_CHECKING:
+    from tradepy.core.conf import ModeType
 
 
 def tag(outputs=list(), notna=False):
@@ -57,10 +61,10 @@ def tag(outputs=list(), notna=False):
     return inner
 
 
-def require_mode(*modes: ModeType):
+def require_mode(*modes: "ModeType"):
     def inner(fun):
         def decor(*args, **kwargs):
-            if tradepy.config.mode not in modes:
+            if tradepy.config.common.mode not in modes:
                 raise OperationForbidden(
                     f"Method {fun} is only allowed in {modes} modes"
                 )

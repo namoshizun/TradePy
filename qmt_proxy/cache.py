@@ -30,7 +30,7 @@ def get_redis() -> redis.Redis:
     try:
         return client_var.get()
     except LookupError:
-        return tradepy.config.get_redis_client()
+        return tradepy.config.trading.get_redis_client()
 
 
 ItemType = TypeVar("ItemType", bound=BaseModel)

@@ -1,11 +1,19 @@
 ---
-base_context:
-  cash_amount: 100_000
-  broker_commission_rate: 0.01
-  max_position_opens: 10
-  max_position_size: 0.25
-  min_trade_amount: 8_500
-
+config:
+  dataset_path: /root/ma60_support_2016.pkl
+  optimizer_class: tradepy.optimization.optimizers.grid_search.GridSearch
+  repetition: 40
+  backtest:
+    strategy:
+      strategy_class: playground.ma60_support_v1.MA60SupportStrategyV1
+      max_position_opens: 10
+      max_position_size: 0.25
+      min_trade_amount: 8_500
+    cash_amount: 100_000
+    broker_commission_rate: 0.01
+  dask:
+    n_workers: 4
+    threads_per_worker: 1
 
 parameters:
   - name: ma60_support_thres
@@ -20,11 +28,3 @@ parameters:
       [2.45, 4.5],
       [1.6, 3.2],
     ]
-
-dask:
-  n_workers: 4
-  threads_per_worker: 1
-
-dataset: /root/ma60_support_2016.pkl
-strategy: playground.ma60_support_v1.MA60SupportStrategyV1
-repetition: 40

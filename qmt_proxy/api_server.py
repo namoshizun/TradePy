@@ -1,4 +1,3 @@
-import os
 from loguru import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +21,7 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["localhost", os.environ["TRADE_BROKER_HOST"]],
+    allow_origins=["localhost", tradepy.config.trading.broker.host],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,7 +31,7 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=[
         "localhost",
-        os.environ["TRADE_BROKER_HOST"],
+        tradepy.config.trading.broker.host,
     ],
 )
 
@@ -45,12 +44,11 @@ async def app_startup() -> None:
 @app.on_event("shutdown")
 async def app_shutdown() -> None:
     xt_conn.disconnect()
-    tradepy.config.exit()
 
 
 @app.on_event("startup")
 @repeat_every(
-    seconds=tradepy.config.assets_sync_interval,
+    seconds=tradepy.config.trading.periodic_tasks.assets_sync_interval,
     raise_exceptions=False,
     ignore_exceptions=[AssetsSyncError],
     logger=logger,
@@ -68,7 +66,7 @@ async def sync_assets() -> None:
         logger.info("交易终端未连接, 无法同步资产信息")
         return
 
-    if tradepy.config.get_redis_client().get(CacheKeys.update_assets):
+    if tradepy.config.trading.get_redis_client().get(CacheKeys.update_assets):
         logger.warning("存在尚未完成的资产同步或下单任务")
         return
 

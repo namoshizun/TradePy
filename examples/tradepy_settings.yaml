@@ -1,24 +1,14 @@
 common:
   mode: "backtest"
   trade_lot_vol: 100
-  blacklist_path:
-
-backtest:
-  cash_amount: 100_000
-  broker_commission_rate: 0.05
-  stamp_duty_rate: 0.1
-
-optimization:
-  optimizer_class: "tradepy.optimization.optimizers.grid_search.GridSearch"
-  cash_amount: 100_000
-  broker_commission_rate: 0.01
-  stamp_duty_rate: 0.1
 
 trading:
   strategy:
     strategy_class: "playground.ma60_support.MA60SupportStrategyLive"
     stop_loss: 1.6
     take_profit: 3.2
+    take_profit_slip: 0.03
+    stop_loss_slip: 0.1
     max_position_size: 1
     max_position_opens: 10000
     min_trade_amount: 0

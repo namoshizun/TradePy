@@ -10,7 +10,8 @@ from typing import TypedDict, Generic, TypeVar
 from tqdm import tqdm
 
 from tradepy import LOG
-from tradepy.core.context import Context
+from tradepy.core.conf import BacktestConf, StrategyConf
+from tradepy.depot.misc import AdjustFactorDepot
 from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
 from tradepy.core.position import Position
@@ -71,8 +72,12 @@ class IndicatorsRegistry:
 class StrategyBase(Generic[BarDataType]):
     indicators_registry: IndicatorsRegistry = IndicatorsRegistry()
 
-    def __init__(self, ctx: Context) -> None:
-        self.ctx = ctx
+    def __init__(self, conf: StrategyConf) -> None:
+        self.conf = conf
+        self.adjust_factors: AdjustFactors | None = None
+        if conf.adjust_prices_before_compute:
+            self.adjust_factors = AdjustFactorDepot.load()
+
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[
             1:
         ]
@@ -94,7 +99,8 @@ class StrategyBase(Generic[BarDataType]):
         )
 
     def __getattr__(self, name: str):
-        return getattr(self.ctx, name)
+        # Lookup custom strategy parameters from the conf object
+        return getattr(self.conf, name)
 
     def pre_process(self, bars_df: pd.DataFrame):
         return bars_df
@@ -212,13 +218,13 @@ class StrategyBase(Generic[BarDataType]):
         code: str = bars_df.index[0]  # type: ignore
         bars_df.sort_values("timestamp", inplace=True)
         bars_df = self.pre_process(bars_df)
-        # Pre-process before computing indicators
+        # Pre-processing
         if bars_df.empty:
             # Won't trade this stock
             return bars_df
 
         if self.adjust_factors is not None:
-            # Adjust prices
+            # Adjust prices before computing indicators
             try:
                 bars_df = self.adjust_stock_history_prices(code, bars_df)
                 if bars_df["pct_chg"].abs().max() > 21:
@@ -275,14 +281,14 @@ class StrategyBase(Generic[BarDataType]):
 
 
 class BacktestStrategy(StrategyBase[BarData]):
-    def should_stop_loss(self, tick: BarData, position: Position) -> float | None:
+    def should_stop_loss(self, bar: BarData, position: Position) -> float | None:
         # During opening
-        open_pct_chg = calc_pct_chg(position.price, tick["open"])
+        open_pct_chg = calc_pct_chg(position.price, bar["open"])
         if open_pct_chg <= -self.stop_loss:
-            return tick["open"]
+            return bar["open"]
 
         # During exchange
-        low_pct_chg = calc_pct_chg(position.price, tick["low"])
+        low_pct_chg = calc_pct_chg(position.price, bar["low"])
         if low_pct_chg <= -self.stop_loss:
             return position.price_at_pct_change(-self.stop_loss)
 
@@ -315,12 +321,12 @@ class BacktestStrategy(StrategyBase[BarData]):
 
     @classmethod
     def backtest(
-        cls, bars_df: pd.DataFrame, ctx: Context
+        cls, bars_df: pd.DataFrame, conf: BacktestConf
     ) -> tuple[pd.DataFrame, TradeBook]:
         from tradepy.backtest.backtester import Backtester
 
-        instance = cls(ctx)
-        bt = Backtester(ctx)
+        instance = cls(conf.strategy)
+        bt = Backtester(conf)
         return bt.run(bars_df.copy(), instance)
 
 

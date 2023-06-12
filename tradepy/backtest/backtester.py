@@ -11,18 +11,18 @@ from tradepy.core.order import Order
 from tradepy.core.position import Position
 from tradepy.mixins import TradeMixin
 from tradepy.trade_book import TradeBook
-from tradepy.core.context import Context
+from tradepy.core.conf import BacktestConf
 
 if TYPE_CHECKING:
     from tradepy.strategy.base import StrategyBase
 
 
 class Backtester(TradeMixin):
-    def __init__(self, ctx: Context) -> None:
+    def __init__(self, conf: BacktestConf) -> None:
         self.account = BacktestAccount(
-            free_cash_amount=ctx.cash_amount,
-            broker_commission_rate=ctx.broker_commission_rate,
-            stamp_duty_rate=ctx.stamp_duty_rate,
+            free_cash_amount=conf.cash_amount,
+            broker_commission_rate=conf.broker_commission_rate,
+            stamp_duty_rate=conf.stamp_duty_rate,
         )
 
     def __orders_to_positions(self, orders: list[Order]) -> list[Position]:

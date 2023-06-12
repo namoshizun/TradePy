@@ -7,8 +7,7 @@ from typing import Type
 from loguru import logger
 import pandas as pd
 
-import tradepy
-from tradepy.core.context import Context
+from tradepy.core.conf import BacktestConf
 from tradepy.strategy.base import BacktestStrategy
 from tradepy.decorators import timeit
 from tradepy.trade_book.trade_book import TradeBook
@@ -27,9 +26,6 @@ class Worker:
 
         self.workspace_dir = Path(workspace_dir)
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
-        self.optimizer_class: Type[ParameterOptimizer] = import_class(
-            tradepy.config.optimizer_class
-        )
 
     def create_task_dir(self, id: str) -> Path:
         path = self.workspace_dir / id
@@ -46,9 +42,9 @@ class Worker:
         with path.open("wb") as f:
             pickle.dump(trade_book, f)
 
-    def backtest(self, task: TaskRequest) -> TradeBook:
+    def backtest(self, req: TaskRequest) -> TradeBook:
         # Load dataset
-        dataset_path = task["dataset_path"]
+        dataset_path = req["dataset_path"]
 
         if dataset_path.endswith("csv"):
             df = pd.read_csv(dataset_path)
@@ -57,12 +53,10 @@ class Worker:
         else:
             raise ValueError(f"不支持的数据格式: {os.path.splitext(dataset_path)[1]}")
 
-        # Patch strategy parameters to the context object
-        ctx = Context.build(**task["base_context"], **task["parameters"])
-
         # Run backtest
-        strategy_class: Type[BacktestStrategy] = import_class(task["strategy"])
-        _, trade_book = strategy_class.backtest(df, ctx)
+        bt_conf: BacktestConf = BacktestConf.from_dict(req["backtest_conf"])
+        strategy_class: Type[BacktestStrategy] = bt_conf.strategy.load_strategy_class()
+        _, trade_book = strategy_class.backtest(df, bt_conf)
         return trade_book
 
     def run(self, request: TaskRequest) -> TaskResult:
@@ -75,7 +69,10 @@ class Worker:
             trade_book = self.backtest(request)
             self.write_trade_book(task_dir, trade_book)
 
-            metrics = self.optimizer_class.evaluate_trades(trade_book)
+            optimizer_class: Type["ParameterOptimizer"] = import_class(
+                request["optimizer_class"]
+            )
+            metrics = optimizer_class.evaluate_trades(trade_book)  # type: ignore
             result: TaskResult = dict(metrics=metrics, **request)  # type: ignore
             self.write_task_data(task_dir, result)
 

@@ -1,4 +1,3 @@
-import os
 import random
 import pickle
 import pandas as pd
@@ -10,7 +9,7 @@ import tradepy
 from tradepy.blacklist import Blacklist
 from tradepy.constants import CacheKeys, Timeouts
 from tradepy.core.adjust_factors import AdjustFactors
-from tradepy.core.context import Context
+from tradepy.core.conf import TradingConf
 from tradepy.core.models import Order, Position
 from tradepy.strategy.base import LiveStrategy
 from tradepy.decorators import require_mode, timeout
@@ -18,26 +17,10 @@ from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
 from tradepy.depot.misc import AdjustFactorDepot
+from tradepy.utils import get_latest_trade_date
 
 
 LOG = tradepy.LOG
-
-
-def _load_ctx_vars_from_env():
-    def deserialize_value(v):
-        try:
-            return float(v)
-        except ValueError:
-            return v
-
-    def read_var_name(k):
-        return k.replace("CTX_", "").lower()
-
-    return {
-        read_var_name(key): deserialize_value(val)
-        for key, val in os.environ.items()
-        if key.startswith("CTX_")
-    }
 
 
 class TradingEngine(TradeMixin):
@@ -45,33 +28,21 @@ class TradingEngine(TradeMixin):
         self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
         self.workspace.mkdir(exist_ok=True, parents=True)
 
+        self.conf: TradingConf = tradepy.config.trading  # type: ignore
+        assert self.conf
+        self.strategy_conf = self.conf.strategy
+
         self.adjust_factors: AdjustFactors = AdjustFactorDepot.load()
-        ctx_args = dict(
-            cash_amount=0,  # NOTE: no meaning for live trading
-            trade_lot_vol=int(os.environ["TRADE_UNIT"]),
-            stop_loss=float(os.environ["TRADE_STOP_LOSS"]),
-            take_profit=float(os.environ["TRADE_TAKE_PROFIT"]),
-            max_position_opens=int(os.environ["TRADE_MAX_POSITION_OPENS"]),
-            max_position_size=float(os.environ["TRADE_MAX_POSITION_SIZE"]),
-            min_trade_amount=int(os.environ.get("TRADE_MIN_TRADE_AMOUNT", 0)),
-            adjust_factors=self.adjust_factors,
-        )
-        ctx_args.update(_load_ctx_vars_from_env())
-        self.ctx = Context.build(**ctx_args)
-
         self.account = BrokerAPI.get_account()
-        self.strategy: LiveStrategy = tradepy.config.get_strategy_class()(self.ctx)
-
-        self.take_profit_slip: float = 0.03
-        self.stop_loss_slip: float = 0.06
+        self.strategy: LiveStrategy = self.strategy_conf.load_strategy()  # type: ignore
 
     @cached_property
     def redis_client(self):
-        return tradepy.config.get_redis_client()
+        return self.conf.get_redis_client()
 
     def _jit_sell_price(self, price: float, slip_pct: float) -> float:
         slip = slip_pct * 1e-2
-        if tradepy.config.mode == "paper-trading":
+        if tradepy.config.common.mode == "paper-trading":
             jitter = random.uniform(0, slip)
             return price * (1 - jitter)
         return price * (1 - slip)
@@ -220,13 +191,19 @@ class TradingEngine(TradeMixin):
             # Take profit
             if take_profit_price := self.should_take_profit(self.strategy, bar, pos):
                 pos.close(
-                    self._jit_sell_price(take_profit_price, self.take_profit_slip)
+                    self._jit_sell_price(
+                        take_profit_price, self.strategy_conf.take_profit_slip
+                    )
                 )
                 sell_orders.append(pos.to_sell_order(trade_date, action="止盈"))
 
             # Stop loss
             elif stop_loss_price := self.should_stop_loss(self.strategy, bar, pos):
-                pos.close(self._jit_sell_price(stop_loss_price, self.stop_loss_slip))
+                pos.close(
+                    self._jit_sell_price(
+                        stop_loss_price, self.strategy_conf.stop_loss_slip
+                    )
+                )
                 sell_orders.append(pos.to_sell_order(trade_date, action="止损"))
 
         if sell_orders:
@@ -243,7 +220,7 @@ class TradingEngine(TradeMixin):
             n_bought = sum(1 for o in orders if o.direction == "buy")
             n_signals = len(port_df)
 
-            avail_opens_count = max(0, self.ctx.max_position_opens - n_bought)
+            avail_opens_count = max(0, self.strategy_conf.max_position_opens - n_bought)
             port_df, budget = self.strategy.adjust_portfolio_and_budget(
                 port_df,
                 budget=self.account.free_cash_amount,
@@ -254,7 +231,7 @@ class TradingEngine(TradeMixin):
 
             buy_orders = self.strategy.generate_buy_orders(port_df, budget)
             LOG.info(
-                f"当日已买入{n_bought}, 最大可开仓位{self.ctx.max_position_opens}, "
+                f"当日已买入{n_bought}, 最大可开仓位{self.strategy_conf.max_position_opens}, "
                 f"当前可用资金{self.account.free_cash_amount}. "
                 f"今日剩余开仓限额{avail_opens_count}, 实际开仓{len(buy_orders)}. "
                 f"触发买入{n_signals}"
@@ -317,7 +294,7 @@ class TradingEngine(TradeMixin):
 
     @require_mode("live-trading", "paper-trading")
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
-        trade_date = str(self.ctx.get_trade_date())
+        trade_date = str(get_latest_trade_date())
         quote_df["timestamp"] = trade_date
 
         match market_phase:

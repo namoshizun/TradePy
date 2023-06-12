@@ -10,10 +10,9 @@ class TaskRequest(TypedDict):
     workspace_id: str
     id: str
     batch_id: str
-    parameters: dict[str, Number]
-    strategy: str
     dataset_path: str
-    base_context: dict[str, Any]
+    optimizer_class: str
+    backtest_conf: dict[str, Any]
 
 
 class TaskResult(TaskRequest):
