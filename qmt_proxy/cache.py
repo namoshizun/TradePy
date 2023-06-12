@@ -101,12 +101,12 @@ class PositionCache(HashmapCacheItem[Position]):
 
 
 class OrderCache(HashmapCacheItem[Order]):
-    get_key = CacheKeys.orders
+    get_key = lambda: CacheKeys.orders
     item_type = Order
 
 
 class AccountCache(CacheItem[Account]):
-    get_key = CacheKeys.account
+    get_key = lambda: CacheKeys.account
 
     @classmethod
     def set(cls, account: Account):

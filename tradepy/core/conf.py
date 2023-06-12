@@ -54,7 +54,7 @@ class ConfBase(BaseModel):
         if not file_path.exists():
             raise FileNotFoundError(f"配置文件不存在: {file_path}")
 
-        with file_path.open("r") as f:
+        with file_path.open("r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
             return cls.from_dict(config)
 

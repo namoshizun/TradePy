@@ -33,7 +33,7 @@ trading:
     port: 8000
   xtquant:
     account_id: "12345678"
-    qmt_data_path: "C:\\国金证券QMT交易端\\userdata_mini"
+    qmt_data_path: C:\软件\国金QMT交易端模拟\userdata_mini
     price_type: "FIX_PRICE"  # options are: "FIX_PRICE", "LATEST_PRICE", "BEST_5", not yet supported
 
 schedules:
