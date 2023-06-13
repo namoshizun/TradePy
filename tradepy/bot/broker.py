@@ -48,3 +48,12 @@ class BrokerAPI:
 
         if len(res["succ"]) != len(orders):
             tradepy.LOG.warn(f"部分下单失败: {res}")
+
+    @staticmethod
+    def cancel_orders(orders: list[Order]):
+        res = rq.delete(
+            get_url("orders"), params={"order_ids": [o.id for o in orders]}
+        ).json()
+
+        if len(res["succ"]) != len(orders):
+            tradepy.LOG.warn(f"部分撤单失败: {res}")

@@ -13,6 +13,7 @@ trading:
     max_position_opens: 10000
     min_trade_amount: 0
     signals_percent_range: [0, 100]
+    pending_order_expiry: 10  # seconds
   periodic_tasks:
     tick_fetch_interval: 5
     assets_sync_interval: 3

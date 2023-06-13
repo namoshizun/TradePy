@@ -1,6 +1,7 @@
 import uuid
 from loguru import logger
 from datetime import date, datetime
+from dateutil import parser as date_parser
 from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,11 @@ class Order(BaseModel):
     tags: dict = Field(default_factory=dict)
 
     @property
+    def duration(self) -> int:
+        ts_dt = date_parser.parse(self.timestamp)
+        return (datetime.now() - ts_dt).seconds
+
+    @property
     def created_at(self) -> datetime:
         return datetime.fromisoformat(self.tags["created_at"])
 
@@ -46,6 +52,10 @@ class Order(BaseModel):
         if self.status == "cancelled":
             return self.vol - self.filled_vol
         return 0
+
+    @property
+    def pending_vol(self) -> int:
+        return self.vol - self.filled_vol
 
     @property
     def filled_value(self) -> float:
