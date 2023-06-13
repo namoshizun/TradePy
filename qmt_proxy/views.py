@@ -87,7 +87,7 @@ async def place_order(orders: list[Order]):
             if n != m:
                 logger.warning(f"过滤掉 {n - m} 个数量为 500 的委托")
 
-        # Pre-dudct account free cash (buy orders)
+        # Pre-duct account free cash (buy orders)
         buy_total = sum([round(o.price, 2) * o.vol for o in orders if o.is_buy])
         if buy_total > 0:
             account: Account = AccountCache.get()  # type: ignore
@@ -136,6 +136,30 @@ async def place_order(orders: list[Order]):
                 order.id = str(order_id)
                 order.tags = dict(created_at=datetime.now().isoformat())
                 OrderCache.set(order)
+
+    return {"succ": succ, "fail": fail}
+
+
+@router.delete("/orders")
+@with_redis_lock(CacheKeys.update_assets, sleep=0.2)
+async def cancel_orders(order_ids: list[str]):
+    logger.info(f"收到撤单请求: {order_ids}")
+    xt_account = xt_conn.get_account()
+    trader = xt_conn.get_trader()
+    succ, fail = [], []
+
+    with use_redis(tradepy.config.trading.get_redis_client()):
+        for order_id in order_ids:
+            logger.info(f"撤单: {order_id}")
+            status_code = trader.cancel_order_stock(
+                account=xt_account.account_id, order_id=int(order_id)
+            )
+
+            if status_code == 0:
+                succ.append(order_id)
+            else:
+                logger.error(f"撤单失败: 委托号 = {order_id}, 状态码 = {status_code}")
+                fail.append(order_id)
 
     return {"succ": succ, "fail": fail}
 

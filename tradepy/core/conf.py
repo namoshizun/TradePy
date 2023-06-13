@@ -142,6 +142,7 @@ class StrategyConf(ConfBase):
     min_trade_amount: int = 0
     signals_percent_range: list[int] | tuple[int, int] = [0, 100]
 
+    pending_order_expiry: float = 0
     custom_params: dict[str, Any] = Field(default_factory=dict)
 
     def __getattr__(self, name: str):

@@ -180,8 +180,8 @@ class TradingEngine(TradeMixin):
         # [1] Sell existing positions
         # NOTE:
         # Use the current quote frame to decide whether to take profit or stop loss.
-        # This is to avoid the situation where the indicator frame is incomplete for some reason
-        # and the position stock is missing in the frame.
+        # This is to avoid the situation where position stock does not appear in the
+        # indicator frame. This happens if the indicator frame is incomplete for some reason.
         sell_orders: list[Order] = []
         for pos in positions:
             if pos.code not in quote_df.index:
@@ -242,6 +242,18 @@ class TradingEngine(TradeMixin):
                 LOG.info("发送买入指令")
                 BrokerAPI.place_orders(buy_orders)
                 LOG.log_orders(buy_orders)
+
+        # [3] Cancel expired orders
+        if (expiry := self.conf.strategy.pending_order_expiry) <= 0:
+            return
+
+        orders_to_cancel = [
+            o for o in orders if o.pending_vol > 0 and o.duration >= expiry
+        ]
+
+        if orders_to_cancel:
+            LOG.info(f'发送撤单指令: {orders_to_cancel}')
+            BrokerAPI.cancel_orders(orders_to_cancel)
 
     def _pre_close_trade(self, ind_df: pd.DataFrame):
         close_codes = self._get_close_codes(ind_df)
