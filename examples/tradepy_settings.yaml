@@ -1,10 +1,11 @@
 common:
-  mode: "backtest"
+  mode: "paper-trading"
+  # mode: "backtest"
   trade_lot_vol: 100
 
 trading:
   strategy:
-    strategy_class: "playground.ma60_support.MA60SupportStrategyLive"
+    strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
     take_profit: 3.2
     take_profit_slip: 0.03
@@ -14,6 +15,11 @@ trading:
     min_trade_amount: 0
     signals_percent_range: [0, 100]
     pending_order_expiry: 10  # seconds
+    custom_params:
+      ma60_support_thres: 2.5
+      min_volatility: 1.5
+      signal_below_support_thres: 0.75
+
   periodic_tasks:
     tick_fetch_interval: 5
     assets_sync_interval: 3
