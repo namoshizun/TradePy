@@ -7,7 +7,7 @@ from pathlib import Path
 
 import tradepy
 from tradepy.blacklist import Blacklist
-from tradepy.constants import CacheKeys, Timeouts
+from tradepy.constants import CacheKeys
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.conf import TradingConf
 from tradepy.core.models import Order, Position
@@ -17,6 +17,7 @@ from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
 from tradepy.depot.misc import AdjustFactorDepot
+from tradepy.conversion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
 
 
@@ -295,8 +296,9 @@ class TradingEngine(TradeMixin):
 
     @require_mode("live-trading", "paper-trading")
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
-        trade_date = str(get_latest_trade_date())
-        quote_df["timestamp"] = trade_date
+        quote_df["market"] = quote_df.index.map(convert_code_to_market)
+        quote_df["timestamp"] = str(get_latest_trade_date())
+        quote_df["code"] = quote_df.index
 
         match market_phase:
             case MarketPhase.PRE_OPEN_CALL_P2:

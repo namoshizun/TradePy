@@ -53,7 +53,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
         df = pd.concat(loader())
 
-        cat_columns = ["company", "market", "code", "timestamp"]
+        cat_columns = ["company", "market"]
         for col in cat_columns:
             df[col] = df[col].astype("category")
 

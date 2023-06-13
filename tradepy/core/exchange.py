@@ -3,8 +3,6 @@ from datetime import datetime, date
 
 import tradepy
 from tradepy.trade_cal import trade_cal
-from tradepy.constants import Timeouts
-from tradepy.conversion import convert_code_to_market
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
 
@@ -56,6 +54,4 @@ class AStockExchange:
     @staticmethod
     @timeout(seconds=tradepy.config.trading.timeouts.download_quote)
     def get_quote() -> pd.DataFrame:
-        df = tradepy.ak_api.get_stock_current_quote()
-        df["market"] = df.index.map(convert_code_to_market)
-        return df
+        return tradepy.ak_api.get_stock_current_quote()
