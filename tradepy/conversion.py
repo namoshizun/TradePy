@@ -57,6 +57,7 @@ def convert_akshare_hist_data(df: pd.DataFrame):
         "换手率": "turnover",
     }
     df.rename(columns=fields_map, inplace=True)
+    df["timestamp"] = df["timestamp"].astype(str)
     return df[list(fields_map.values())]
 
 
