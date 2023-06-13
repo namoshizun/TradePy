@@ -7,7 +7,7 @@ from pathlib import Path
 
 import tradepy
 from tradepy.blacklist import Blacklist
-from tradepy.constants import CacheKeys, Timeouts
+from tradepy.constants import CacheKeys
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.conf import TradingConf
 from tradepy.core.models import Order, Position
