@@ -244,15 +244,17 @@ class TradingEngine(TradeMixin):
                 LOG.log_orders(buy_orders)
 
         # [3] Cancel expired orders
-        if (expiry := self.conf.strategy.pending_order_expiry) <= 0:
+        if (expiry_seconds := self.conf.strategy.pending_order_expiry) <= 0:
             return
 
         orders_to_cancel = [
-            o for o in orders if o.pending_vol > 0 and o.duration >= expiry
+            o
+            for o in orders
+            if o.status != "cancelled" and o.pending_vol > 0 and o.duration >= expiry_seconds
         ]
 
         if orders_to_cancel:
-            LOG.info(f'发送撤单指令: {orders_to_cancel}')
+            LOG.info(f"发送撤单指令: {orders_to_cancel}")
             BrokerAPI.cancel_orders(orders_to_cancel)
 
     def _pre_close_trade(self, ind_df: pd.DataFrame):
