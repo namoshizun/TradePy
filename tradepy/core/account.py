@@ -7,7 +7,6 @@ from tradepy.utils import round_val
 
 
 class Account(BaseModel):
-
     free_cash_amount: float
     frozen_cash_amount: float
     market_value: float
@@ -26,9 +25,9 @@ class Account(BaseModel):
 
 
 class BacktestAccount(BaseModel):
-
     free_cash_amount: float
     broker_commission_rate: float
+    min_broker_commission_fee: float
     stamp_duty_rate: float
 
     holdings: Holdings = Field(default_factory=Holdings)
@@ -54,24 +53,28 @@ class BacktestAccount(BaseModel):
 
     @require_mode("backtest")
     def clear(self):
-        all_positions = [
-            pos
-            for _, pos in self.holdings
-        ]
+        all_positions = [pos for _, pos in self.holdings]
         self.sell(all_positions)
 
     @round_val
-    def get_buy_commissions(self, amount: float) -> float:
-        return amount * (self.broker_commission_rate * 1e-2)
+    def get_buy_commission_fee(self, amount: float) -> float:
+        fee = amount * (self.broker_commission_rate * 1e-2)
+        return max(fee, self.min_broker_commission_fee)
+
+    @round_val
+    def get_stamp_duty_fee(self, amount: float) -> float:
+        return amount * (self.stamp_duty_rate * 1e-2)
 
     @round_val
     def add_buy_commissions(self, amount: float) -> float:
-        return amount * (1 + self.broker_commission_rate * 1e-2)
+        fee = self.get_buy_commission_fee(amount)
+        return amount + fee
 
     @round_val
     def take_sell_commissions(self, amount: float) -> float:
-        rate = self.broker_commission_rate + self.stamp_duty_rate
-        return amount * (1 - rate * 1e-2)
+        broker_commission_fee = self.get_buy_commission_fee(amount)
+        stamp_duty_fee = self.get_stamp_duty_fee(amount)
+        return amount - broker_commission_fee - stamp_duty_fee
 
     @property
     def total_asset_value(self) -> float:

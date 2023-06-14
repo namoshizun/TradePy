@@ -250,7 +250,9 @@ class TradingEngine(TradeMixin):
         orders_to_cancel = [
             o
             for o in orders
-            if o.status != "cancelled" and o.pending_vol > 0 and o.duration >= expiry_seconds
+            if o.status != "cancelled"
+            and o.pending_vol > 0
+            and o.duration >= expiry_seconds
         ]
 
         if orders_to_cancel:

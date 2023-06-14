@@ -1,6 +1,6 @@
 common:
-  mode: "paper-trading"
-  # mode: "backtest"
+  # mode: "paper-trading"
+  mode: "backtest"
   trade_lot_vol: 100
 
 trading:
@@ -9,12 +9,12 @@ trading:
     stop_loss: 1.6
     take_profit: 3.2
     take_profit_slip: 0.03
-    stop_loss_slip: 0.05
+    stop_loss_slip: 0.08
     max_position_size: 1
     max_position_opens: 10000
     min_trade_amount: 0
     signals_percent_range: [0, 100]
-    pending_order_expiry: 10  # seconds
+    pending_order_expiry: 10 # seconds
     custom_params:
       ma60_support_thres: 2.5
       min_volatility: 1.5
@@ -25,11 +25,11 @@ trading:
     assets_sync_interval: 3
   timeouts:
     download_quote: 3
-    handle_pre_market_open_call: 240  # 4 mins
-    compute_open_indicators: 228  # < 3.8 mins
+    handle_pre_market_open_call: 240 # 4 mins
+    compute_open_indicators: 228 # < 3.8 mins
     handle_cont_trade: 2
-    handle_cont_trade_pre_close: 180  # 3 mins
-    compute_close_indicators: 120  # 2mins
+    handle_cont_trade_pre_close: 180 # 3 mins
+    compute_close_indicators: 120 # 2mins
   redis:
     host: localhost
     port: 6379
@@ -41,7 +41,7 @@ trading:
   xtquant:
     account_id: "12345678"
     qmt_data_path: C:\软件\国金QMT交易端模拟\userdata_mini
-    price_type: "FIX_PRICE"  # options are: "FIX_PRICE", "LATEST_PRICE", "BEST_5", not yet supported
+    price_type: "FIX_PRICE" # options are: "FIX_PRICE", "LATEST_PRICE", "BEST_5", not yet supported
 
 schedules:
   update_datasets: "0 20 * * *"

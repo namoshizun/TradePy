@@ -228,6 +228,7 @@ class SchedulesConf(ConfBase):
 class BacktestConf(ConfBase):
     cash_amount: float
     broker_commission_rate: float = 0.05
+    min_broker_commission_fee: float = 5
     stamp_duty_rate: float = 0.1
     strategy: StrategyConf
 

@@ -22,8 +22,14 @@ class Backtester(TradeMixin):
         self.account = BacktestAccount(
             free_cash_amount=conf.cash_amount,
             broker_commission_rate=conf.broker_commission_rate,
+            min_broker_commission_fee=conf.min_broker_commission_fee,
             stamp_duty_rate=conf.stamp_duty_rate,
         )
+        self.strategy_conf = conf.strategy
+
+    def _jit_sell_price(self, price: float, slip_pct: float) -> float:
+        jitter = random.uniform(0, slip_pct * 1e-2)
+        return price * (1 - jitter)
 
     def __orders_to_positions(self, orders: list[Order]) -> list[Position]:
         return [
@@ -49,8 +55,8 @@ class Backtester(TradeMixin):
             pos.code for pos in sell_positions
         )
         jitter_price = lambda p: p * random.uniform(
-            1 - 1e-4 * 5, 1 + 1e-4 * 5
-        )  # 0.05% slip
+            1 - 1e-4 * 3, 1 + 1e-4 * 3
+        )  # 0.03% slip
 
         # Looks ugly but it's fast...
         indices_and_prices = [
@@ -130,12 +136,18 @@ class Backtester(TradeMixin):
 
                 # [1] Take profit
                 if take_profit_price := self.should_take_profit(strategy, bar, pos):
+                    take_profit_price = self._jit_sell_price(
+                        take_profit_price, self.strategy_conf.take_profit_slip
+                    )
                     pos.close(take_profit_price)
                     trade_book.take_profit(timestamp, pos)
                     sell_positions.append(pos)
 
                 # [2] Stop loss
                 elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
+                    stop_loss_price = self._jit_sell_price(
+                        stop_loss_price, self.strategy_conf.stop_loss_slip
+                    )
                     pos.close(stop_loss_price)
                     trade_book.stop_loss(timestamp, pos)
                     sell_positions.append(pos)
@@ -155,7 +167,7 @@ class Backtester(TradeMixin):
             )  # list[DF_Index, BuyPrice]
             if not port_df.empty:
                 free_cash = self.account.free_cash_amount
-                budget = free_cash - self.account.get_buy_commissions(free_cash)
+                budget = free_cash - self.account.get_buy_commission_fee(free_cash)
 
                 port_df, budget = strategy.adjust_portfolio_and_budget(
                     port_df=port_df,
