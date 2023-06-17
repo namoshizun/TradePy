@@ -38,9 +38,11 @@ class GenericBarsDepot:
     def size(self) -> int:
         return sum(1 for _ in self.folder.iterdir())
 
-    def save(self, df: pd.DataFrame, filename: str):
+    def save(self, df: pd.DataFrame, filename: str) -> Path:
         assert filename.endswith("csv")
-        df.to_csv(self.folder / filename, index=False)
+        out_path = self.folder / filename
+        df.to_csv(out_path, index=False)
+        return out_path
 
     def append(self, df: pd.DataFrame, filename: str):
         assert filename.endswith("csv")

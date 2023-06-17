@@ -24,6 +24,7 @@ from tradepy.conversion import (
     convert_akshare_restricted_releases_records,
     convert_etf_current_quote,
     convert_etf_day_bar,
+    convert_stock_futures_day_bar,
 )
 from tradepy.utils import get_latest_trade_date
 from tradepy.depot.stocks import StocksDailyBarsDepot
@@ -264,3 +265,23 @@ class AkShareClient:
 
         df = ak.fund_etf_hist_em(symbol=code, start_date=start_date.strftime("%Y%m%d"))
         return convert_etf_day_bar(df)
+
+    # -------
+    # Futures
+    def get_stock_futures_daily(
+        self,
+        index_name: Literal["IF", "IH", "IC"],
+        start_date: datetime.date | str | None = None,
+        end_date: datetime.date | str | None = None,
+    ) -> pd.DataFrame:
+        date_range_args = {}
+        if isinstance(start_date, str):
+            start_date = datetime.date.fromisoformat(start_date)
+            date_range_args["start_date"] = start_date.strftime("%Y%m%d")
+
+        if isinstance(end_date, str):
+            end_date = datetime.date.fromisoformat(end_date)
+            date_range_args["end_date"] = end_date.strftime("%Y%m%d")
+
+        df = retry()(ak.futures_main_sina)(symbol=f"{index_name}0", **date_range_args)
+        return convert_stock_futures_day_bar(df)
