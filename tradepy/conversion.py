@@ -259,3 +259,18 @@ def convert_etf_day_bar(df: pd.DataFrame) -> pd.DataFrame:
     }
     df.rename(columns=mapping, inplace=True)
     return df[list(mapping.values())]
+
+
+def convert_stock_futures_day_bar(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "日期": "timestamp",
+        "开盘价": "open",
+        "收盘价": "close",
+        "最高价": "high",
+        "最低价": "low",
+        "成交量": "vol",
+        "持仓量": "open_interest",
+    }
+    df.rename(columns=mapping, inplace=True)
+    df["timestamp"] = df["timestamp"].astype(str)
+    return df[list(mapping.values())]
