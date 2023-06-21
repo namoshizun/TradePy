@@ -209,6 +209,7 @@ class StrategyBase(Generic[BarDataType]):
 
     def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
         assert isinstance(self.adjust_factors, AdjustFactors)
+        bars_df["orig_open"] = bars_df["open"].copy()
         return self.adjust_factors.backward_adjust_history_prices(code, bars_df)
 
     def adjust_stocks_latest_prices(self, bars_df: pd.DataFrame):

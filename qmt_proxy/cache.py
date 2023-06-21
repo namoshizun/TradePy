@@ -52,17 +52,7 @@ class CacheItem(Generic[ItemType]):
 
     @classmethod
     @abc.abstractmethod
-    def set_many(cls, items: Iterable[ItemType]):
-        raise NotImplementedError
-
-    @classmethod
-    @abc.abstractmethod
     def get(cls, *args) -> ItemType | None:
-        raise NotImplementedError
-
-    @classmethod
-    @abc.abstractmethod
-    def get_many(cls, *args) -> list[ItemType] | None:
         raise NotImplementedError
 
 
