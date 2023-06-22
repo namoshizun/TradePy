@@ -11,9 +11,10 @@ config:
       min_trade_amount: 8_500
     cash_amount: 100_000
     broker_commission_rate: 0.01
-  dask:
-    n_workers: 4
-    threads_per_worker: 1
+
+dask:
+  n_workers: 4
+  threads_per_worker: 1
 
 parameters:
   - name: ma60_support_thres

@@ -11,7 +11,6 @@ class TaskRequest(TypedDict):
     id: str
     batch_id: str
     dataset_path: str
-    optimizer_class: str
     backtest_conf: dict[str, Any]
 
 

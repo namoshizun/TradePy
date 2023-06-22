@@ -1,16 +1,19 @@
+import abc
 import os
+import pickle
 import pandas as pd
+from typing import Generic, Type, TypeVar
 from uuid import uuid4
 from loguru import logger
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, field
 from dask.distributed import Client as DaskClient
 
-from tradepy.core.conf import BacktestConf, OptimizationConf, StrategyConf
+from tradepy.core.conf import BacktestConf, DaskConf, OptimizationConf, TaskConf
 from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
 from tradepy.optimization.worker import Worker
+from tradepy.optimization.base import TaskEvaluator
 
 
 def get_default_workspace_dir() -> Path:
@@ -25,11 +28,13 @@ def get_random_id() -> str:
     return str(uuid4())
 
 
-@dataclass
-class Scheduler:
-    parameters: list[Parameter | ParameterGroup]
-    conf: OptimizationConf
-    workspace_dir: Path = field(default_factory=get_default_workspace_dir)
+ConfType = TypeVar("ConfType", bound=TaskConf)
+
+
+class TaskScheduler(Generic[ConfType]):
+    def __init__(self, conf: ConfType) -> None:
+        self.conf = conf
+        self.workspace_dir: Path = get_default_workspace_dir()
 
     def __post_init__(self):
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +54,6 @@ class Scheduler:
             "batch_id": batch_id,
             "workspace_id": self.workspace_dir.name,
             "dataset_path": str(self.conf.dataset_path),
-            "optimizer_class": self.conf.optimizer_class,
             "backtest_conf": backtest_conf.dict(),
         }
 
@@ -72,16 +76,9 @@ class Scheduler:
     def _submit_tasks_and_patch_results(
         self, dask_client: DaskClient, batch_df: pd.DataFrame
     ) -> list[TaskResult]:
-        def executor(request: TaskRequest) -> TaskResult:
-            now = datetime.now()
-            workspace_dir = os.path.expanduser(
-                f'~/.tradepy/worker/{now.date()}/{request["workspace_id"]}'
-            )
-            return Worker(workspace_dir).run(request)
-
         logger.info(f"提交{len(batch_df)}个任务")
         futures = dask_client.map(
-            executor, batch_df.reset_index().to_dict(orient="records")
+            self._executor, batch_df.reset_index().to_dict(orient="records")
         )
         results: list[TaskResult] = dask_client.gather(futures)  # type: ignore
 
@@ -92,7 +89,58 @@ class Scheduler:
         batch_df["metrics"] = metrics_df["metrics"]
         return results
 
-    def _run_once(self, dask_client: DaskClient, run_id: int = 1):
+    def _executor(self, request: TaskRequest) -> TaskResult:
+        now = datetime.now()
+        workspace_dir = os.path.expanduser(
+            f'~/.tradepy/worker/{now.date()}/{request["workspace_id"]}'
+        )
+        # Run backtesting
+        trade_book_path: str = Worker(workspace_dir).run(request)
+
+        # Evaluate results
+        with open(trade_book_path, "rb") as file:
+            trade_book = pickle.load(file)
+            evaluator_class: Type[TaskEvaluator] = self.conf.load_evaluator_class()
+            metrics = evaluator_class.evaluate_trades(trade_book)  # type: ignore
+            return dict(metrics=metrics, **request)  # type: ignore
+
+    @abc.abstractmethod
+    def run_once(self, dask_client: DaskClient, run_id: int = 1):
+        raise NotImplementedError
+
+    def run(self, repetitions: int | None = None, dask_args: dict | None = None):
+        if not repetitions:
+            repetitions = self.conf.repetition
+
+        if not dask_args:
+            dask_args = DaskConf().dict()
+
+        dask_client = DaskClient(**dask_args)
+
+        try:
+            info = dask_client.scheduler_info()
+            logger.info(
+                f'启动Dask集群: id={info["id"]}, dashboard port={info["services"]["dashboard"]}, {dask_client}'
+            )
+
+            for rep in range(1, repetitions + 1):
+                logger.info(f"第{rep}次执行")
+                self.run_once(dask_client, rep)
+        except Exception as exc:
+            logger.exception(exc)
+        finally:
+            dask_client.close()
+            logger.info("关闭Dask集群")
+
+
+class OptimizationScheduler(TaskScheduler[OptimizationConf]):
+    def __init__(
+        self, conf: OptimizationConf, parameters: list[Parameter | ParameterGroup]
+    ) -> None:
+        self.parameters = parameters
+        super().__init__(conf)
+
+    def run_once(self, dask_client: DaskClient, run_id: int = 1):
         optimizer = self.conf.load_optimizer_class()(self.parameters)
         params_batch_generator = optimizer.generate_parameters_batch()
         batch_count = 0
@@ -119,27 +167,6 @@ class Scheduler:
             # Gather results
             optimizer.consume_batch_result(results)
 
-    def run(self, repetitions: int | None = None, dask_args: dict | None = None):
-        if not repetitions:
-            repetitions = self.conf.repetition
 
-        _dask_args = self.conf.dask.dict().copy()
-        if dask_args:
-            _dask_args.update(dask_args)
-
-        dask_client = DaskClient(**_dask_args)
-
-        try:
-            info = dask_client.scheduler_info()
-            logger.info(
-                f'启动Dask集群: id={info["id"]}, dashboard port={info["services"]["dashboard"]}, {dask_client}'
-            )
-
-            for rep in range(1, repetitions + 1):
-                logger.info(f"第{rep}次执行")
-                self._run_once(dask_client, rep)
-        except Exception as exc:
-            logger.exception(exc)
-        finally:
-            dask_client.close()
-            logger.info("关闭Dask集群")
+class BacktestRunsScheduler(TaskScheduler):
+    ...
