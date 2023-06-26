@@ -156,9 +156,9 @@ class StrategyConf(ConfBase):
 
         # FIXME: won't be able to expand env vars...
         # return cls(**known_args, custom_params=custom_params)
-        return super(cls, cls).from_dict(
-            dict(**known_args, custom_params=custom_params)
-        )
+        conf_dict = dict(**known_args)
+        conf_dict.update(custom_params)
+        return super(cls, cls).from_dict(conf_dict)
 
     def update(self, **kv_pairs):
         predefined_params = self.__fields__.keys()
