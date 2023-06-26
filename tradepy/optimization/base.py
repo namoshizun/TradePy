@@ -7,8 +7,14 @@ from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.trade_book.trade_book import TradeBook
 
 
+class TaskEvaluator:
+    @abc.abstractclassmethod
+    def evaluate_trades(cls, trade_book: TradeBook):
+        raise NotImplementedError
+
+
 @dataclass
-class ParameterOptimizer:
+class ParameterOptimizer(TaskEvaluator):
     parameters: list[Parameter | ParameterGroup]
 
     @abc.abstractmethod
@@ -17,8 +23,4 @@ class ParameterOptimizer:
 
     @abc.abstractmethod
     def consume_batch_result(self, results: list[TaskResult]):
-        raise NotImplementedError
-
-    @abc.abstractclassmethod
-    def evaluate_trades(cls, trade_book: TradeBook):
         raise NotImplementedError

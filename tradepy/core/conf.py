@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, root_validator, validator
 from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
-from tradepy.optimization.base import ParameterOptimizer
+from tradepy.optimization.base import ParameterOptimizer, TaskEvaluator
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
@@ -156,9 +156,9 @@ class StrategyConf(ConfBase):
 
         # FIXME: won't be able to expand env vars...
         # return cls(**known_args, custom_params=custom_params)
-        return super(cls, cls).from_dict(
-            dict(**known_args, custom_params=custom_params)
-        )
+        conf_dict = dict(**known_args)
+        conf_dict.update(custom_params)
+        return super(cls, cls).from_dict(conf_dict)
 
     def update(self, **kv_pairs):
         predefined_params = self.__fields__.keys()
@@ -233,20 +233,33 @@ class BacktestConf(ConfBase):
     strategy: StrategyConf
 
 
-# ----
+# ------------
 # Optimization
-# ----
+# ------------
 class DaskConf(ConfBase):
     n_workers: int = multiprocessing.cpu_count() * 3 // 4
     threads_per_worker: int = 1
 
 
-class OptimizationConf(ConfBase):
+class TaskConf(ConfBase):
     dataset_path: Path
-    optimizer_class: str
     backtest: BacktestConf
-    dask: DaskConf = Field(default_factory=DaskConf)
     repetition: int = 1
+    evaluator_class: str
+
+    def load_evaluator_class(self) -> Type[TaskEvaluator]:
+        return import_class(self.evaluator_class)
+
+
+class OptimizationConf(TaskConf):
+    optimizer_class: str
+    evaluator_class: str = ""
+
+    @root_validator
+    def assign_default_evaluator(cls, values):
+        if not values["evaluator_class"]:
+            values["evaluator_class"] = values["optimizer_class"]
+        return values
 
     def load_optimizer_class(self) -> Type[ParameterOptimizer]:
         return import_class(self.optimizer_class)
