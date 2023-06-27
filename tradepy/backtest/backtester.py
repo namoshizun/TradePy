@@ -11,7 +11,7 @@ from tradepy.core.order import Order
 from tradepy.core.position import Position
 from tradepy.mixins import TradeMixin
 from tradepy.trade_book import TradeBook
-from tradepy.core.conf import BacktestConf
+from tradepy.core.conf import BacktestConf, Slippage
 
 if TYPE_CHECKING:
     from tradepy.strategy.base import StrategyBase
@@ -27,9 +27,24 @@ class Backtester(TradeMixin):
         )
         self.strategy_conf = conf.strategy
 
-    def _jit_sell_price(self, price: float, slip_pct: float) -> float:
-        jitter = random.uniform(0, slip_pct * 1e-2)
-        return price * (1 - jitter)
+    def _jit_sell_price(
+        self, price: float, slip: Slippage, orig_open_price: float
+    ) -> float:
+        choice, value = slip
+
+        if choice == "max_jump":
+            max_num_jumps = int(value)
+            one_jump_pct_chg = 0.01 / orig_open_price
+            pct_chgs = [one_jump_pct_chg * i for i in range(1, max_num_jumps + 1)]
+            slip_pct = random.choice(pct_chgs + [0])
+            return price * (1 - slip_pct)
+
+        if choice == "max_pct":
+            max_pct_chg = value
+            jitter = random.uniform(0, max_pct_chg * 1e-2)
+            return price * (1 - jitter)
+
+        raise ValueError(f"无效的滑点配置: {slip}")
 
     def __orders_to_positions(self, orders: list[Order]) -> list[Position]:
         return [
@@ -137,7 +152,9 @@ class Backtester(TradeMixin):
                 # [1] Take profit
                 if take_profit_price := self.should_take_profit(strategy, bar, pos):
                     take_profit_price = self._jit_sell_price(
-                        take_profit_price, self.strategy_conf.take_profit_slip
+                        take_profit_price,
+                        self.strategy_conf.take_profit_slip,
+                        bar["orig_open"],
                     )
                     pos.close(take_profit_price)
                     trade_book.take_profit(timestamp, pos)
@@ -146,7 +163,9 @@ class Backtester(TradeMixin):
                 # [2] Stop loss
                 elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
                     stop_loss_price = self._jit_sell_price(
-                        stop_loss_price, self.strategy_conf.stop_loss_slip
+                        stop_loss_price,
+                        self.strategy_conf.stop_loss_slip,
+                        bar["orig_open"],
                     )
                     pos.close(stop_loss_price)
                     trade_book.stop_loss(timestamp, pos)

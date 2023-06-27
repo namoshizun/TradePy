@@ -130,12 +130,16 @@ class XtQuantConf(ConfBase):
     price_type: str  # not yet supported
 
 
+SlippageChoice = Literal["max_pct", "max_jump"]
+Slippage = tuple[SlippageChoice, float | int]
+
+
 class StrategyConf(ConfBase):
     strategy_class: str | None = None
     stop_loss: float = 0
     take_profit: float = 0
-    take_profit_slip: float = 0.03
-    stop_loss_slip: float = 0.06
+    take_profit_slip: Slippage = ("max_pct", 0)
+    stop_loss_slip: Slippage = ("max_pct", 0)
     adjust_prices_before_compute: bool = False
 
     max_position_size: float = 1
@@ -246,7 +250,7 @@ class TaskConf(ConfBase):
     dataset_path: Path
     backtest: BacktestConf
     repetition: int = 1
-    evaluator_class: str = 'tradepy.backtest.evaluation.BasicEvaluator'
+    evaluator_class: str = "tradepy.backtest.evaluation.BasicEvaluator"
 
     def load_evaluator_class(self) -> Type["ResultEvaluator"]:
         return import_class(self.evaluator_class)

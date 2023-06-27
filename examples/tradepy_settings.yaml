@@ -8,8 +8,8 @@ trading:
     strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
     take_profit: 3.2
-    take_profit_slip: 0.03
-    stop_loss_slip: 0.08
+    take_profit_slip: ["max_pct", 0.03]
+    stop_loss_slip: ["max_pct", 0.08]
     max_position_size: 1
     max_position_opens: 10000
     min_trade_amount: 0
