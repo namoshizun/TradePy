@@ -1,3 +1,5 @@
+import abc
+from typing import Any
 import numpy as np
 import pandas as pd
 import quantstats as qs
@@ -16,8 +18,14 @@ def coerce_type(type_):
     return inner
 
 
-@dataclass
 class ResultEvaluator:
+    @abc.abstractclassmethod
+    def evaluate_trades(cls):
+        raise NotImplementedError
+
+
+@dataclass
+class BasicEvaluator(ResultEvaluator):
     trade_book: TradeBook
 
     @property
@@ -68,58 +76,45 @@ class ResultEvaluator:
     def get_number_of_close(self) -> int:
         return (self.trades_df["action"] == "平仓").sum()
 
+    @coerce_type(float)
+    def get_avg_return(self) -> float:
+        pct_chgs = self.trades_df["pct_chg"].dropna()
+        return round(pct_chgs.mean(), 2)
+
+    @coerce_type(float)
+    def get_stddev_return(self) -> float:
+        pct_chgs = self.trades_df["pct_chg"].dropna()
+        return round(pct_chgs.std(), 2)
+
+    def evaluate_trades(self) -> dict[str, Any]:
+        return {
+            "total_returns": self.get_total_returns(),
+            "max_drawdown": self.get_max_drawdown(),
+            "sharpe_ratio": self.get_sharpe_ratio(),
+            "success_rate": self.get_success_rate(),
+            "number_of_trades": self.get_number_of_trades(),
+            "number_of_stop_loss": self.get_number_of_stop_loss(),
+            "number_of_take_profit": self.get_number_of_take_profit(),
+            "number_of_close": self.get_number_of_close(),
+            "avg_return": self.get_avg_return(),
+            "stddev_return": self.get_stddev_return(),
+        }
+
     def html_report(self, **kwargs):
         qs.reports.html(self.trade_book.cap_logs_df["pct_chg"], **kwargs)
 
     def basic_report(self):
-        # Trade logs
-        df = self.trades_df.copy().reset_index()
-
-        # Count the number of trade actions, the counts of win / lose closes
-        close_results = df.query('action == "平仓"').copy()
-        close_results["win_close"] = close_results["pct_chg"] > 0
-        action_counts = df.groupby("action").size()
-
-        wins = action_counts["止盈"] + (close_wins := close_results["win_close"].sum())
-        loses = action_counts["止损"] + (
-            close_lose := (~close_results["win_close"]).sum()
-        )
-        succ_rate = round(100 * wins / (wins + loses), 2)
-
-        # Calculate return stats
-        pct_chgs = df["pct_chg"].dropna()
-        avg_pct_chg = round(pct_chgs.mean(), 2)
-        std_pct_chg = round(pct_chgs.std(), 2)
-
-        # Calculate hold days
-        hold_days = []
-
-        for _, group in self.trades_df.groupby("id"):
-            if len(group) < 2:
-                continue
-            start_date = group.iloc[0].name
-            end_date = group.iloc[-1].name
-            hold_days.append(abs(trade_cal.index(start_date) - trade_cal.index(end_date)))  # type: ignore
-
-        # Capital logs
+        metrics = self.evaluate_trades()
         print(
             f"""
 ===========
-开仓 = {action_counts["开仓"]}
-止损 = {action_counts["止损"]}
-止盈 = {action_counts["止盈"]}
-平仓亏损 = {close_lose}
-平仓盈利 = {close_wins}
-最大回撤 = {self.get_max_drawdown()}%
-总收益 = {self.get_total_returns()}%
-持仓日期 = 平均{np.mean(hold_days).round(2)}天, 中位数{np.median(hold_days).round(2)}天
-
-胜率 {succ_rate}%
-平均收益: {avg_pct_chg}% (标准差: {std_pct_chg}%)
-夏普比率: {self.get_sharpe_ratio()}
-
-平仓收益统计:
-{close_results.groupby("win_close")["pct_chg"].describe().round(2)}
-===========
-        """
+开仓 = {metrics["number_of_trades"]}
+止损 = {metrics["number_of_stop_loss"]}
+止盈 = {metrics["number_of_take_profit"]}
+胜率 {metrics["success_rate"]}%
+最大回撤 = {metrics["max_drawdown"]}%
+总收益 = {metrics["total_returns"]}%
+平均收益: {metrics["avg_return"]}% (标准差: {metrics["stddev_return"]}%)
+夏普比率: {metrics["sharpe_ratio"]}
+==========="""
         )

@@ -9,11 +9,12 @@ from pydantic import BaseModel, Field, root_validator, validator
 from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
-from tradepy.optimization.base import ParameterOptimizer, TaskEvaluator
+from tradepy.optimization.base import ParameterOptimizer
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
     from tradepy.strategy.base import StrategyBase
+    from tradepy.backtest.evaluation import ResultEvaluator
 
 
 load_dotenv()
@@ -245,9 +246,9 @@ class TaskConf(ConfBase):
     dataset_path: Path
     backtest: BacktestConf
     repetition: int = 1
-    evaluator_class: str
+    evaluator_class: str = 'tradepy.backtest.evaluation.BasicEvaluator'
 
-    def load_evaluator_class(self) -> Type[TaskEvaluator]:
+    def load_evaluator_class(self) -> Type["ResultEvaluator"]:
         return import_class(self.evaluator_class)
 
 

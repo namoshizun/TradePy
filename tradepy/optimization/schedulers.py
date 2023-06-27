@@ -8,12 +8,12 @@ from loguru import logger
 from pathlib import Path
 from datetime import datetime
 from dask.distributed import Client as DaskClient
+from tradepy.backtest.evaluation import ResultEvaluator
 
 from tradepy.core.conf import BacktestConf, DaskConf, OptimizationConf, TaskConf
 from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
 from tradepy.optimization.worker import Worker
-from tradepy.optimization.base import TaskEvaluator
 
 
 def get_default_workspace_dir() -> Path:
@@ -53,8 +53,8 @@ class TaskScheduler(Generic[ConfType]):
         # Evaluate results
         with open(trade_book_path, "rb") as file:
             trade_book = pickle.load(file)
-            evaluator_class: Type[TaskEvaluator] = self.conf.load_evaluator_class()
-            metrics = evaluator_class.evaluate_trades(trade_book)  # type: ignore
+            evaluator_class: Type[ResultEvaluator] = self.conf.load_evaluator_class()
+            metrics = evaluator_class(trade_book).evaluate_trades()  # type: ignore
             return dict(metrics=metrics, **request)  # type: ignore
 
     def make_task_request(

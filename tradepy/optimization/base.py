@@ -4,17 +4,10 @@ from dataclasses import dataclass
 
 from tradepy.optimization.types import ParameterValuesBatch, TaskResult
 from tradepy.optimization.parameter import Parameter, ParameterGroup
-from tradepy.trade_book.trade_book import TradeBook
-
-
-class TaskEvaluator:
-    @abc.abstractclassmethod
-    def evaluate_trades(cls, trade_book: TradeBook):
-        raise NotImplementedError
 
 
 @dataclass
-class ParameterOptimizer(TaskEvaluator):
+class ParameterOptimizer:
     parameters: list[Parameter | ParameterGroup]
 
     @abc.abstractmethod
