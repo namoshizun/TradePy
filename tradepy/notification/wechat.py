@@ -17,6 +17,7 @@ class PushPlusWechatNotifier:
     @property
     def limit_key(self):
         return "tradepy:notification:wechat:send_count"
+
     @property
     def send_count(self) -> int:
         count = self.redis_client.get(self.limit_key) or 0
@@ -41,13 +42,13 @@ class PushPlusWechatNotifier:
             "content": content,
             "template": "txt",
             "topic": self.conf.topic,
-            "channel": "wechat"
+            "channel": "wechat",
         }
         res = rq.post(url, data=data)
         if res.status_code != 200:
-            with self.redis_client.lock("tradepy:notification:wechat", timeout=10):
-                self.redis_client.incr(self.limit_key, 1)
-
             tradepy.LOG.error(f"微信推送失败: {res.text}")
         else:
-            tradepy.LOG.info(f"微信推送成功, 流水号{res.json()["data"]}, 今日已发送{self.send_count}条")
+            self.redis_client.incr(self.limit_key)
+            tradepy.LOG.info(
+                f"微信推送成功, 流水号{res.json()['data']}, 今日已发送{self.send_count}条"
+            )
