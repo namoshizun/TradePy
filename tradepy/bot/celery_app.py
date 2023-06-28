@@ -4,7 +4,7 @@ from kombu import Queue
 
 import tradepy
 
-
+redis_conf = tradepy.config.common.redis
 trade_conf = tradepy.config.trading
 schedules_conf = tradepy.config.schedules
 
@@ -12,7 +12,7 @@ assert trade_conf and schedules_conf
 
 app = Celery("tradepy-tradebot", fixups=[])
 
-app.conf.broker_url = f"redis://:{trade_conf.redis.password}@{trade_conf.redis.host}:{trade_conf.redis.port}/{trade_conf.redis.db}"
+app.conf.broker_url = f"redis://:{redis_conf.password}@{redis_conf.host}:{redis_conf.port}/{redis_conf.db}"
 app.conf.task_routes = {"tradepy.*": {"queue": "tradepy.tasks"}}
 app.conf.task_queues = (Queue("tradepy.tasks"),)
 

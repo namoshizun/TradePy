@@ -1,9 +1,12 @@
 import os
+import sys
 import time
 import errno
 import signal
 import inspect
 import functools
+import traceback
+from functools import wraps
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -73,6 +76,34 @@ def require_mode(*modes: "ModeType"):
         return decor
 
     return inner
+
+
+def notify_failure(title: str, channel="wechat"):
+    def send_via_wechat(title, content):
+        from tradepy.notification.wechat import PushPlusWechatNotifier
+
+        notifier = PushPlusWechatNotifier()
+        notifier.send(title, content)
+
+    def decor(fun):
+        @wraps(fun)
+        def inner(*args, **kwargs):
+            try:
+                return fun(*args, **kwargs)
+            except Exception as e:
+                tradepy.LOG.error(f"执行{fun}时发生错误, 推送异常: {e}")
+                stack_trace_message = "\n".join(
+                    traceback.format_exception(*sys.exc_info())
+                )
+                content = str(e) + "\n\n" + stack_trace_message[:500]
+
+                if channel == "wechat":
+                    send_via_wechat(title, content)
+                raise e
+
+        return inner
+
+    return decor
 
 
 def timeout(seconds, error_message=os.strerror(errno.ETIMEDOUT)):

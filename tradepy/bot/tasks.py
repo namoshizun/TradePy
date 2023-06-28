@@ -8,7 +8,7 @@ import tradepy
 from tradepy.bot.broker import BrokerAPI
 from tradepy.bot.engine import TradingEngine
 from tradepy.core.exchange import AStockExchange
-from tradepy.decorators import timeit
+from tradepy.decorators import notify_failure, timeit
 from tradepy.types import MarketPhase
 from tradepy.bot.celery_app import app as celery_app
 from tradepy.collectors.stock_day_bars import StockDayBarsCollector
@@ -23,6 +23,7 @@ from tradepy.collectors.release_restricted_shares import (
 
 
 @shared_task(name="tradepy.warm_broker_db", expires=10)
+@notify_failure(title="数据库预热失败")
 def warm_broker_db():
     phase = AStockExchange.market_phase_now()
     if phase == MarketPhase.CLOSED:
@@ -39,6 +40,7 @@ def warm_broker_db():
     name="tradepy.fetch_market_quote",
     expires=tradepy.config.trading.periodic_tasks.tick_fetch_interval * 0.95,
 )
+@notify_failure(title="行情获取失败")
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()
     if phase not in (
@@ -71,6 +73,7 @@ def fetch_market_quote():
 
 
 @shared_task(name="tradepy.handle_tick")
+@notify_failure(title="交易引擎处理行情失败")
 def handle_tick(payload):
     quote_df_reader = io.StringIO(payload["market_quote"])
 
@@ -99,6 +102,7 @@ def flush_broker_db():
 
 
 @shared_task(name="tradepy.update_data_sources", expires=60 * 60)
+@notify_failure(title="数据源更新失败")
 def update_data_sources():
     StockDayBarsCollector().run(batch_size=25, iteration_pause=1)
     EastMoneySectorIndexCollector().run(start_date="2016-01-01")

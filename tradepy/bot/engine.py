@@ -40,7 +40,7 @@ class TradingEngine(TradeMixin):
 
     @cached_property
     def redis_client(self):
-        return self.conf.get_redis_client()
+        return tradepy.config.common.get_redis_client()
 
     def _jit_sell_price(self, price: float, slip_pct: float) -> float:
         slip = slip_pct * 1e-2

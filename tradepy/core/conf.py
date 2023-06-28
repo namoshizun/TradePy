@@ -60,30 +60,6 @@ class ConfBase(BaseModel):
             return cls.from_dict(config)
 
 
-# ------
-# Common
-# ------
-class CommonConf(ConfBase):
-    mode: ModeType
-    database_dir: Path = Field(Path.cwd() / "database")
-    trade_lot_vol: int = 100
-    blacklist_path: Path | None = None
-
-    @validator("blacklist_path", pre=True)
-    def check_blacklist_path(cls, value):
-        if value is None:
-            return value
-        p = Path(value)
-        assert p.exists(), f"黑名单文件不存在: {p}"
-        return p
-
-    @validator("database_dir", pre=True)
-    def check_database_dir(cls, value):
-        p = Path(value)
-        assert p.exists(), f"数据库目录不存在: {p}"
-        return p
-
-
 # -------
 # Trading
 # -------
@@ -186,29 +162,8 @@ class TradingConf(ConfBase):
     strategy: StrategyConf
     periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
     timeouts: TimeoutsConf
-    redis: RedisConf
     broker: BrokerConf
     xtquant: XtQuantConf
-
-    redis_connection_pool: ConnectionPool | None = None
-
-    class Config(ConfBase.Config):
-        arbitrary_types_allowed = True
-
-    def get_redis_client(self) -> Redis:
-        if self.redis_connection_pool is None:
-            self.redis_connection_pool = ConnectionPool(
-                host=self.redis.host,
-                port=self.redis.port,
-                password=self.redis.password,
-                db=self.redis.db,
-                decode_responses=True,
-            )
-        return Redis(connection_pool=self.redis_connection_pool)
-
-    def __del__(self):
-        if self.redis_connection_pool is not None:
-            self.redis_connection_pool.disconnect()
 
 
 # ---------
@@ -270,6 +225,66 @@ class OptimizationConf(TaskConf):
         return import_class(self.optimizer_class)
 
 
+# ------------
+# Notification
+# ------------
+class PushPlusWechatNotificationConf(ConfBase):
+    enabled: bool = True
+    token: str
+    topic: str
+    daily_limit: int = 100
+
+
+class NotificationConf(ConfBase):
+    wechat: PushPlusWechatNotificationConf | None
+
+
+# ------
+# Common
+# ------
+class CommonConf(ConfBase):
+    mode: ModeType
+    database_dir: Path = Field(Path.cwd() / "database")
+    trade_lot_vol: int = 100
+    blacklist_path: Path | None = None
+    redis: RedisConf | None
+    redis_connection_pool: ConnectionPool | None = None
+
+    class Config(ConfBase.Config):
+        arbitrary_types_allowed = True
+
+    def get_redis_client(self) -> Redis:
+        assert self.redis, "未设置Redis配置"
+
+        if self.redis_connection_pool is None:
+            self.redis_connection_pool = ConnectionPool(
+                host=self.redis.host,
+                port=self.redis.port,
+                password=self.redis.password,
+                db=self.redis.db,
+                decode_responses=True,
+            )
+        return Redis(connection_pool=self.redis_connection_pool)
+
+    def __del__(self):
+        if self.redis_connection_pool is not None:
+            self.redis_connection_pool.disconnect()
+
+    @validator("blacklist_path", pre=True)
+    def check_blacklist_path(cls, value):
+        if value is None:
+            return value
+        p = Path(value)
+        assert p.exists(), f"黑名单文件不存在: {p}"
+        return p
+
+    @validator("database_dir", pre=True)
+    def check_database_dir(cls, value):
+        p = Path(value)
+        assert p.exists(), f"数据库目录不存在: {p}"
+        return p
+
+
 # ----
 # Main
 # ----
@@ -277,6 +292,7 @@ class TradePyConf(ConfBase):
     common: CommonConf
     trading: TradingConf | None
     schedules: SchedulesConf | None
+    notifications: NotificationConf | None
 
     @classmethod
     def load_from_config_file(cls) -> "TradePyConf":

@@ -78,7 +78,7 @@ async def place_order(orders: list[Order]):
     trader = xt_conn.get_trader()
     succ, fail = [], []
 
-    with use_redis(tradepy.config.trading.get_redis_client()):
+    with use_redis(tradepy.config.common.get_redis_client()):
         # Filter out buy orders whose volume is 500 (thanks to the weird behavior of QMT)
         if tradepy.config.common.mode == "paper-trading":
             n = len(orders)
@@ -148,7 +148,7 @@ async def cancel_orders(order_ids: list[str]):
     trader = xt_conn.get_trader()
     succ, fail = [], []
 
-    with use_redis(tradepy.config.trading.get_redis_client()):
+    with use_redis(tradepy.config.common.get_redis_client()):
         for order_id in order_ids:
             logger.info(f"撤单: {order_id}")
             status_code = trader.cancel_order_stock(
