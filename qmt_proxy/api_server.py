@@ -66,7 +66,7 @@ async def sync_assets() -> None:
         logger.info("交易终端未连接, 无法同步资产信息")
         return
 
-    if tradepy.config.trading.get_redis_client().get(CacheKeys.update_assets):
+    if tradepy.config.common.get_redis_client().get(CacheKeys.update_assets):
         logger.warning("存在尚未完成的资产同步或下单任务")
         return
 

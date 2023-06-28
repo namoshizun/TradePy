@@ -2,6 +2,11 @@ common:
   # mode: "paper-trading"
   mode: "backtest"
   trade_lot_vol: 100
+  redis:
+    host: localhost
+    port: 6379
+    db: 0
+    password: ${REDIS_PASSWORD}
 
 trading:
   strategy:
@@ -30,11 +35,6 @@ trading:
     handle_cont_trade: 2
     handle_cont_trade_pre_close: 180 # 3 mins
     compute_close_indicators: 120 # 2mins
-  redis:
-    host: localhost
-    port: 6379
-    db: 0
-    password: ${REDIS_PASSWORD}
   broker:
     host: "192.168.31.47"
     port: 8000
@@ -47,3 +47,8 @@ schedules:
   update_datasets: "0 20 * * *"
   warm_broker_db: "0 9 * * *"
   flush_broker_cache: "5 15 * * *"
+
+notifications:
+  wechat:
+    token: ${PUSH_PLUS_TOKEN}
+    topic: TradePy

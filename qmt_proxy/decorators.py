@@ -95,7 +95,7 @@ def with_redis_lock(key: str, **lock_args):
     def decor(func):
         @wraps(func)
         async def inner(*args, **kwargs):
-            with tradepy.config.trading.get_redis_client().lock(key, **lock_args):
+            with tradepy.config.common.get_redis_client().lock(key, **lock_args):
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 return func(*args, **kwargs)
