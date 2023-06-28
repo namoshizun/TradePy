@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import tradepy
-from tradepy.core.exceptions import OperationForbidden
+from tradepy.core.exceptions import NotConfiguredError, OperationForbidden
 from tradepy.core.indicator import Indicator
 
 
@@ -82,8 +82,11 @@ def notify_failure(title: str, channel="wechat"):
     def send_via_wechat(title, content):
         from tradepy.notification.wechat import PushPlusWechatNotifier
 
-        notifier = PushPlusWechatNotifier()
-        notifier.send(title, content)
+        try:
+            notifier = PushPlusWechatNotifier()
+            notifier.send(title, content)
+        except NotConfiguredError as exc:
+            tradepy.LOG.warn(f"配置错误, 取消发送消息: {exc}")
 
     def decor(fun):
         @wraps(fun)

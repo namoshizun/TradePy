@@ -2,14 +2,16 @@ import requests as rq
 
 import tradepy
 from tradepy.core.conf import PushPlusWechatNotificationConf
+from tradepy.core.exceptions import NotConfiguredError
 
 
 class PushPlusWechatNotifier:
     def __init__(self) -> None:
         if (conf := tradepy.config.notifications) is None:
-            raise ValueError("未配置通知项")
+            raise NotConfiguredError("未配置通知项")
 
-        assert conf.wechat is not None, "未配置微信通知项"
+        if conf.wechat is None:
+            raise NotConfiguredError("未配置微信通知项")
 
         self.conf: PushPlusWechatNotificationConf = conf.wechat
         self.redis_client = tradepy.config.common.get_redis_client()
