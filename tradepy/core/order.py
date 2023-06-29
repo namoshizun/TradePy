@@ -91,6 +91,10 @@ class Order(BaseModel):
         assert self.filled_price is not None
         return self.price - self.filled_price
 
+    @property
+    def short_description(self) -> str:
+        return f"{self.direction} {self.code}"
+
     @classmethod
     def fake(cls) -> "Order":
         return cls(

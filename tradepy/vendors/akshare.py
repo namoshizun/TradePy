@@ -25,9 +25,11 @@ from tradepy.conversion import (
     convert_etf_current_quote,
     convert_etf_day_bar,
     convert_stock_futures_day_bar,
+    convert_stock_ask_bid_df,
 )
 from tradepy.utils import get_latest_trade_date
 from tradepy.depot.stocks import StocksDailyBarsDepot
+from tradepy.vendors.types import AskBid
 
 
 def retry(max_retries=3, wait_interval=5):
@@ -210,6 +212,10 @@ class AkShareClient:
         df = convert_akshare_current_quotation(df)
         df.set_index("code", inplace=True)
         return df
+
+    def get_stock_ask_bid(self, code: str) -> AskBid:
+        df: pd.DataFrame = ak.stock_bid_ask_em(symbol=code)  # type: ignore
+        return convert_stock_ask_bid_df(df)
 
     # -----
     # Index

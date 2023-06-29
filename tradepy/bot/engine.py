@@ -19,6 +19,7 @@ from tradepy.bot.broker import BrokerAPI
 from tradepy.depot.misc import AdjustFactorDepot
 from tradepy.conversion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
+from tradepy.vendors.types import AskBid
 
 
 LOG = tradepy.LOG
@@ -243,22 +244,6 @@ class TradingEngine(TradeMixin):
                 BrokerAPI.place_orders(buy_orders)
                 LOG.log_orders(buy_orders)
 
-        # [3] Cancel expired orders
-        if (expiry_seconds := self.conf.strategy.pending_order_expiry) <= 0:
-            return
-
-        orders_to_cancel = [
-            o
-            for o in orders
-            if o.status != "cancelled"
-            and o.pending_vol > 0
-            and o.duration >= expiry_seconds
-        ]
-
-        if orders_to_cancel:
-            LOG.info(f"发送撤单指令: {orders_to_cancel}")
-            BrokerAPI.cancel_orders(orders_to_cancel)
-
     def _pre_close_trade(self, ind_df: pd.DataFrame):
         close_codes = self._get_close_codes(ind_df)
         if not close_codes:
@@ -325,3 +310,30 @@ class TradingEngine(TradeMixin):
 
             case MarketPhase.CONT_TRADE_PRE_CLOSE:
                 self.on_cont_trade_pre_close(quote_df)
+
+    @require_mode("live-trading", "paper-trading")
+    def handle_cancel_expired_orders(
+        self, pending_orders: list[Order], stock_ask_bids: dict[str, AskBid]
+    ):
+        if (expiry_seconds := self.conf.pending_order_expiry) <= 0:
+            LOG.warn("未设置订单过期时间, 不执行撤单逻辑")
+            return
+
+        orders_to_cancel = []
+        for o in pending_orders:
+            if o.duration < expiry_seconds:
+                continue
+
+            comment = f"订单[{o.short_description}]未能在{expiry_seconds}秒内成交, 已超时{o.duration - expiry_seconds}秒"
+            pos_1_price = stock_ask_bids[o.code][o.direction][0]
+            if o.price == pos_1_price:
+                comment += f", 但仍在买1/卖1队列中, 暂不撤单"
+                LOG.info(comment)
+                continue
+
+            LOG.info(comment)
+            orders_to_cancel.append(o)
+
+        if orders_to_cancel:
+            LOG.info(f"撤单以下委托: {orders_to_cancel}")
+            BrokerAPI.cancel_orders(orders_to_cancel)

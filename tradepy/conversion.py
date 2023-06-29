@@ -3,6 +3,7 @@ from datetime import date
 from dateutil import parser as date_parse
 
 from tradepy.types import BroadIndexType, ExchangeType, MarketType, Markets
+from tradepy.vendors.types import AskBid
 
 
 def convert_code_to_market(code: str) -> MarketType:
@@ -274,3 +275,15 @@ def convert_stock_futures_day_bar(df: pd.DataFrame) -> pd.DataFrame:
     df.rename(columns=mapping, inplace=True)
     df["timestamp"] = df["timestamp"].astype(str)
     return df[list(mapping.values())]
+
+
+def convert_stock_ask_bid_df(
+    df: pd.DataFrame,
+) -> AskBid:
+    df.set_index("item", inplace=True)
+    result = {"buy": [], "sell": []}
+
+    for i in range(1, 6):
+        result["sell"].append(df.loc[f"sell_{i}", "value"])
+        result["buy"].append(df.loc[f"buy_{i}", "value"])
+    return result  # type: ignore

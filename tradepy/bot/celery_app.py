@@ -48,3 +48,10 @@ app.conf.beat_schedule = {
         "args": (),
     },
 }
+
+if trade_conf.pending_order_expiry > 0:
+    app.conf.beat_schedule["cancel-expired-orders"] = {
+        "task": "tradepy.cancel_expired_orders",
+        "schedule": trade_conf.periodic_tasks.cancel_expired_orders_interval,
+        "args": (),
+    }

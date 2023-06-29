@@ -66,10 +66,12 @@ class ConfBase(BaseModel):
 class PeriodicTasksConf(ConfBase):
     tick_fetch_interval: int = 5
     assets_sync_interval: int = 3
+    cancel_expired_orders_interval: int = 5
 
 
 class TimeoutsConf(ConfBase):
     download_quote: int = 3
+    download_ask_bid: int = 2
     handle_pre_market_open_call: int = 240  # 4 mins
     compute_open_indicators: int = 228  # < 3.8 mins
     handle_cont_trade: int = 2
@@ -123,7 +125,6 @@ class StrategyConf(ConfBase):
     min_trade_amount: int = 0
     signals_percent_range: list[int] | tuple[int, int] = [0, 100]
 
-    pending_order_expiry: float = 0
     custom_params: dict[str, Any] = Field(default_factory=dict)
 
     def __getattr__(self, name: str):
@@ -159,6 +160,7 @@ class StrategyConf(ConfBase):
 
 
 class TradingConf(ConfBase):
+    pending_order_expiry: float = 0
     strategy: StrategyConf
     periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
     timeouts: TimeoutsConf

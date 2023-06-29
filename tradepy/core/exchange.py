@@ -5,6 +5,7 @@ import tradepy
 from tradepy.trade_cal import trade_cal
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
+from tradepy.vendors.types import AskBid
 
 
 class AStockExchange:
@@ -56,3 +57,8 @@ class AStockExchange:
     @timeout(seconds=tradepy.config.trading.timeouts.download_quote)
     def get_quote() -> pd.DataFrame:
         return tradepy.ak_api.get_stock_current_quote()
+
+    @staticmethod
+    @timeout(seconds=tradepy.config.trading.timeouts.download_ask_bid)
+    def get_bid_ask(code: str) -> AskBid:
+        return tradepy.ak_api.get_stock_ask_bid(code)

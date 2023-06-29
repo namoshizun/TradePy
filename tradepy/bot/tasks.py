@@ -20,6 +20,7 @@ from tradepy.collectors.adjust_factor import AdjustFactorCollector
 from tradepy.collectors.release_restricted_shares import (
     EastMoneyRestrictedSharesReleaseCollector,
 )
+from tradepy.vendors.types import AskBid
 
 
 @shared_task(name="tradepy.warm_broker_db", expires=10)
@@ -81,6 +82,24 @@ def handle_tick(payload):
         market_phase=payload["market_phase"],
         quote_df=pd.read_csv(quote_df_reader, index_col="code", dtype={"code": str}),
     )
+
+
+@shared_task(name="tradepy.cancel_expired_orders")
+@notify_failure(title="交易引擎处理过期订单失败")
+def cancel_expired_orders():
+    pending_orders = []
+    stock_ask_bids: dict[str, AskBid] = dict()
+
+    for o in BrokerAPI.get_orders():
+        if o.status != "cancelled" and o.pending_vol > 0:
+            pending_orders.append(o)
+            stock_ask_bids[o.code] = AStockExchange.get_bid_ask(o.code)
+
+    if pending_orders:
+        TradingEngine().handle_cancel_expired_orders(
+            pending_orders=pending_orders,
+            stock_ask_bids=stock_ask_bids,
+        )
 
 
 @shared_task(name="tradepy.flush_broker_cache")

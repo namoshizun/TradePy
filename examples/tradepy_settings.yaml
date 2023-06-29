@@ -9,6 +9,7 @@ common:
     password: ${REDIS_PASSWORD}
 
 trading:
+  pending_order_expiry: 10 # seconds
   strategy:
     strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
@@ -19,15 +20,15 @@ trading:
     max_position_opens: 10000
     min_trade_amount: 0
     signals_percent_range: [0, 100]
-    pending_order_expiry: 10 # seconds
     custom_params:
       ma60_support_thres: 2.5
       min_volatility: 1.5
       signal_below_support_thres: 0.75
 
   periodic_tasks:
-    tick_fetch_interval: 5
-    assets_sync_interval: 3
+    tick_fetch_interval: 3
+    assets_sync_interval: 2
+    cancel_expired_orders_interval: 5
   timeouts:
     download_quote: 3
     handle_pre_market_open_call: 240 # 4 mins
