@@ -12,6 +12,10 @@ import tradepy
 class GenericListingDepot:
     file_name: str
 
+    def __init__(self) -> None:
+        db_folder = tradepy.config.common.database_dir
+        db_folder.mkdir(parents=True, exist_ok=True)
+
     @classmethod
     def file_path(cls) -> Path:
         return tradepy.config.common.database_dir / cls.file_name

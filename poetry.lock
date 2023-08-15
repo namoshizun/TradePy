@@ -540,6 +540,14 @@ urllib3 = ">=1.24.3"
 zict = ">=2.2.0"
 
 [[package]]
+name = "distro"
+version = "1.8.0"
+description = "Distro - an OS platform information API"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "et-xmlfile"
 version = "1.1.0"
 description = "An implementation of lxml.xmlfile for the standard library"
@@ -2031,6 +2039,24 @@ python-versions = "*"
 numpy = "*"
 
 [[package]]
+name = "tabula-py"
+version = "2.7.0"
+description = "Simple wrapper for tabula-java, read tables from PDF into DataFrame"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+distro = "*"
+numpy = "*"
+pandas = ">=0.25.3"
+
+[package.extras]
+dev = ["Flake8-pyproject", "black", "flake8", "isort", "mypy", "pytest"]
+doc = ["sphinx", "sphinx-rtd-theme"]
+test = ["pytest"]
+
+[[package]]
 name = "tabulate"
 version = "0.9.0"
 description = "Pretty-print tabular data"
@@ -2394,7 +2420,7 @@ optimizer = ["dask"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10.4"
-content-hash = "ed25606e790cba457860c4cc733ec95ccf49faa945b4c9c7d8c98ce90af1739d"
+content-hash = "2a7f5ffd98e560d5a351a6152f18fcb79d313e3689eb2f14848c1a33ec842c9e"
 
 [metadata.files]
 aiofiles = [
@@ -2792,6 +2818,10 @@ defusedxml = [
 distributed = [
     {file = "distributed-2023.6.0-py3-none-any.whl", hash = "sha256:dea5c199623aab6babaa5c6a9c98542723c1436d065d28c68ac324266978701b"},
     {file = "distributed-2023.6.0.tar.gz", hash = "sha256:a5bdd4d15f3e7c8df98513b409753d46a39827a650620cc0c0c5ef2751561280"},
+]
+distro = [
+    {file = "distro-1.8.0-py3-none-any.whl", hash = "sha256:99522ca3e365cac527b44bde033f64c6945d90eb9f769703caaec52b09bbd3ff"},
+    {file = "distro-1.8.0.tar.gz", hash = "sha256:02e111d1dc6a50abb8eed6bf31c3e48ed8b0830d1ea2a1b78c61765c2513fdd8"},
 ]
 et-xmlfile = [
     {file = "et_xmlfile-1.1.0-py3-none-any.whl", hash = "sha256:a2ba85d1d6a74ef63837eed693bcb89c3f752169b0e3e7ae5b16ca5e1b3deada"},
@@ -4194,6 +4224,10 @@ starlette = [
 ]
 ta-lib = [
     {file = "TA-Lib-0.4.26.tar.gz", hash = "sha256:9a1e87ead8990f5c344184e17f268b4f6f50532ea9d40fb7fd161ce5197716da"},
+]
+tabula-py = [
+    {file = "tabula-py-2.7.0.tar.gz", hash = "sha256:e95d8ff49fe2f86534006ae8bf38d54a9894ae70042831d70d5760800519bae8"},
+    {file = "tabula_py-2.7.0-py3-none-any.whl", hash = "sha256:7151077fedd4a6976a1a4388e36774e87d7a421a4dd0775cc3da25f2fd43ebbe"},
 ]
 tabulate = [
     {file = "tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f"},

@@ -11,4 +11,6 @@ Requirement: Windows 10, 64 bit
               --global-option="-LC:\Program Files\Graphviz\lib" `
               pygraphviz
         ```
-- TA-Lib: `pip install TA_Lib-0.4.24-cp310-cp310-win_amd64.whl`
+- TA-Lib:
+  - `pip install TA_Lib-0.4.24-cp310-cp310-win_amd64.whl`
+  - Or download the wheel from here: https://github.com/cgohlke/talib-build/releases

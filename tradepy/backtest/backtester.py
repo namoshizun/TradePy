@@ -1,6 +1,7 @@
 import sys
 import random
 import pandas as pd
+import numpy as np
 from typing import TYPE_CHECKING, Any
 from tqdm import tqdm
 
@@ -11,7 +12,7 @@ from tradepy.core.order import Order
 from tradepy.core.position import Position
 from tradepy.mixins import TradeMixin
 from tradepy.trade_book import TradeBook
-from tradepy.core.conf import BacktestConf, Slippage
+from tradepy.core.conf import BacktestConf, SlippageConf
 
 if TYPE_CHECKING:
     from tradepy.strategy.base import StrategyBase
@@ -28,21 +29,27 @@ class Backtester(TradeMixin):
         self.strategy_conf = conf.strategy
 
     def _jit_sell_price(
-        self, price: float, slip: Slippage, orig_open_price: float
+        self, price: float, slip: SlippageConf, orig_open_price: float
     ) -> float:
-        choice, value = slip
+        method, params = slip.method, slip.params
 
-        if choice == "max_jump":
-            max_num_jumps = int(value)
+        if method == "max_jump":
+            max_num_jumps = int(params)
             one_jump_pct_chg = 0.01 / orig_open_price
             pct_chgs = [one_jump_pct_chg * i for i in range(1, max_num_jumps + 1)]
             slip_pct = random.choice(pct_chgs + [0])
             return price * (1 - slip_pct)
 
-        if choice == "max_pct":
-            max_pct_chg = value
+        if method == "max_pct":
+            max_pct_chg = float(params)
             jitter = random.uniform(0, max_pct_chg * 1e-2)
             return price * (1 - jitter)
+
+        if method == "weibull":
+            slip_pct_chg = (
+                np.random.weibull(params["shape"]) * params["scale"] + params["shift"]
+            )
+            return price * (1 - slip_pct_chg * 1e-2)
 
         raise ValueError(f"无效的滑点配置: {slip}")
 
@@ -186,7 +193,7 @@ class Backtester(TradeMixin):
             )  # list[DF_Index, BuyPrice]
             if not port_df.empty:
                 free_cash = self.account.free_cash_amount
-                budget = free_cash - self.account.get_buy_commission_fee(free_cash)
+                budget = free_cash - self.account.get_broker_commission_fee(free_cash)
 
                 port_df, budget = strategy.adjust_portfolio_and_budget(
                     port_df=port_df,

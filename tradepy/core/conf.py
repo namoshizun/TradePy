@@ -108,16 +108,20 @@ class XtQuantConf(ConfBase):
     price_type: str  # not yet supported
 
 
-SlippageChoice = Literal["max_pct", "max_jump"]
-Slippage = tuple[SlippageChoice, float | int]
+class SlippageConf(ConfBase):
+    method: Literal["max_pct", "max_jump", "weibull"]
+    params: Any
+
+
+_default_slippage_conf = lambda: SlippageConf(method="max_pct", params=0.02)
 
 
 class StrategyConf(ConfBase):
     strategy_class: str | None = None
     stop_loss: float = 0
     take_profit: float = 0
-    take_profit_slip: Slippage = ("max_pct", 0)
-    stop_loss_slip: Slippage = ("max_pct", 0)
+    take_profit_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
+    stop_loss_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
     adjust_prices_before_compute: bool = False
 
     max_position_size: float = 1

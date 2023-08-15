@@ -31,6 +31,7 @@ pydantic = "^1.10.7"
 ta-lib = "0.4.26"
 quantstats = "^0.0.59"
 dask = {extras = ["diagnostics", "distributed"], version = "^2023.5.0"}
+tabula-py = "^2.7.0"
 
 [tool.poetry.extras]
 bot = ["celery"]
