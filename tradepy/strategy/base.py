@@ -176,7 +176,9 @@ class StrategyBase(Generic[BarDataType]):
 
         return port_df, budget
 
-    def generate_buy_orders(self, port_df: pd.DataFrame, budget: float) -> list[Order]:
+    def generate_buy_orders(
+        self, port_df: pd.DataFrame, timestamp: str, budget: float
+    ) -> list[Order]:
         """
         port_df: portfolio dataframe
         budget: total budget to allocate
@@ -197,7 +199,7 @@ class StrategyBase(Generic[BarDataType]):
         return [
             Order(  # type: ignore
                 id=Order.make_id(row.code),
-                timestamp=row.timestamp,
+                timestamp=timestamp,
                 code=row.code,
                 price=row.order_price,
                 vol=row.total_lots * tradepy.config.common.trade_lot_vol,

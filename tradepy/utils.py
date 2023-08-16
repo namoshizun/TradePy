@@ -8,6 +8,50 @@ from dateutil import parser as date_parser
 import tradepy.trade_cal
 
 
+def gt(
+    a: float | pd.Series, b: float | pd.Series, precision: float = 1e-4
+) -> bool | pd.Series:
+    return (a - b) > precision
+
+
+def lt(
+    a: float | pd.Series, b: float | pd.Series, precision: float = 1e-4
+) -> bool | pd.Series:
+    return (b - a) > precision
+
+
+def eq(
+    a: float | pd.Series, b: float | pd.Series, precision: float = 1e-4
+) -> bool | pd.Series:
+    if isinstance(a, float) and isinstance(b, float):
+        return abs(a - b) < precision
+    elif isinstance(a, pd.Series) and isinstance(b, pd.Series):
+        return (a - b).abs() < precision
+    else:
+        raise TypeError("a and b must be both float or both pd.Series")
+
+
+def gte(
+    a: float | pd.Series, b: float | pd.Series, precision: float = 1e-4
+) -> bool | pd.Series:
+    return gt(a, b, precision) | eq(a, b, precision)
+
+
+def lte(
+    a: float | pd.Series, b: float | pd.Series, precision: float = 1e-4
+) -> bool | pd.Series:
+    return lt(a, b, precision) | eq(a, b, precision)
+
+
+def between(
+    a: float | pd.Series,
+    lower: float | pd.Series,
+    upper: float | pd.Series,
+    precision: float = 1e-4,
+) -> bool | pd.Series:
+    return gte(a, lower, precision) & lte(a, upper, precision)
+
+
 def get_latest_trade_date() -> date:
     today = date.today()
     today_str = str(today)

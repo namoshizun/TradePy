@@ -2,14 +2,15 @@ import sys
 import random
 import pandas as pd
 import numpy as np
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from tqdm import tqdm
 
-from tradepy import LOG
+from tradepy import LOG, utils
 from tradepy.blacklist import Blacklist
 from tradepy.core.account import BacktestAccount
 from tradepy.core.order import Order
 from tradepy.core.position import Position
+from tradepy.depot.stocks import StockMinuteBarsDepot
 from tradepy.mixins import TradeMixin
 from tradepy.trade_book import TradeBook
 from tradepy.core.conf import BacktestConf, SlippageConf
@@ -27,6 +28,7 @@ class Backtester(TradeMixin):
             stamp_duty_rate=conf.stamp_duty_rate,
         )
         self.strategy_conf = conf.strategy
+        self.use_minute_k = conf.use_minute_k
 
     def _jit_sell_price(
         self, price: float, slip: SlippageConf, orig_open_price: float
@@ -71,41 +73,38 @@ class Backtester(TradeMixin):
         self,
         bars_df: pd.DataFrame,
         strategy: "StrategyBase",
-        sell_positions: list[Position],
     ) -> pd.DataFrame:
-        sold_or_holding_codes = self.account.holdings.position_codes | set(
-            pos.code for pos in sell_positions
-        )
+        holding_codes = self.account.holdings.position_codes
         jitter_price = lambda p: p * random.uniform(
             1 - 1e-4 * 3, 1 + 1e-4 * 3
         )  # 0.03% slip
 
         # Looks ugly but it's fast...
-        indices_and_prices = [
-            (index, jitter_price(price_and_weight[0]), price_and_weight[1])
-            for index, *indicators in bars_df[strategy.buy_indicators].itertuples(
+        codes_and_prices = [
+            (code, jitter_price(price_and_weight[0]), price_and_weight[1])
+            for code, *indicators in bars_df[strategy.buy_indicators].itertuples(
                 name=None
             )
-            if (index[1] not in sold_or_holding_codes)
-            and (not Blacklist.contains(index[1]))
+            if (code not in holding_codes)
+            and (not Blacklist.contains(code))
             and (price_and_weight := strategy.should_buy(*indicators))
         ]
 
-        if not indices_and_prices:
+        if not codes_and_prices:
             return pd.DataFrame()
 
-        indices, prices, weights = zip(*indices_and_prices)
+        codes, prices, weights = zip(*codes_and_prices)
         return pd.DataFrame(
             {
                 "order_price": prices,
                 "weight": weights,
             },
-            index=pd.MultiIndex.from_tuples(indices, names=["timestamp", "code"]),
+            index=pd.Index(codes, name="code"),
         )
 
     def get_close_signals(
         self, df: pd.DataFrame, strategy: "StrategyBase"
-    ) -> list[Any]:
+    ) -> list[str]:
         if not strategy.close_indicators:
             return []
 
@@ -114,12 +113,178 @@ class Backtester(TradeMixin):
             return []
 
         return [
-            index
-            for index, *indicators in df[strategy.close_indicators].itertuples(
-                name=None
-            )
-            if (index[1] in curr_positions) and strategy.should_close(*indicators)
+            code
+            for code, *indicators in df[strategy.close_indicators].itertuples(name=None)
+            if (code in curr_positions) and strategy.should_close(*indicators)
         ]
+
+    def _trade_using_day_k(
+        self,
+        date: str,
+        bars_df: pd.DataFrame,
+        trade_book: TradeBook,
+        strategy: "StrategyBase",
+    ):
+        # Sell
+        buys_df = self.get_buy_options(bars_df, strategy)
+        close_codes = self.get_close_signals(bars_df, strategy)
+        sell_positions = []
+
+        for code, pos in self.account.holdings:
+            if code not in bars_df.index:
+                # Not a tradable day, so nothing to do
+                continue
+
+            bar = bars_df.loc[code].to_dict()  # type: ignore
+
+            # [1] Take profit
+            if take_profit_price := self.should_take_profit(strategy, bar, pos):
+                take_profit_price = self._jit_sell_price(
+                    take_profit_price,
+                    self.strategy_conf.take_profit_slip,
+                    bar["orig_open"],
+                )
+                pos.close(take_profit_price)
+                trade_book.take_profit(date, pos)
+                sell_positions.append(pos)
+
+            # [2] Stop loss
+            elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
+                stop_loss_price = self._jit_sell_price(
+                    stop_loss_price,
+                    self.strategy_conf.stop_loss_slip,
+                    bar["orig_open"],
+                )
+                pos.close(stop_loss_price)
+                trade_book.stop_loss(date, pos)
+                sell_positions.append(pos)
+
+            # [3] Close
+            elif code in close_codes:
+                pos.close(bar["close"])
+                trade_book.close(date, pos)
+                sell_positions.append(pos)
+
+        if sell_positions:
+            self.account.sell(sell_positions)
+
+        # Buy
+        if not buys_df.empty:
+            free_cash = self.account.free_cash_amount
+            budget = free_cash - self.account.get_broker_commission_fee(free_cash)
+
+            buys_df, budget = strategy.adjust_portfolio_and_budget(
+                port_df=buys_df,
+                budget=budget,
+                n_stocks=len(bars_df),
+                total_asset_value=self.account.total_asset_value,
+            )
+
+            buy_orders = strategy.generate_buy_orders(buys_df, date, budget)
+            buy_positions = self.__orders_to_positions(buy_orders)
+
+            self.account.buy(buy_positions)
+            for pos in buy_positions:
+                trade_book.buy(date, pos)
+
+    def _trade_using_minute_k(
+        self,
+        date: str,
+        day_df: pd.DataFrame,
+        min_df: pd.DataFrame,
+        trade_book: TradeBook,
+        strategy: "StrategyBase",
+    ):
+        buys_df = self.get_buy_options(day_df, strategy)
+
+        # Only look at the intraday bars of the stocks that are tradable (ones can be bought / sold)
+        tradable_codes: list[str] = list(
+            set(buys_df.index) | set(self.account.holdings.position_codes)
+        )
+
+        if not tradable_codes:
+            return
+
+        # Adjust minute bar's prices to match the day bar's prices
+        min_df = min_df.loc[tradable_codes].copy()
+        min_df.sort_index(inplace=True)
+        adjust_factors = (
+            day_df.loc[tradable_codes, "open"] / day_df.loc[tradable_codes, "orig_open"]
+        )
+        min_df["orig_open"] = min_df["open"].copy()
+        min_df["open"] = (min_df["open"] * adjust_factors).values
+        min_df["low"] = (min_df["low"] * adjust_factors).values
+        min_df["high"] = (min_df["high"] * adjust_factors).values
+        min_df["close"] = (min_df["close"] * adjust_factors).values
+
+        for _, min_bars in min_df.groupby("time"):
+            # Sell
+            for code in self.account.holdings.position_codes:
+                pos = self.account.holdings[code]
+                if pos.timestamp == date:
+                    # Can't sell the stock just bought
+                    continue
+
+                bar = min_bars.loc[code].to_dict()  # TODO: adjust prices
+                sell = False
+
+                # [1] Take profit
+                if take_profit_price := self.should_take_profit(strategy, bar, pos):
+                    take_profit_price = self._jit_sell_price(
+                        take_profit_price,
+                        self.strategy_conf.take_profit_slip,
+                        bar["orig_open"],
+                    )
+                    pos.close(take_profit_price)
+                    trade_book.take_profit(date, pos)
+                    sell = True
+
+                # [2] Stop loss
+                elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
+                    stop_loss_price = self._jit_sell_price(
+                        stop_loss_price,
+                        self.strategy_conf.stop_loss_slip,
+                        bar["orig_open"],
+                    )
+                    pos.close(stop_loss_price)
+                    trade_book.stop_loss(date, pos)
+                    sell = True
+
+                if sell:
+                    self.account.sell([pos])
+                    buys_df.drop(pos.code, inplace=True, errors="ignore")
+
+            # Buy
+            if not buys_df.empty:
+                # Get stocks whose buy signal price is between this minute bar's high and low
+                selector = utils.between(
+                    buys_df["order_price"], min_bars["low"], min_bars["high"]
+                )
+                assert isinstance(selector, pd.Series)
+                if selector.any():
+                    _buys_df = buys_df[selector]
+                    # Buy them
+                    free_cash = self.account.free_cash_amount
+                    budget = free_cash - self.account.get_broker_commission_fee(
+                        free_cash
+                    )
+
+                    _buys_df, budget = strategy.adjust_portfolio_and_budget(
+                        port_df=_buys_df,
+                        budget=budget,
+                        n_stocks=len(day_df),
+                        total_asset_value=self.account.total_asset_value,
+                    )
+
+                    buy_orders = strategy.generate_buy_orders(_buys_df, date, budget)
+                    buy_positions = self.__orders_to_positions(buy_orders)
+
+                    self.account.buy(buy_positions)
+                    for pos in buy_positions:
+                        trade_book.buy(date, pos)
+
+                    # Drop them from the buys df
+                    buys_df.drop(_buys_df.index, inplace=True)
 
     def trade(self, df: pd.DataFrame, strategy: "StrategyBase") -> TradeBook:
         random.seed()
@@ -136,81 +301,29 @@ class Backtester(TradeMixin):
         trade_book = TradeBook.backtest()
 
         # Per day
-        for timestamp, sub_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
-            assert isinstance(timestamp, str)
+        month, month_minute_df = None, pd.DataFrame()
+        for date, bars_df in tqdm(df.groupby(level="timestamp"), file=sys.stdout):
+            assert isinstance(date, str)
 
             # Opening
-            price_lookup = lambda code: sub_df.loc[
-                (timestamp, code), "close"
-            ]  # NOTE: slow
+            bars_df = bars_df.loc[date]  # to remove the timestamp index
+            price_lookup = lambda code: bars_df.loc[code, "close"]  # NOTE: slow
             self.account.update_holdings(price_lookup)
 
-            # Sell
-            close_indices = self.get_close_signals(sub_df, strategy)
-            sell_positions = []
-            for code, pos in self.account.holdings:
-                index = (timestamp, code)
-                if index not in sub_df.index:
-                    # Not a tradable day, so nothing to do
-                    continue
+            # Trading
+            if self.use_minute_k:
+                if month != date[:7]:
+                    month = date[:7]
+                    month_minute_df = StockMinuteBarsDepot.load(month)
 
-                bar = sub_df.loc[index].to_dict()  # type: ignore
-
-                # [1] Take profit
-                if take_profit_price := self.should_take_profit(strategy, bar, pos):
-                    take_profit_price = self._jit_sell_price(
-                        take_profit_price,
-                        self.strategy_conf.take_profit_slip,
-                        bar["orig_open"],
-                    )
-                    pos.close(take_profit_price)
-                    trade_book.take_profit(timestamp, pos)
-                    sell_positions.append(pos)
-
-                # [2] Stop loss
-                elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
-                    stop_loss_price = self._jit_sell_price(
-                        stop_loss_price,
-                        self.strategy_conf.stop_loss_slip,
-                        bar["orig_open"],
-                    )
-                    pos.close(stop_loss_price)
-                    trade_book.stop_loss(timestamp, pos)
-                    sell_positions.append(pos)
-
-                # [3] Close
-                elif index in close_indices:
-                    pos.close(bar["close"])
-                    trade_book.close(timestamp, pos)
-                    sell_positions.append(pos)
-
-            if sell_positions:
-                self.account.sell(sell_positions)
-
-            # Buy
-            port_df = self.get_buy_options(
-                sub_df, strategy, sell_positions
-            )  # list[DF_Index, BuyPrice]
-            if not port_df.empty:
-                free_cash = self.account.free_cash_amount
-                budget = free_cash - self.account.get_broker_commission_fee(free_cash)
-
-                port_df, budget = strategy.adjust_portfolio_and_budget(
-                    port_df=port_df,
-                    budget=budget,
-                    n_stocks=len(sub_df),
-                    total_asset_value=self.account.total_asset_value,
+                self._trade_using_minute_k(
+                    date, bars_df, month_minute_df.loc[(date,)], trade_book, strategy
                 )
-
-                buy_orders = strategy.generate_buy_orders(port_df, budget)
-                buy_positions = self.__orders_to_positions(buy_orders)
-
-                self.account.buy(buy_positions)
-                for pos in buy_positions:
-                    trade_book.buy(timestamp, pos)
+            else:
+                self._trade_using_day_k(date, bars_df, trade_book, strategy)
 
             # Logging
-            trade_book.log_closing_capitals(timestamp, self.account)
+            trade_book.log_closing_capitals(date, self.account)
 
         # That was quite a long story :D
         return trade_book
