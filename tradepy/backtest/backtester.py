@@ -196,6 +196,7 @@ class Backtester(TradeMixin):
         strategy: "StrategyBase",
     ):
         buys_df = self.get_buy_options(day_df, strategy)
+        suspending_codes = set()
 
         # Only look at the intraday bars of the stocks that are tradable (ones can be bought / sold)
         tradable_codes: list[str] = list(
@@ -206,11 +207,19 @@ class Backtester(TradeMixin):
             return
 
         # Adjust minute bar's prices to match the day bar's prices
+        compute_adjust_factors = lambda codes: (
+            day_df.loc[codes, "open"] / day_df.loc[codes, "orig_open"]
+        )  # type: ignore
+        try:
+            adjust_factors = compute_adjust_factors(tradable_codes)
+        except KeyError:
+            # Some stocks in holding may not be tradable this day
+            suspending_codes = set(tradable_codes) - set(day_df.index)
+            tradable_codes = list(set(tradable_codes) - suspending_codes)
+            adjust_factors = compute_adjust_factors(tradable_codes)
+
         min_df = min_df.loc[tradable_codes].copy()
         min_df.sort_index(inplace=True)
-        adjust_factors = (
-            day_df.loc[tradable_codes, "open"] / day_df.loc[tradable_codes, "orig_open"]
-        )
         min_df["orig_open"] = min_df["open"].copy()
         min_df["open"] = (min_df["open"] * adjust_factors).values
         min_df["low"] = (min_df["low"] * adjust_factors).values
@@ -221,11 +230,11 @@ class Backtester(TradeMixin):
             # Sell
             for code in self.account.holdings.position_codes:
                 pos = self.account.holdings[code]
-                if pos.timestamp == date:
-                    # Can't sell the stock just bought
+                if pos.timestamp == date or code in suspending_codes:
+                    # The stocks just bought today or in suspension are not tradable
                     continue
 
-                bar = min_bars.loc[code].to_dict()  # TODO: adjust prices
+                bar = min_bars.loc[code].to_dict()
                 sell = False
 
                 # [1] Take profit
@@ -255,7 +264,8 @@ class Backtester(TradeMixin):
                     buys_df.drop(pos.code, inplace=True, errors="ignore")
 
             # Buy
-            if not buys_df.empty:
+            free_cash = self.account.free_cash_amount
+            if free_cash >= self.strategy_conf.min_trade_amount and not buys_df.empty:
                 # Get stocks whose buy signal price is between this minute bar's high and low
                 selector = utils.between(
                     buys_df["order_price"], min_bars["low"], min_bars["high"]
@@ -264,7 +274,6 @@ class Backtester(TradeMixin):
                 if selector.any():
                     _buys_df = buys_df[selector]
                     # Buy them
-                    free_cash = self.account.free_cash_amount
                     budget = free_cash - self.account.get_broker_commission_fee(
                         free_cash
                     )
