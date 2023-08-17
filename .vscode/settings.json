@@ -1,11 +1,12 @@
 {
-    "python.languageServer": "Pylance",
-    "python.linting.flake8Enabled": false,
-    "python.linting.enabled": true,
-    "editor.formatOnSave": true,
-    "python.formatting.provider": "none",
-    "python.analysis.typeCheckingMode": "basic",
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-    },
+  "python.languageServer": "Pylance",
+  "python.linting.flake8Enabled": false,
+  "python.linting.enabled": true,
+  "editor.formatOnSave": true,
+  "python.formatting.provider": "none",
+  "python.analysis.typeCheckingMode": "basic",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "esbonio.sphinx.confDir": ""
 }

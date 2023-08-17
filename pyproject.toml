@@ -17,26 +17,27 @@ openpyxl = "^3.1.1"
 plotly = "^5.13.1"
 python-dateutil = "^2.8.2"
 matplotlib = "^3.7.1"
-networkx = "^3.0"
-numba = "^0.57.0"
+networkx = "3.1"
+numba = "0.57.1"
 colorlog = "^6.7.0"
 pygraphviz = "^1.10"
 python-dotenv = "^1.0.0"
 redis = "^4.5.2"
 loguru = "^0.6.0"
-celery = {extras = ["redis"], version = "5.3.0"}
+celery = { extras = ["redis"], version = "5.3.0" }
 fastapi = "^0.95.0"
-uvicorn = {extras = ["standard"], version = "^0.21.1"}
+uvicorn = { extras = ["standard"], version = "^0.21.1" }
 pydantic = "^1.10.7"
 ta-lib = "0.4.26"
 quantstats = "^0.0.59"
-dask = {extras = ["diagnostics", "distributed"], version = "^2023.5.0"}
+dask = { extras = ["diagnostics", "distributed"], version = "^2023.5.0" }
 tabula-py = "^2.7.0"
 
 [tool.poetry.extras]
 bot = ["celery"]
 optimizer = ["dask"]
 broker = ["fastapi", "uvicorn"]
+doc = ["sphinx", "sphinx_rtd_theme"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.11.0"
