@@ -75,10 +75,8 @@ class StrategyBase(Generic[BarDataType]):
 
     def __init__(self, conf: StrategyConf) -> None:
         self.conf = conf
-        self.adjust_factors: AdjustFactors | None = None
-        if conf.adjust_prices_before_compute:
-            self.adjust_factors = AdjustFactorDepot.load()
 
+        self._adjust_factors: AdjustFactors | None = None
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[
             1:
         ]
@@ -117,6 +115,12 @@ class StrategyBase(Generic[BarDataType]):
             bars_df.dropna(subset=notna_indicators, inplace=True)
 
         return bars_df
+
+    @property
+    def adjust_factors(self) -> AdjustFactors:
+        if self._adjust_factors is None:
+            raise ValueError("未加载复权因子")
+        return self._adjust_factors
 
     @cached_property
     def all_indicators(self) -> list[Indicator]:
@@ -211,7 +215,6 @@ class StrategyBase(Generic[BarDataType]):
 
     def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
         assert isinstance(self.adjust_factors, AdjustFactors)
-        bars_df["orig_open"] = bars_df["open"].copy()
         return self.adjust_factors.backward_adjust_history_prices(code, bars_df)
 
     def adjust_stocks_latest_prices(self, bars_df: pd.DataFrame):
@@ -227,14 +230,18 @@ class StrategyBase(Generic[BarDataType]):
             # Won't trade this stock
             return bars_df
 
-        if self.adjust_factors is not None:
+        price_adjusted = "orig_open" in bars_df
+        if not price_adjusted:
+            self._adjust_factors = AdjustFactorDepot.load()
             # Adjust prices before computing indicators
             try:
+                bars_df["orig_open"] = bars_df["open"].copy()
                 bars_df = self.adjust_stock_history_prices(code, bars_df)
                 if bars_df["pct_chg"].abs().max() > 21:
                     # Either adjust factor is missing or incorrect...
                     return pd.DataFrame()
             except KeyError:
+                LOG.warn(f"找不到{code}的复权因子")
                 return pd.DataFrame()
 
         # Compute indicators

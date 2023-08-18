@@ -122,7 +122,6 @@ class StrategyConf(ConfBase):
     take_profit: float = 0
     take_profit_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
     stop_loss_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
-    adjust_prices_before_compute: bool = False
 
     max_position_size: float = 1
     max_position_opens: int = 10000

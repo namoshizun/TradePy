@@ -241,7 +241,7 @@ def convert_etf_current_quote(df: pd.DataFrame) -> pd.DataFrame:
         "总市值": "mkt_cap",
     }
     df.rename(columns=mapping, inplace=True)
-    df = df[list(mapping.values())]
+    df = df[list(mapping.values())].copy()
     df["mkt_cap"] *= 1e-8  # convert to 100 mils
     df["mkt_cap"] = df["mkt_cap"].round(3)
     df.sort_values("mkt_cap", inplace=True)

@@ -32,16 +32,21 @@ ta-lib = "0.4.26"
 quantstats = "^0.0.59"
 dask = { extras = ["diagnostics", "distributed"], version = "^2023.5.0" }
 tabula-py = "^2.7.0"
+nbsphinx = "^0.9.2"
+pyyaml = "^6.0.1"
 
 [tool.poetry.extras]
 bot = ["celery"]
 optimizer = ["dask"]
 broker = ["fastapi", "uvicorn"]
-doc = ["sphinx", "sphinx_rtd_theme"]
+doc = ["sphinx", "sphinx_rtd_theme", "nbsphinx"]
 
-[tool.poetry.group.dev.dependencies]
-ipython = "^8.11.0"
-jupyterlab = "^3.6.1"
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "http://mirrors.aliyun.com/pypi/simple/"
+default = true
+secondary = false
 
 [build-system]
 requires = ["poetry-core"]
