@@ -25,15 +25,8 @@ class DocHTTPRequestHandler(BaseHandler):
 
 
 with socketserver.TCPServer((PATH, PORT), DocHTTPRequestHandler) as httpd:
-    shutdown = lambda: httpd.server_close()
-
     print(f"Serving at http://localhost:{PORT}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("Keyboard interrupted. Closing down")
-        pass
-    except Exception:
-        raise
-    finally:
-        shutdown()

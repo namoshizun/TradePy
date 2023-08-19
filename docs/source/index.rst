@@ -17,7 +17,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
   * 数据下载为本地CSV或Pickle文件，不需要安装数据库，下载后即可离线使用
 
 
-* **策略实现**: 提供声明式API以快速实现策略逻辑
+* **策略实现**: 提供声明式API以快速实现策略逻辑，并内置多种常用指标
 
 * **策略回测**: 日K级别的交易回测，并生成回测报告。如果下载了分钟级K线，则支持以日内走势判断买卖点位。
 
@@ -59,9 +59,10 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 .. toctree::
    :maxdepth: 2
 
-   notebooks/quickstart
+   quickstart
    strategy
    optimization
    trading
    minute-k
+   configurations
 
