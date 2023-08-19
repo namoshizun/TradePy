@@ -1567,19 +1567,6 @@ url = "http://mirrors.aliyun.com/pypi/simple"
 reference = "aliyun"
 
 [[package]]
-name = "pygraphviz"
-version = "1.11"
-description = "Python interface to Graphviz"
-category = "main"
-optional = false
-python-versions = ">=3.8"
-
-[package.source]
-type = "legacy"
-url = "http://mirrors.aliyun.com/pypi/simple"
-reference = "aliyun"
-
-[[package]]
 name = "pyparsing"
 version = "3.0.9"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
@@ -2579,7 +2566,7 @@ optimizer = ["dask"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10.4"
-content-hash = "bbe489079ef92db6368ea4596b9bc5d28482679de0949622e74efbfb771cf040"
+content-hash = "805b02202a1f1794d6c8af06a71747235d034b9d3544e435b08f1dbf842a076d"
 
 [metadata.files]
 akshare = [
@@ -3793,9 +3780,6 @@ pydantic = [
 pygments = [
     {file = "Pygments-2.16.1-py3-none-any.whl", hash = "sha256:13fc09fa63bc8d8671a6d247e1eb303c4b343eaee81d861f3404db2935653692"},
     {file = "Pygments-2.16.1.tar.gz", hash = "sha256:1daff0494820c69bc8941e407aa20f577374ee88364ee10a98fdbe0aece96e29"},
-]
-pygraphviz = [
-    {file = "pygraphviz-1.11.zip", hash = "sha256:a97eb5ced266f45053ebb1f2c6c6d29091690503e3a5c14be7f908b37b06f2d4"},
 ]
 pyparsing = [
     {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},

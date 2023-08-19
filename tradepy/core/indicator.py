@@ -1,8 +1,6 @@
 import networkx as nx
-import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 from typing import Union
-from networkx.drawing.nx_agraph import graphviz_layout
 
 
 class IndicatorSet:
@@ -63,19 +61,6 @@ class IndicatorSet:
                         res.append(ind)
 
         return res
-
-    def export_depndency_graph(self, path: str, **draw_kws):
-        G = self.build_graph()
-        args = dict(
-            pos=graphviz_layout(G),
-            with_labels=True,
-            font_size=5,
-            node_size=225,
-        )
-
-        args.update(draw_kws)
-        nx.draw(G, **args)
-        plt.savefig(path, dpi=300)
 
     def __contains__(self, item: Union["Indicator", str]) -> bool:
         if isinstance(item, str):

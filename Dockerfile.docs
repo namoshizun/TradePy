@@ -1,0 +1,21 @@
+FROM python:3.11
+
+COPY . /code
+WORKDIR /code
+
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    apt update && \
+    apt install -y pandoc
+
+RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set global.trusted-host mirrors.aliyun.com && \
+    wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure && \
+    make && \
+    make install && \
+    cd .. && \
+    pip install . && \
+    pip install sphinx_rtd_theme nbsphinx IPython

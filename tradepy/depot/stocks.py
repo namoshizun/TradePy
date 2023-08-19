@@ -1,12 +1,9 @@
 import pandas as pd
 from typing import Generator
-from pathlib import Path
 
 import tradepy
 from tradepy.conversion import convert_code_to_market
 from tradepy.depot.base import GenericBarsDepot, GenericListingDepot
-from tradepy.depot.misc import AdjustFactorDepot
-from tradepy.utils import get_latest_trade_date
 
 
 class StocksDailyBarsDepot(GenericBarsDepot):

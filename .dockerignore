@@ -1,0 +1,6 @@
+**/.git
+__pycache__
+database
+database2
+docs/build
+.env

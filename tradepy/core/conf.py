@@ -49,6 +49,9 @@ class ConfBase(BaseModel):
 
     @classmethod
     def from_file(cls, file_path: str | Path):
+        if os.environ.get("BUILD_DOC", "no") == "yes":
+            return
+
         if isinstance(file_path, str):
             file_path = Path(file_path)
 
