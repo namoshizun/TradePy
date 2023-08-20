@@ -1,9 +1,7 @@
 name: Build and Push the base Docker Image for doc
 
 on:
-  push:
-    branches:
-      - doc-github-action
+  workflow_dispatch:
 
 jobs:
   build-and-push:
