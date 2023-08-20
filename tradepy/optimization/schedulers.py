@@ -2,7 +2,7 @@ import abc
 import os
 import pickle
 import pandas as pd
-from typing import Generic, Type, TypeVar
+from typing import Any, Generic, Type, TypeVar, TypedDict
 from uuid import uuid4
 from loguru import logger
 from pathlib import Path
@@ -131,10 +131,24 @@ class TaskScheduler(Generic[ConfType]):
             logger.info("关闭Dask集群")
 
 
+def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGroup:
+    if isinstance(name, str):
+        assert isinstance(choices, list) and not isinstance(choices[0], list)
+        return Parameter(name, tuple(choices))
+
+    assert isinstance(choices, list) and all(len(c) == len(name) for c in choices)
+    return ParameterGroup(name=tuple(name), choices=tuple(map(tuple, choices)))
+
+
 class OptimizationScheduler(TaskScheduler[OptimizationConf]):
+    class SearchRangeSpec(TypedDict):
+        name: str
+        choices: Any
+
     def __init__(
-        self, conf: OptimizationConf, parameters: list[Parameter | ParameterGroup]
+        self, conf: OptimizationConf, search_ranges: list[SearchRangeSpec]
     ) -> None:
+        parameters = [_make_parameter(p["name"], p["choices"]) for p in search_ranges]
         self.parameters = parameters
         super().__init__(conf)
 

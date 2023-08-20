@@ -4,13 +4,23 @@ config:
   optimizer_class: tradepy.optimization.optimizers.grid_search.GridSearch
   repetition: 40
   backtest:
+    cash_amount: 100_000
+    broker_commission_rate: 0.01
+    min_broker_commission_fee: 5
     strategy:
       strategy_class: playground.ma60_support_v1.MA60SupportStrategyV1
+      take_profit_slip:
+        method: max_pct
+        params: 0.03
+      stop_loss_slip:
+        method: weibull
+        params:
+          shape: 1.25
+          scale: 0.1
+          shift: -0.025
       max_position_opens: 10
       max_position_size: 0.25
       min_trade_amount: 8_500
-    cash_amount: 100_000
-    broker_commission_rate: 0.01
 
 dask:
   n_workers: 4

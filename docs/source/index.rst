@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-版本: |release|. Python版本 v3.10, v3.11
+版本: |release|; Github地址: https://github.com/namoshizun/TradePy
 
 
 简介
