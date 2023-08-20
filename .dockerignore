@@ -1,0 +1,9 @@
+**/.git
+__pycache__
+database
+database2
+docs/build
+playground
+.env
+*.ipynb
+!docs/source/*.ipynb

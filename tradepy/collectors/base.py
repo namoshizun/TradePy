@@ -87,30 +87,33 @@ class DayBarsCollector(DataCollector):
 
     def __init__(self, since_date: str | date | None = None) -> None:
         if not since_date:
-            since_date = get_latest_trade_date()
-        elif isinstance(since_date, str):
-            since_date = date.fromisoformat(since_date)
+            since_date = "2010-01-01"
 
-        self.since_date: date = since_date
+        if isinstance(since_date, str):
+            self.since_date: date = date.fromisoformat(since_date)
+        else:
+            self.since_date: date = since_date
+
         self.repo = self.bars_depot_class()
 
     def jobs_generator(self):
-        LOG.info(f"检查本地数据是否需要更新. 起始日期 {self.since_date}")
+        LOG.info(f"检查本地数据是否需要更新")
         repo_iter = self.repo.find(always_load=True)
         curr_codes = list()
+        last_trade_date = get_latest_trade_date()
 
         for code, df in repo_iter:
             assert isinstance(df, pd.DataFrame)
             curr_codes.append(code)
 
             try:
-                latest_date = "2000-01-01"
                 if not df.empty:
                     latest_date = df["timestamp"].max()
+                else:
+                    latest_date = "2000-01-01"
 
                 latest_date = date.fromisoformat(latest_date)
-
-                if latest_date < self.since_date:
+                if latest_date < last_trade_date:
                     start_date = latest_date + timedelta(days=1)
                     yield {"code": code, "start_date": start_date}
             except Exception as exc:
@@ -119,14 +122,15 @@ class DayBarsCollector(DataCollector):
                 )
                 raise exc
 
-        LOG.info("添加新标的")
         listing_df = self.listing_depot_class.load()
         new_listings = set(listing_df.index) - set(curr_codes)
-        for code in new_listings:
-            yield {
-                "code": code,
-                "start_date": self.since_date.fromisoformat("2010-01-01"),
-            }
+        if new_listings:
+            LOG.info(f"添加新标的, 起始日期 {self.since_date}")
+            for code in new_listings:
+                yield {
+                    "code": code,
+                    "start_date": self.since_date.isoformat(),
+                }
 
 
 def map_routines(executor, routine, arguments):

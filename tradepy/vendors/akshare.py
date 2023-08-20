@@ -145,6 +145,7 @@ class AkShareClient:
                 inplace=True,
             )
             res["timestamp"] = res["timestamp"].astype(str)
+            res.set_index("timestamp", inplace=True)
             return res
 
         if isinstance(start_date, str):
@@ -162,7 +163,17 @@ class AkShareClient:
         df = convert_akshare_hist_data(df)
 
         try:
-            indicators_df = retry()(fetch_baidu_indicators)(start_date)
+            indicators_df: pd.DataFrame = retry()(fetch_baidu_indicators)(start_date)  # type: ignore
+            # When the period spans a long time, the data may be incomplete.
+            # So we need to first calculate the number of shares on days where the data is complete,
+            # interpolate the shares number in other days, then calculate those days' market cap.
+            df.set_index("timestamp", inplace=True)
+            df["shares"] = indicators_df["mkt_cap"] / df["close"]
+            df["shares"].bfill(inplace=True)
+            df["mkt_cap"] = (df["shares"] * df["close"]).round(2)
+            df.drop("shares", axis=1, inplace=True)
+            df.reset_index(inplace=True)
+            return df
         except Exception:
             logger.warning(f"无法从百度获取{code}的资产技术指标数据, 将使用乐估的数据!")
             try:
@@ -185,8 +196,7 @@ class AkShareClient:
 
                 indicators_df.reset_index(inplace=True)
                 indicators_df = indicators_df[fields]
-
-        return pd.merge(df, indicators_df, on="timestamp")
+            return pd.merge(df, indicators_df, on="timestamp")
 
     def get_minute_bar(
         self, code: str, start_date: datetime.date | str, period="1"
@@ -200,6 +210,7 @@ class AkShareClient:
         df = convert_akshare_minute_bar(df)
         return df
 
+    @retry()
     def get_stock_info(self, code: str) -> dict[str, Any]:
         df = ak.stock_individual_info_em(symbol=code)
 

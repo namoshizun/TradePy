@@ -49,6 +49,9 @@ class ConfBase(BaseModel):
 
     @classmethod
     def from_file(cls, file_path: str | Path):
+        if os.environ.get("BUILD_DOC", "no") == "yes":
+            return
+
         if isinstance(file_path, str):
             file_path = Path(file_path)
 
@@ -122,7 +125,6 @@ class StrategyConf(ConfBase):
     take_profit: float = 0
     take_profit_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
     stop_loss_slip: SlippageConf = Field(default_factory=_default_slippage_conf)
-    adjust_prices_before_compute: bool = False
 
     max_position_size: float = 1
     max_position_opens: int = 10000

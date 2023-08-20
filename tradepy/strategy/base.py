@@ -1,7 +1,6 @@
 import abc
 import sys
 import inspect
-import talib
 import pandas as pd
 from functools import cache, cached_property
 from itertools import chain
@@ -16,7 +15,6 @@ from tradepy.depot.misc import AdjustFactorDepot
 from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
 from tradepy.core.position import Position
-from tradepy.decorators import tag
 from tradepy.utils import calc_pct_chg
 from tradepy.core import Indicator, IndicatorSet
 from tradepy.core.adjust_factors import AdjustFactors
@@ -75,10 +73,8 @@ class StrategyBase(Generic[BarDataType]):
 
     def __init__(self, conf: StrategyConf) -> None:
         self.conf = conf
-        self.adjust_factors: AdjustFactors | None = None
-        if conf.adjust_prices_before_compute:
-            self.adjust_factors = AdjustFactorDepot.load()
 
+        self._adjust_factors: AdjustFactors | None = None
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[
             1:
         ]
@@ -103,7 +99,14 @@ class StrategyBase(Generic[BarDataType]):
         # Lookup custom strategy parameters from the conf object
         return getattr(self.conf, name)
 
-    def pre_process(self, bars_df: pd.DataFrame):
+    def pre_process(self, bars_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        本方法在开始计算指标之前被调用，可对回测数据做任意操作
+
+        :param bars_df: 原始回测数据
+        :return: 处理后的回测数据，必须包含以下列，且Index为code:
+                 code, timestamp, open, close, high, low
+        """
         return bars_df
 
     def post_process(self, bars_df: pd.DataFrame):
@@ -117,6 +120,12 @@ class StrategyBase(Generic[BarDataType]):
             bars_df.dropna(subset=notna_indicators, inplace=True)
 
         return bars_df
+
+    @property
+    def adjust_factors(self) -> AdjustFactors:
+        if self._adjust_factors is None:
+            raise ValueError("未加载复权因子")
+        return self._adjust_factors
 
     @cached_property
     def all_indicators(self) -> list[Indicator]:
@@ -211,7 +220,6 @@ class StrategyBase(Generic[BarDataType]):
 
     def adjust_stock_history_prices(self, code: str, bars_df: pd.DataFrame):
         assert isinstance(self.adjust_factors, AdjustFactors)
-        bars_df["orig_open"] = bars_df["open"].copy()
         return self.adjust_factors.backward_adjust_history_prices(code, bars_df)
 
     def adjust_stocks_latest_prices(self, bars_df: pd.DataFrame):
@@ -221,20 +229,25 @@ class StrategyBase(Generic[BarDataType]):
     def _adjust_then_compute(self, bars_df: pd.DataFrame, indicators: list[Indicator]):
         code: str = bars_df.index[0]  # type: ignore
         bars_df.sort_values("timestamp", inplace=True)
-        bars_df = self.pre_process(bars_df)
+
         # Pre-processing
+        bars_df = self.pre_process(bars_df)
         if bars_df.empty:
             # Won't trade this stock
             return bars_df
 
-        if self.adjust_factors is not None:
+        price_adjusted = "orig_open" in bars_df
+        if not price_adjusted:
+            self._adjust_factors = AdjustFactorDepot.load()
             # Adjust prices before computing indicators
             try:
+                bars_df["orig_open"] = bars_df["open"].copy()
                 bars_df = self.adjust_stock_history_prices(code, bars_df)
                 if bars_df["pct_chg"].abs().max() > 21:
                     # Either adjust factor is missing or incorrect...
                     return pd.DataFrame()
             except KeyError:
+                LOG.warn(f"找不到{code}的复权因子")
                 return pd.DataFrame()
 
         # Compute indicators
@@ -273,7 +286,7 @@ class StrategyBase(Generic[BarDataType]):
             df.reset_index(inplace=True)
             df.set_index("code", inplace=True, drop=False)
 
-        LOG.info(">>> 计算每支个股的技术因子")
+        LOG.info(">>> 计算每支个股的后复权价格以及技术因子")
         n_codes = df.index.nunique()
         miniters = n_codes // 20  # print progress every 5%
         return pd.concat(
@@ -307,22 +320,6 @@ class BacktestStrategy(StrategyBase[BarData]):
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
 
-    @tag(notna=True)
-    def ma5(self, close):
-        return talib.SMA(close, 5).round(2)
-
-    @tag(notna=True)
-    def ma20(self, close):
-        return talib.SMA(close, 20).round(2)
-
-    @tag(notna=True)
-    def ma60(self, close):
-        return talib.SMA(close, 60).round(2)
-
-    @tag(notna=True)
-    def ma250(self, close):
-        return talib.SMA(close, 250).round(2)
-
     @classmethod
     def backtest(
         cls, bars_df: pd.DataFrame, conf: BacktestConf
@@ -338,16 +335,12 @@ class LiveStrategy(StrategyBase[BarDataType]):
     def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, tick["close"])
         if pct_chg <= -self.stop_loss:
-            return tick[
-                "close"
-            ]  # TODO: may be slightly lower to improve the chance of selling
+            return tick["close"]
 
     def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, tick["close"])
         if pct_chg >= self.take_profit:
-            return tick[
-                "close"
-            ]  # TODO: may be slightly higher to improve the chance of buying
+            return tick["close"]
 
     @abc.abstractmethod
     def compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:

@@ -1,0 +1,32 @@
+name: Build and Push the base Docker Image for doc
+
+on:
+  push:
+    branches:
+      - doc-github-action
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker buildx create --use
+          docker buildx build --file Dockerfile.docs -t ghcr.io/${{ github.repository }}/doc-base:latest .
+
+      - name: Push Docker image to GitHub Container Registry
+        run: |
+          docker buildx create --use
+          docker push ghcr.io/${{ github.repository }}/doc-base:latest
+
