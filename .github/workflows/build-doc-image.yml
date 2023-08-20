@@ -37,7 +37,7 @@ jobs:
         with:
           context: .
           file: Dockerfile.docs
-          tags: doc:latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/doc:latest
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
