@@ -17,7 +17,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:doc
+      image: ghcr.io/${{ github.repository,, }}:doc
       env:
         BUILD_DOC: 'yes'
     steps:
