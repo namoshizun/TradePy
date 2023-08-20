@@ -3,6 +3,10 @@ name: Build and Push the base Docker Image for doc
 on:
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -11,20 +15,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@79abd3f86f79a9d68a23c75a09a9a85889262adf
 
-      - name: Login to GitHub Container Registry
-        run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: |
-          docker buildx create --use
-          docker buildx build --file Dockerfile.docs -t ghcr.io/${{ github.repository }}/doc-base:latest .
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      - name: Push Docker image to GitHub Container Registry
-        run: |
-          docker buildx create --use
-          docker push ghcr.io/${{ github.repository }}/doc-base:latest
-
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          context: .
+          file: Dockerfile.docs
+          tags: doc:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
