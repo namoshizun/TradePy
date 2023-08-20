@@ -5,9 +5,6 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-env:
-  BASE_IMAGE: ghcr.io/${{ github.repository }}:doc
-
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -20,7 +17,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.BASE_IMAGE }}
+      image: ghcr.io/${{ github.repository }}:doc
       env:
         BUILD_DOC: 'yes'
     steps:
