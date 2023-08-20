@@ -1,3 +1,0 @@
-## TradePy
-
-Work-in-progress

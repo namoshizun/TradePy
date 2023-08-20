@@ -5,6 +5,11 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -17,20 +22,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:doc
+      image: ghcr.io/namoshizun/tradepy:doc
       env:
         BUILD_DOC: 'yes'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Sphinx Build
-        uses: ammaraskar/sphinx-action@0.4
-      - name: Setup Pages
-        uses: actions/configure-pages@v3
+      - name: Sphinx build
+        run: |
+          cd docs
+          make html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: 'docs/build'
+          path: 'docs/build/html'
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
