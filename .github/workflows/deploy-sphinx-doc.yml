@@ -23,11 +23,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Sphinx Build
-        uses: ammaraskar/sphinx-action@0.4
-        with:
-          docs-folder: "docs/"
-          build-command: "make html"
+      - name: Sphinx build
+        run: |
+          cd docs
+          make html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
