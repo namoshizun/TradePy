@@ -1,8 +1,8 @@
 name: Deploy the Sphinx doc website
 
 on:
-  push:
-    branches: ["main"]
+  # push:
+  #   branches: ["main"]
   workflow_dispatch:
 
 concurrency:
