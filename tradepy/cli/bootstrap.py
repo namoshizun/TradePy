@@ -24,8 +24,18 @@ def create_settings_file(settings) -> str:
     return conf_file
 
 
+def settings_file_exists() -> bool:
+    conf_dir = os.path.expanduser("~/.tradepy")
+    conf_file = os.path.join(conf_dir, "config.yaml")
+    return os.path.exists(conf_file)
+
+
 def main():
-    print("TradePy初始化程序")
+    print("[TradePy初始化程序]")
+    if settings_file_exists():
+        print("👀 已存在配置文件，无需初始化")
+        sys.exit(0)
+
     database_dir = input("> 请输入K线数据的下载目录（完整地址）: ")
 
     if not database_dir:
