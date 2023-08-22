@@ -44,6 +44,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
    - MacOS系统: ``brew install ta-lib``
 
 3. 安装TradePy
+4. 运行初始化命令 ``python -m tradepy.cli.bootstrap``
 
 .. parsed-literal::
 
@@ -59,7 +60,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
 1. 安装Python3.10或3.11
 2. 安装TA-Lib: 从 `此处 <https://github.com/cgohlke/talib-build/releases/tag/v0.4.26>`_ 下载并安装对应您的Python版本的TA-Lib Wheel文件。例如: Win10 64位系统，Python 3.10版本，Intel CPU，应下载 ``TA_Lib-0.4.26-cp310-cp310-win_amd64.whl`` 。然后运行 ``pip install TA_Lib-0.4.26-cp310-cp310-win_amd64.whl``。
-3. 安装TradePy，步骤如上
+3. 安装和初始化TradePy，步骤如上
 
 
 索引

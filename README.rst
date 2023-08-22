@@ -21,7 +21,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
 * **寻参优化**: 基于网格搜索的参数寻优，并使用 `Dask Distributed <https://distributed.dask.org/>`_ 做并行化。未来将集成更智能的寻参算法，当前也支持使用自定义的寻参算法。
 
-* **实盘交易**: 通过 `XtQuant <http://docs.thinktrader.net/pages/4a989a>`_ 执行实盘交易（需将策略端部署在Windows环境），并自行统计当日持仓和账户余额等信息，以规避QMT终端的诸多数据反馈不及时问题。
+* **实盘交易**: 通过 `XtQuant <http://docs.thinktrader.net/pages/4a989a>`_ 执行实盘交易（需将策略端部署在Windows环境），并自行统计当日持仓和账户余额等信息，以规避miniQMT终端的诸多数据反馈不及时问题。
 
 * **实盘/回测对比**: 读取实盘的交割单PDF，并与同期的回测结果进行比对，以验证回测结果的可信度 （开发中）。
 
