@@ -15,14 +15,11 @@ from tradepy.optimization.types import TaskRequest
 
 
 class Worker:
-    def __init__(self, workspace_dir: str | Path | None = None) -> None:
-        if not workspace_dir:
-            now = datetime.now()
-            workspace_dir = os.path.expanduser(
-                f"~/.tradepy/worker/{now.date()}/{now.isoformat()[11:19]}"
-            )
+    def __init__(self, workspace_dir: str | Path) -> None:
+        if isinstance(workspace_dir, str):
+            workspace_dir = Path(workspace_dir)
 
-        self.workspace_dir = Path(workspace_dir)
+        self.workspace_dir = workspace_dir / "workers"
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
 
     def get_or_create_task_dir(self, id: str) -> Path:
@@ -59,7 +56,7 @@ class Worker:
         return trade_book
 
     def run(self, request: TaskRequest) -> str:
-        logger.info(f'开始执行任务: {request["id"]}')
+        logger.info(f'开始执行任务: {request["id"]} (第{request["repetition"]}轮)')
 
         with timeit() as timer:
             task_dir = self.get_or_create_task_dir(request["id"])

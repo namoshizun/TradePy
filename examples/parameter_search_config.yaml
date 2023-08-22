@@ -28,13 +28,13 @@ dask:
 
 parameters:
   - name: ma60_support_thres
-    choices: [2.5, 2.0]
+    range: [2.5, 2.0]
   - name: min_volatility
-    choices: [0.85, 1.5]
+    range: [0.85, 1.5]
   - name: signal_below_support_thres
-    choices: [0, 0.75, 0.5, 1.0]
+    range: [0, 0.75, 0.5, 1.0]
   - name: [stop_loss, take_profit]
-    choices: [
+    range: [
       [1.8, 4],
       [2.45, 4.5],
       [1.6, 3.2],

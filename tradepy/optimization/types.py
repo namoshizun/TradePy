@@ -7,9 +7,9 @@ ParameterValuesBatch = list[dict[str, Number]]
 
 
 class TaskRequest(TypedDict):
-    workspace_id: str
     id: str
     batch_id: str
+    repetition: int
     dataset_path: str
     backtest_conf: dict[str, Any]
 

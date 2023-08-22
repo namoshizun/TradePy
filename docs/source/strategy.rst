@@ -2,7 +2,7 @@
 ==========
 
 
-示例代码
+示例策略
 --------------------
 
 
@@ -10,7 +10,6 @@
 
 .. image:: _static/strategy-implementation.png
     :width: 600px
-    :alt: 策略实现
 
 
 ..  admonition:: 提示
@@ -78,7 +77,7 @@
             return df.query('market != "科创板"').copy()
 
 
-策略参数
+可调参数
 --------------------
 
 在开发策略时，一般无法最初就确定最佳的参数组合（比如均线类型、RSI周期、布林带周期、止损止盈点位），而需要反复回测以找到预期收益最大的一组参数。
@@ -88,7 +87,7 @@ TradePy支持通过 ``StrategyConf.custom_params`` 提供自定义参数，即�
 
 ..  admonition:: 提示
 
-    请参考 :ref:`optimization` 教程
+    请参考"寻参优化"教程
 
 
 .. code-block:: python
