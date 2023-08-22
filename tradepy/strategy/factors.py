@@ -264,3 +264,21 @@ class FactorsMixin:
         mid = talib.RSI(close, timeperiod=self.__custom_params("rsi_mid_period", 12))
         slow = talib.RSI(close, timeperiod=self.__custom_params("rsi_slow_period", 24))
         return fast, mid, slow
+
+    @tag(notna=True)
+    def typical_price(self, high, low, close):
+        """
+        典型价格 = (high + low + close) / 3
+        """
+        return talib.TYPPRICE(high, low, close)
+
+    @tag(notna=True)
+    def atr(self, high, low, close):
+        """
+        平均真实价格波动
+
+        - atr_period: 均值周期，默认14
+        """
+        return talib.ATR(
+            high, low, close, timeperiod=self.__custom_params("atr_period", 14)
+        )

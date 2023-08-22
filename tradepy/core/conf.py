@@ -211,8 +211,8 @@ class DaskConf(ConfBase):
 
 
 class TaskConf(ConfBase):
-    dataset_path: Path
     backtest: BacktestConf
+    dataset_path: Path | None = None
     repetition: int = 1
     evaluator_class: str = "tradepy.backtest.evaluation.BasicEvaluator"
 
@@ -221,14 +221,7 @@ class TaskConf(ConfBase):
 
 
 class OptimizationConf(TaskConf):
-    optimizer_class: str
-    evaluator_class: str = ""
-
-    @root_validator
-    def assign_default_evaluator(cls, values):
-        if not values["evaluator_class"]:
-            values["evaluator_class"] = values["optimizer_class"]
-        return values
+    optimizer_class: str = "tradepy.optimization.optimizers.grid_search.GridSearch"
 
     def load_optimizer_class(self) -> Type[ParameterOptimizer]:
         return import_class(self.optimizer_class)

@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-版本: |release|. Python版本 v3.10, v3.11
+版本: |release|; Github地址: https://github.com/namoshizun/TradePy
 
 
 简介
@@ -23,6 +23,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
   * 可设置 每日最大开仓数量、最低开仓金额、个股最大仓位
   * 计算后复权股价，支持多种滑点设置
+  * 可并行跑多轮同参数回测
 
 * **寻参优化**: 基于网格搜索的参数寻优，并使用 `Dask Distributed <https://distributed.dask.org/>`_ 做并行化。未来将集成更智能的寻参算法，当前也支持使用自定义的寻参算法。
 
@@ -71,5 +72,6 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
    optimization
    trading
    minute-k
+   multi-backtest-runs
    configurations
 

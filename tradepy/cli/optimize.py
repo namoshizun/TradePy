@@ -3,8 +3,8 @@ import yaml
 import argparse
 
 from tradepy.optimization.schedulers import OptimizationScheduler
-from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.core.conf import DaskConf, OptimizationConf
+from tradepy import LOG
 
 
 def _read_config_yaml_file(path):
@@ -12,21 +12,21 @@ def _read_config_yaml_file(path):
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
-def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGroup:
-    if isinstance(name, str):
-        assert isinstance(choices, list) and not isinstance(choices[0], list)
-        return Parameter(name, tuple(choices))
-
-    assert isinstance(choices, list) and all(len(c) == len(name) for c in choices)
-    return ParameterGroup(name=tuple(name), choices=tuple(map(tuple, choices)))
-
-
 def start(conf: dict[str, Any]):
     opt_conf = OptimizationConf.from_dict(conf["config"])
     dask_conf = DaskConf.from_dict(conf["dask"])
 
-    parameters = [_make_parameter(p["name"], p["choices"]) for p in conf["parameters"]]
-    scheduler = OptimizationScheduler(opt_conf, parameters)
+    try:
+        opt_conf.backtest.strategy.load_strategy_class()
+    except (AttributeError, ImportError):
+        LOG.error("策略类加载失败, 请检查配置文件中的strategy_class字段, 确保策略类可加载")
+        return
+
+    if not opt_conf.dataset_path or not opt_conf.dataset_path.exists():
+        LOG.error("数据集不存在, 请检查配置文件中的dataset_path字段, 回测数据(已添加指标)已保存至本地")
+        return
+
+    scheduler = OptimizationScheduler(opt_conf, conf["parameters"])
     scheduler.run(dask_args=dask_conf.dict())
 
 

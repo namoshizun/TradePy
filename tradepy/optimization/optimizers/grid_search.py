@@ -1,12 +1,11 @@
 from typing import Generator
 from itertools import product
 
-from tradepy.backtest.evaluation import BasicEvaluator
 from tradepy.optimization.base import ParameterOptimizer
 from tradepy.optimization.types import ParameterValuesBatch, TaskResult
 
 
-class GridSearch(ParameterOptimizer, BasicEvaluator):
+class GridSearch(ParameterOptimizer):
     def generate_parameters_batch(self) -> Generator[ParameterValuesBatch, None, None]:
         def flatten(values):
             for p in list(values.keys()):

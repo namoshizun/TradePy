@@ -2,7 +2,7 @@ import abc
 import os
 import pickle
 import pandas as pd
-from typing import Generic, Type, TypeVar
+from typing import Any, Generic, Type, TypeVar, TypedDict
 from uuid import uuid4
 from loguru import logger
 from pathlib import Path
@@ -12,8 +12,10 @@ from tradepy.backtest.evaluation import ResultEvaluator
 
 from tradepy.core.conf import BacktestConf, DaskConf, OptimizationConf, TaskConf
 from tradepy.optimization.parameter import Parameter, ParameterGroup
+from tradepy.optimization.result import OptimizationResult
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
 from tradepy.optimization.worker import Worker
+from tradepy.utils import optimize_dtype_memory
 
 
 def get_default_workspace_dir() -> Path:
@@ -43,12 +45,8 @@ class TaskScheduler(Generic[ConfType]):
         return self.workspace_dir / "tasks.csv"
 
     def _executor(self, request: TaskRequest) -> TaskResult:
-        now = datetime.now()
-        workspace_dir = os.path.expanduser(
-            f'~/.tradepy/worker/{now.date()}/{request["workspace_id"]}'
-        )
         # Run backtesting
-        trade_book_path: str = Worker(workspace_dir).run(request)
+        trade_book_path: str = Worker(self.workspace_dir).run(request)
 
         # Evaluate results
         with open(trade_book_path, "rb") as file:
@@ -57,8 +55,20 @@ class TaskScheduler(Generic[ConfType]):
             metrics = evaluator_class(trade_book).evaluate_trades()  # type: ignore
             return dict(metrics=metrics, **request)  # type: ignore
 
+    def _output_indicators_df(self, df: pd.DataFrame) -> Path:
+        strategy = self.conf.backtest.strategy.load_strategy()
+        ind_df = strategy.compute_all_indicators_df(df)
+        out_path = self.workspace_dir / "dataset.pkl"
+        ind_df = optimize_dtype_memory(ind_df)
+        ind_df.to_pickle(out_path)
+        logger.info(f"回测数据已保存至: {out_path}")
+        return out_path
+
     def make_task_request(
-        self, batch_id: str, param_values: dict[str, Number] | None = None
+        self,
+        repetition: int,
+        batch_id: str,
+        param_values: dict[str, Number] | None = None,
     ) -> TaskRequest:
         backtest_conf: BacktestConf = self.conf.backtest.copy()
         if param_values:
@@ -66,8 +76,8 @@ class TaskScheduler(Generic[ConfType]):
 
         return {
             "id": get_random_id(),
+            "repetition": repetition,
             "batch_id": batch_id,
-            "workspace_id": self.workspace_dir.name,
             "dataset_path": str(self.conf.dataset_path),
             "backtest_conf": backtest_conf.dict(),
         }
@@ -108,21 +118,44 @@ class TaskScheduler(Generic[ConfType]):
     def _run(self, repetitions: int, dask_client: DaskClient):
         raise NotImplementedError
 
-    def run(self, repetitions: int | None = None, dask_args: dict | None = None):
+    def run(
+        self,
+        repetitions: int | None = None,
+        *,
+        dask_args: dict | None = None,
+        data_df: pd.DataFrame | None = None,
+    ) -> Any:
+        """
+        执行回测计算任务
+
+        :param repetition: 每组参数运行多少次回测
+        :param dask_args: ``dask.distributed.Client`` 的参数, e.g., { "n_workers": 4, "threads_per_worker": 1 }
+        :param data_df: 回测数据，可以是通过 ``StocksDailyBarsDepot`` 加载的原始日K数据，也可以是已经包含了策略指标的
+        """
+        # Set args
         if not repetitions:
             repetitions = self.conf.repetition
 
-        if not dask_args:
-            dask_args = DaskConf().dict()
+        _dask_args = DaskConf().dict()
+        _dask_args.update(dask_args or dict())
 
-        dask_client = DaskClient(**dask_args)
+        # Pre-compute indicators (if required)
+        if not self.conf.dataset_path:
+            if data_df is None:
+                raise ValueError("如果没有配置回测数据地址，则必须直接提供`data_df`")
+            if data_df.empty:
+                raise ValueError("`data_df`是空的")
+            self.conf.dataset_path = self._output_indicators_df(data_df)
+
+        # Run dask
+        dask_client = DaskClient(**_dask_args)
 
         try:
             info = dask_client.scheduler_info()
             logger.info(
                 f'启动Dask集群: id={info["id"]}, dashboard port={info["services"]["dashboard"]}, {dask_client}'
             )
-            self._run(repetitions, dask_client)
+            return self._run(repetitions, dask_client)
         except Exception as exc:
             # logger.exception(exc)
             ...
@@ -131,10 +164,26 @@ class TaskScheduler(Generic[ConfType]):
             logger.info("关闭Dask集群")
 
 
+def _make_parameter(name: str | list[str], choices) -> Parameter | ParameterGroup:
+    if isinstance(name, str):
+        assert isinstance(choices, list) and not isinstance(choices[0], list)
+        return Parameter(name, tuple(choices))
+
+    assert isinstance(choices, list) and all(len(c) == len(name) for c in choices)
+    return ParameterGroup(name=tuple(name), choices=tuple(map(tuple, choices)))
+
+
 class OptimizationScheduler(TaskScheduler[OptimizationConf]):
+    class SearchRangeSpec(TypedDict):
+        name: str
+        range: Any
+
     def __init__(
-        self, conf: OptimizationConf, parameters: list[Parameter | ParameterGroup]
+        self, conf: OptimizationConf, search_ranges: list[SearchRangeSpec]
     ) -> None:
+        parameters: list[Parameter | ParameterGroup] = [
+            _make_parameter(p["name"], p["range"]) for p in search_ranges
+        ]
         self.parameters = parameters
         super().__init__(conf)
 
@@ -152,7 +201,8 @@ class OptimizationScheduler(TaskScheduler[OptimizationConf]):
 
             batch_id = f"{run_id}-{batch_count}"
             requests = [
-                self.make_task_request(batch_id, values) for values in params_batch
+                self.make_task_request(run_id, batch_id, values)
+                for values in params_batch
             ]
 
             # Make task batch dataframe
@@ -170,10 +220,14 @@ class OptimizationScheduler(TaskScheduler[OptimizationConf]):
             logger.info(f"第{rep}次执行")
             self.__run_once(dask_client, rep)
 
+        return OptimizationResult(self.parameters, self.workspace_dir)
+
 
 class BacktestRunsScheduler(TaskScheduler):
     def _run(self, repetitions: int, dask_client: DaskClient):
-        requests = [self.make_task_request(str(idx)) for idx in range(repetitions)]
+        requests = [
+            self.make_task_request(idx + 1, str(idx)) for idx in range(repetitions)
+        ]
 
         # Make task batch dataframe
         batch_df = pd.DataFrame(requests).set_index("id")
