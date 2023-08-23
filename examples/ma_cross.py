@@ -20,7 +20,11 @@ class MovingAverageCrossoverStrategy(BacktestStrategy, FactorsMixin):
         ema10_ref1,
         sma30_ref1,
         close,
+        company,
     ) -> BuyOption | None:
+        if "ST" in company:
+            return
+
         if orig_open < self.min_stock_price:
             return
 

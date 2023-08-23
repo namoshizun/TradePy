@@ -37,9 +37,10 @@
             return ma10.shift(1), ma30.shift(1)
 
         def should_buy(self, sma120, ema10, sma30,
-                    ema10_ref1, sma30_ref1, close) -> BuyOption | None:
-            if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
-                return close, 1
+                    ema10_ref1, sma30_ref1, close, company) -> BuyOption | None:
+            if "ST" not in company:
+                if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
+                    return close, 1
 
         def should_close(self, ema10, sma30, ema10_ref1, sma30_ref1):
             return (ema10_ref1 > sma30_ref1) and (ema10 < sma30)
@@ -66,9 +67,10 @@
             return ema10.shift(1), sma30.shift(1)
         
         def should_buy(self, sma120, ema10, sma30,
-                       ema10_ref1, sma30_ref1, close) -> BuyOption | None:
-            if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
-                return close, 1
+                       ema10_ref1, sma30_ref1, close, company) -> BuyOption | None:
+            if "ST" not in company:
+                if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
+                    return close, 1
 
         def should_close(self, ema10, sma30, ema10_ref1, sma30_ref1):
             return (ema10_ref1 > sma30_ref1) and (ema10 < sma30)
@@ -100,13 +102,12 @@ TradePy支持通过 ``StrategyConf.custom_params`` 提供自定义参数，即�
         # 其他不变 ...
     
         def should_buy(self, sma120, ema10, sma30, orig_open,
-                       ema10_ref1, sma30_ref1, close) -> BuyOption | None:
-            # `orig_open`由TradePy提供，是未复权前的实际开盘价
-            if orig_open < self.min_stock_price:
-                return
-
-            if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
-                return close, 1
+                       ema10_ref1, sma30_ref1, close, company) -> BuyOption | None:
+            if "ST" not in company:
+                # `orig_open`由TradePy提供，是未复权前的实际开盘价
+                if orig_open >= self.min_stock_price:
+                    if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
+                        return close, 1
 
     conf = BacktestConf(
         cash_amount=1e5,
