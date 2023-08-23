@@ -2,7 +2,6 @@ import pandas as pd
 from loguru import logger
 from functools import cached_property
 
-import tradepy
 from tradepy.core.account import Account
 from tradepy.core.models import Position
 from tradepy.types import TradeActions, TradeActionType
@@ -23,16 +22,6 @@ class TradeBook:
         df = pd.DataFrame(self.storage.fetch_trade_logs())
         df.set_index("timestamp", inplace=True)
         df.sort_index(inplace=True)
-
-        try:
-            codes = df["code"].unique()
-            code_to_company = tradepy.listing.df.loc[codes, "name"]
-            df = df.join(code_to_company, on="code")
-            df.rename(columns={"name": "company"}, inplace=True)
-        except FileNotFoundError:
-            logger.debug("未找到股票列表数据, 无法在交易历史中添加公司名称")
-        except KeyError:
-            logger.debug("股票列表数据中没有找到某些股票的公司名称")
         return df
 
     @cached_property
