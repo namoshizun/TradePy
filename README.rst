@@ -6,7 +6,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
 * **数据下载**
 
-  * 通过 `Akshare <https://github.com/akfamily/akshare/>`_ 下载A股股票、ETF和宽基指数的日K，以及后复权因子、解禁日期等数据
+  * 通过 `Akshare <https://github.com/akfamily/akshare/>`_ 以及 `Tushare <https://www.tushare.pro/>`_ 下载A股股票、ETF和宽基指数的日K，以及后复权因子、解禁日期等数据
   * 通过 `XtQuant <http://docs.thinktrader.net/pages/4a989a>`_ 下载日内1分钟K线。
   * 数据下载为本地CSV或Pickle文件，不需要安装数据库，下载后即可离线使用
 
