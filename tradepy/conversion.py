@@ -37,11 +37,11 @@ def convert_code_to_exchange(code: str) -> ExchangeType:
     raise ValueError(f"Invalid code {code}")
 
 
-def convert_to_ts_date(dt: date) -> str:
+def convert_to_tushare_date(dt: date) -> str:
     return dt.strftime("%Y%m%d")
 
 
-def convert_ts_date_to_iso_format(value: str) -> str:
+def convert_tushare_date_to_iso_format(value: str) -> str:
     return date_parse.parse(value).date().isoformat()
 
 
@@ -287,3 +287,13 @@ def convert_stock_ask_bid_df(
         result["sell"].append(df.loc[f"sell_{i}", "value"])
         result["buy"].append(df.loc[f"buy_{i}", "value"])
     return result  # type: ignore
+
+
+def convert_stock_sz_name_changes(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {"变更日期": "timestamp", "变更后简称": "company", "证券代码": "code"}
+    df.rename(columns=mapping, inplace=True)
+    df = df[list(mapping.values())].copy()
+    df["timestamp"] = df["timestamp"].astype(str)
+    df.set_index(["code", "timestamp"], inplace=True)
+    df.sort_index(inplace=True)
+    return df

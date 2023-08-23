@@ -200,6 +200,9 @@ class BacktestConf(ConfBase):
     stamp_duty_rate: float = 0.1
     use_minute_k: bool = False
     strategy: StrategyConf
+    sl_tf_order: Literal[
+        "stop loss first", "take profit first", "random"
+    ] = "stop loss first"
 
 
 # ------------

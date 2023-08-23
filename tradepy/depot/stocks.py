@@ -2,7 +2,6 @@ import pandas as pd
 from typing import Generator
 
 import tradepy
-from tradepy.conversion import convert_code_to_market
 from tradepy.depot.base import GenericBarsDepot, GenericListingDepot
 
 
@@ -34,13 +33,6 @@ class StocksDailyBarsDepot(GenericBarsDepot):
                 assert isinstance(df, pd.DataFrame)
                 df["code"] = code
 
-                if (
-                    not set(["company", "market"]).issubset(df.columns)
-                    or df[["company", "market"]].isna().any(axis=1).any()
-                ):
-                    company = tradepy.listing.get_by_code(code).name
-                    market = convert_code_to_market(code)
-                    df[["company", "market"]] = company, market
                 if since_date or until_date:
                     _since_date = since_date or "2000-01-01"  # noqa
                     _until_date = until_date or "3000-01-01"  # noqa

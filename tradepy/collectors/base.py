@@ -3,6 +3,7 @@ import abc
 import time
 import tempfile
 import talib
+import random
 import pandas as pd
 from typing import Any, Callable, Generator, Type
 from concurrent.futures import ThreadPoolExecutor
@@ -123,9 +124,10 @@ class DayBarsCollector(DataCollector):
                 raise exc
 
         listing_df = self.listing_depot_class.load()
-        new_listings = set(listing_df.index) - set(curr_codes)
+        new_listings = list(set(listing_df.index) - set(curr_codes))
         if new_listings:
             LOG.info(f"添加新标的, 起始日期 {self.since_date}")
+            random.shuffle(new_listings)
             for code in new_listings:
                 yield {
                     "code": code,

@@ -26,6 +26,7 @@ from tradepy.conversion import (
     convert_etf_day_bar,
     convert_stock_futures_day_bar,
     convert_stock_ask_bid_df,
+    convert_stock_sz_name_changes,
 )
 from tradepy.utils import get_latest_trade_date
 from tradepy.depot.stocks import StocksDailyBarsDepot
@@ -151,6 +152,7 @@ class AkShareClient:
         if isinstance(start_date, str):
             start_date = datetime.date.fromisoformat(start_date)
 
+        # Fetch the day-k data
         df = retry()(ak.stock_zh_a_hist)(
             symbol=code, start_date=start_date.strftime("%Y%m%d"), period="daily"
         )
@@ -227,6 +229,19 @@ class AkShareClient:
     def get_stock_ask_bid(self, code: str) -> AskBid:
         df: pd.DataFrame = ak.stock_bid_ask_em(symbol=code)  # type: ignore
         return convert_stock_ask_bid_df(df)
+
+    def get_stock_sz_name_changes(self) -> pd.DataFrame:
+        df = ak.stock_info_sz_change_name("简称变更")
+        return convert_stock_sz_name_changes(df)
+
+    @retry()
+    def get_stock_name_changes_list(self, code: str, current_name: str) -> list[str]:
+        df = ak.stock_profile_cninfo(code)
+        raw = df["曾用简称"].iloc[0]
+        if not raw:
+            return []
+
+        return list(map(str.strip, raw.split(">>"))) + [current_name]
 
     # -----
     # Index

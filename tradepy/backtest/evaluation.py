@@ -114,7 +114,7 @@ class BasicEvaluator(ResultEvaluator):
 提前平仓 = {metrics["number_of_close"]}
 胜率 {metrics["success_rate"]}%
 最大回撤 = {metrics["max_drawdown"]}%
-总收益 = {metrics["total_returns"]}%
+期末资金 = {metrics["total_returns"]}%
 平均开仓收益: {metrics["avg_return"]}% (标准差: {metrics["stddev_return"]}%)
 夏普比率: {metrics["sharpe_ratio"]}
 ==========="""

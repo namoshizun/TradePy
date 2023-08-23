@@ -29,6 +29,7 @@ class Backtester(TradeMixin):
         )
         self.strategy_conf = conf.strategy
         self.use_minute_k = conf.use_minute_k
+        self.sl_tf_order = conf.sl_tf_order
 
     def _jit_sell_price(
         self, price: float, slip: SlippageConf, orig_open_price: float
@@ -136,30 +137,46 @@ class Backtester(TradeMixin):
                 continue
 
             bar = bars_df.loc[code].to_dict()  # type: ignore
+            stop_loss_price = self.should_stop_loss(strategy, bar, pos)
+            take_profit_price = self.should_take_profit(strategy, bar, pos)
 
-            # [1] Take profit
-            if take_profit_price := self.should_take_profit(strategy, bar, pos):
-                take_profit_price = self._jit_sell_price(
-                    take_profit_price,
-                    self.strategy_conf.take_profit_slip,
-                    bar["orig_open"],
-                )
-                pos.close(take_profit_price)
-                trade_book.take_profit(date, pos)
-                sell_positions.append(pos)
+            if stop_loss_price or take_profit_price:
+                should_stop_loss = False
+                if stop_loss_price and take_profit_price:
+                    # This day's price movement meets both, so randomly choose one
+                    should_stop_loss = (
+                        True
+                        if self.sl_tf_order == "stop loss first"
+                        else False
+                        if self.sl_tf_order == "take profit first"
+                        else random.randint(1, 10) <= 5
+                    )
+                else:
+                    # Either stop loss or take profit
+                    should_stop_loss = stop_loss_price is not None
 
-            # [2] Stop loss
-            elif stop_loss_price := self.should_stop_loss(strategy, bar, pos):
-                stop_loss_price = self._jit_sell_price(
-                    stop_loss_price,
-                    self.strategy_conf.stop_loss_slip,
-                    bar["orig_open"],
-                )
-                pos.close(stop_loss_price)
-                trade_book.stop_loss(date, pos)
-                sell_positions.append(pos)
+                if should_stop_loss:
+                    assert stop_loss_price
+                    stop_loss_price = self._jit_sell_price(
+                        stop_loss_price,
+                        self.strategy_conf.stop_loss_slip,
+                        bar["orig_open"],
+                    )
+                    pos.close(stop_loss_price)
+                    trade_book.stop_loss(date, pos)
+                    sell_positions.append(pos)
+                else:
+                    assert take_profit_price
+                    take_profit_price = self._jit_sell_price(
+                        take_profit_price,
+                        self.strategy_conf.take_profit_slip,
+                        bar["orig_open"],
+                    )
+                    pos.close(take_profit_price)
+                    trade_book.take_profit(date, pos)
+                    sell_positions.append(pos)
 
-            # [3] Close
+            # Close position in the market closing phase
             elif code in close_codes:
                 pos.close(bar["close"])
                 trade_book.close(date, pos)
@@ -226,8 +243,9 @@ class Backtester(TradeMixin):
         min_df["high"] = (min_df["high"] * adjust_factors).values
         min_df["close"] = (min_df["close"] * adjust_factors).values
 
-        for _, min_bars in min_df.groupby("time"):
+        for time, min_bars in min_df.groupby("time"):
             # Sell
+            # if time < "1456":
             for code in self.account.holdings.position_codes:
                 pos = self.account.holdings[code]
                 if pos.timestamp == date or code in suspending_codes:
@@ -264,6 +282,7 @@ class Backtester(TradeMixin):
                     buys_df.drop(pos.code, inplace=True, errors="ignore")
 
             # Buy
+            # if time >= "1456":
             free_cash = self.account.free_cash_amount
             if free_cash >= self.strategy_conf.min_trade_amount and not buys_df.empty:
                 # Get stocks whose buy signal price is between this minute bar's high and low
