@@ -75,4 +75,3 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
    minute-k
    multi-backtest-runs
    configurations
-

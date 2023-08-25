@@ -2,10 +2,10 @@ import os
 import sys
 
 
-def get_base_settings(database_dir: str):
+def get_base_settings(mode, database_dir: str):
     return f"""
 common:
-  mode: "backtest"
+  mode: "{mode}"
   trade_lot_vol: 100
   database_dir: "{database_dir}"
 """
@@ -42,10 +42,15 @@ def main():
         print(f"K线数据的下载目录不能为空!")
         sys.exit(1)
 
+    mode = input("> 请输入运行模式 (backtest=回测, paper-trading=模拟交易, live-trading=实盘交易) : ")
+    if mode not in ["backtest", "paper-trading", "live-trading"]:
+        print(f"运行模式不正确!")
+        sys.exit(1)
+
     database_dir = os.path.expanduser(database_dir)
     os.makedirs(database_dir, exist_ok=True)
 
-    settings = get_base_settings(database_dir)
+    settings = get_base_settings(mode, database_dir)
     settings_file_path = create_settings_file(settings)
 
     print(f"👌 已创建配置文件: {settings_file_path}")

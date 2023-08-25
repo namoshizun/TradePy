@@ -1,12 +1,11 @@
 from datetime import date, datetime
 from loguru import logger
 
-from qmt_proxy.decorators import with_redis_lock
-from qmt_proxy.connector import xt_conn
-from qmt_proxy.cache import AccountCache, PositionCache, OrderCache, use_redis
-from qmt_proxy.conversion import xtorder_to_tradepy, xtposition_to_tradepy
-
 import tradepy
+from tradepy.qmt_proxy.decorators import with_redis_lock
+from tradepy.qmt_proxy.connector import xt_conn
+from tradepy.qmt_proxy.cache import AccountCache, PositionCache, OrderCache, use_redis
+from tradepy.qmt_proxy.conversion import xtorder_to_tradepy, xtposition_to_tradepy
 from tradepy.core.exceptions import AssetsSyncError
 from tradepy.constants import CacheKeys
 from tradepy.core.models import Order, Position, Account
