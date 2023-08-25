@@ -16,14 +16,12 @@ def retry(max_retries=4, wait_interval=30):
     def decor(fun):
         @wraps(fun)
         def inner(*args, **kwargs):
-            n = 0
-            while n < max_retries:
+            for _ in range(max_retries):
                 try:
                     return fun(*args, **kwargs)
                 except Exception as exc:
                     if "您每分钟最多访问" in str(exc):
                         time.sleep(wait_interval)
-                        n += 1
                     else:
                         raise exc
 
