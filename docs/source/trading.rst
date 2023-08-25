@@ -34,16 +34,17 @@ TradePy的实盘交易系统由两个部分组成，适合用于中低频交易�
    4. 验证已成功安装conda，且默认环境的Python版本为3.11.4: ``python --version``
 2. 安装TA-Lib: 参考此 `教程 <https://cloudstrata.io/install-ta-lib-on-ubuntu-server/>`_
 
+
 **安装TradePy交易版**
+
+注: 如果还没有安装git，先用 ``apt install -y git`` 安装。
 
 .. parsed-literal::
 
-   # 获取代码
    git clone --depth=1 https://github.com/namoshizun/TradePy.git
-
-   # 安装TradePy
    cd TradePy
    pip install ".[bot]"
+
 
 **配置TradePy**
 
