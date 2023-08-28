@@ -75,24 +75,21 @@ class PeriodicTasksConf(ConfBase):
 class TimeoutsConf(ConfBase):
     download_quote: int = 3
     download_ask_bid: int = 2
-    handle_pre_market_open_call: int = 240  # 4 mins
-    compute_open_indicators: int = 228  # < 3.8 mins
+    compute_open_indicators: int = 240  # <= 4 mins
     handle_cont_trade: int = 2
-    handle_cont_trade_pre_close: int = 180  # 3 mins
-    compute_close_indicators: int = 120  # 2mins
+    compute_close_indicators: int = 240  # <= 4 mins
 
     @root_validator(pre=True)
     def check_settings(cls, values):
         if not values:
             return values
 
-        if values["handle_pre_market_open_call"] < values["compute_open_indicators"]:
-            raise ValueError("handle_pre_market_open_call 应该大于 compute_open_indicators")
+        if values["compute_open_indicators"] > 60 * 4:
+            raise ValueError("compute_open_indicators 应该小于 240 (4 分钟)")
 
-        if values["handle_cont_trade_pre_close"] < values["compute_close_indicators"]:
-            raise ValueError(
-                "handle_cont_trade_pre_close 应该大于 compute_close_indicators"
-            )
+        if values["compute_close_indicators"] > 60 * 4:
+            raise ValueError("compute_close_indicators 应该小于 240 (4 分钟)")
+
         return values
 
 

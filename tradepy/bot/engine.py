@@ -268,7 +268,7 @@ class TradingEngine(TradeMixin):
             LOG.log_orders(sell_orders)
             BrokerAPI.place_orders(sell_orders)
 
-    @timeout(timeouts_conf.handle_pre_market_open_call)
+    @timeout(timeouts_conf.compute_open_indicators + 30)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
         ind_df = self._compute_open_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
@@ -281,10 +281,9 @@ class TradingEngine(TradeMixin):
             return
 
         ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        ind_df = self.strategy.compute_intraday_indicators(quote_df.copy(), ind_df)
         self._inday_trade(ind_df, quote_df)
 
-    @timeout(timeouts_conf.handle_cont_trade_pre_close)
+    @timeout(timeouts_conf.compute_close_indicators + 30)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):
         if not BrokerAPI.get_positions(available_only=True):  # type: ignore
             LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")

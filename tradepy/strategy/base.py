@@ -347,9 +347,3 @@ class LiveStrategy(StrategyBase[BarDataType]):
         self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
     ) -> pd.DataFrame:
         raise NotImplementedError()
-
-    @abc.abstractmethod
-    def compute_intraday_indicators(
-        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        raise NotImplementedError()

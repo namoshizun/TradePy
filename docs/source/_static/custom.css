@@ -1,7 +1,4 @@
-.logo {
-    width: 60% !important;
-}
-
-.wy-nav-content {
-    max-width: 1000px !important;
+table {
+    /* https://github.com/pandas-dev/pandas/issues/48644 */
+    width: auto !important;
 }

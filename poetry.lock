@@ -1,4 +1,20 @@
 [[package]]
+name = "accessible-pygments"
+version = "0.0.4"
+description = "A collection of accessible pygments styles"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+pygments = ">=1.5"
+
+[package.source]
+type = "legacy"
+url = "http://mirrors.aliyun.com/pypi/simple"
+reference = "aliyun"
+
+[[package]]
 name = "akshare"
 version = "1.10.20"
 description = "AKShare is an elegant and simple financial data interface library for Python, built for human beings!"
@@ -1580,6 +1596,34 @@ url = "http://mirrors.aliyun.com/pypi/simple"
 reference = "aliyun"
 
 [[package]]
+name = "pydata-sphinx-theme"
+version = "0.13.3"
+description = "Bootstrap-based Sphinx theme from the PyData community"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+accessible-pygments = "*"
+Babel = "*"
+beautifulsoup4 = "*"
+docutils = "!=0.17.0"
+packaging = "*"
+pygments = ">=2.7"
+sphinx = ">=4.2"
+typing-extensions = "*"
+
+[package.extras]
+dev = ["nox", "pre-commit", "pydata-sphinx-theme[doc,test]", "pyyaml"]
+doc = ["ablog (>=0.11.0rc2)", "colorama", "ipyleaflet", "jupyter_sphinx", "linkify-it-py", "matplotlib", "myst-nb", "nbsphinx", "numpy", "numpydoc", "pandas", "plotly", "rich", "sphinx-copybutton", "sphinx-design", "sphinx-favicon (>=1.0.1)", "sphinx-sitemap", "sphinx-togglebutton", "sphinxcontrib-youtube", "sphinxext-rediraffe", "xarray"]
+test = ["codecov", "pytest", "pytest-cov", "pytest-regressions"]
+
+[package.source]
+type = "legacy"
+url = "http://mirrors.aliyun.com/pypi/simple"
+reference = "aliyun"
+
+[[package]]
 name = "pygments"
 version = "2.16.1"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -2048,27 +2092,6 @@ url = "http://mirrors.aliyun.com/pypi/simple"
 reference = "aliyun"
 
 [[package]]
-name = "sphinx-rtd-theme"
-version = "1.2.2"
-description = "Read the Docs theme for Sphinx"
-category = "main"
-optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
-
-[package.dependencies]
-docutils = "<0.19"
-sphinx = ">=1.6,<7"
-sphinxcontrib-jquery = ">=4,<5"
-
-[package.extras]
-dev = ["bump2version", "sphinxcontrib-httpdomain", "transifex-client", "wheel"]
-
-[package.source]
-type = "legacy"
-url = "http://mirrors.aliyun.com/pypi/simple"
-reference = "aliyun"
-
-[[package]]
 name = "sphinxcontrib-applehelp"
 version = "1.0.7"
 description = "sphinxcontrib-applehelp is a Sphinx extension which outputs Apple help books"
@@ -2122,22 +2145,6 @@ Sphinx = ">=5"
 [package.extras]
 lint = ["docutils-stubs", "flake8", "mypy"]
 test = ["html5lib", "pytest"]
-
-[package.source]
-type = "legacy"
-url = "http://mirrors.aliyun.com/pypi/simple"
-reference = "aliyun"
-
-[[package]]
-name = "sphinxcontrib-jquery"
-version = "4.1"
-description = "Extension to include jQuery on newer Sphinx releases"
-category = "main"
-optional = false
-python-versions = ">=2.7"
-
-[package.dependencies]
-Sphinx = ">=1.8"
 
 [package.source]
 type = "legacy"
@@ -2714,15 +2721,19 @@ reference = "aliyun"
 [extras]
 bot = ["celery"]
 broker = ["fastapi", "uvicorn"]
-doc = ["sphinx-rtd-theme", "nbsphinx"]
+doc = ["pydata-sphinx-theme", "nbsphinx"]
 optimizer = ["dask"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10.4"
-content-hash = "73cfa7fe83b1dd938c1659bec5e853bae8d53a5c61c6959d3e31c43afebcab04"
+content-hash = "a5b21074a0375a91339614fbe7c9e6e42cf1db8f55c6783b61bde30f43ca2ae0"
 
 [metadata.files]
+accessible-pygments = [
+    {file = "accessible-pygments-0.0.4.tar.gz", hash = "sha256:e7b57a9b15958e9601c7e9eb07a440c813283545a20973f2574a5f453d0e953e"},
+    {file = "accessible_pygments-0.0.4-py2.py3-none-any.whl", hash = "sha256:416c6d8c1ea1c5ad8701903a20fcedf953c6e720d64f33dc47bfb2d3f2fa4e8d"},
+]
 akshare = [
     {file = "akshare-1.10.20-py3-none-any.whl", hash = "sha256:86a2629f74f6a428a918f7150fcc680a879c541c72ac562442b3081a418dbbe2"},
     {file = "akshare-1.10.20.tar.gz", hash = "sha256:14f7540349c9f86f8d9837a6351341a8c3ddf0654b58e5efd25c1458c229df08"},
@@ -3938,6 +3949,10 @@ pydantic = [
     {file = "pydantic-1.10.12-py3-none-any.whl", hash = "sha256:b749a43aa51e32839c9d71dc67eb1e4221bb04af1033a32e3923d46f9effa942"},
     {file = "pydantic-1.10.12.tar.gz", hash = "sha256:0fe8a415cea8f340e7a9af9c54fc71a649b43e8ca3cc732986116b3cb135d303"},
 ]
+pydata-sphinx-theme = [
+    {file = "pydata_sphinx_theme-0.13.3-py3-none-any.whl", hash = "sha256:bf41ca6c1c6216e929e28834e404bfc90e080b51915bbe7563b5e6fda70354f0"},
+    {file = "pydata_sphinx_theme-0.13.3.tar.gz", hash = "sha256:827f16b065c4fd97e847c11c108bf632b7f2ff53a3bca3272f63f3f3ff782ecc"},
+]
 pygments = [
     {file = "Pygments-2.16.1-py3-none-any.whl", hash = "sha256:13fc09fa63bc8d8671a6d247e1eb303c4b343eaee81d861f3404db2935653692"},
     {file = "Pygments-2.16.1.tar.gz", hash = "sha256:1daff0494820c69bc8941e407aa20f577374ee88364ee10a98fdbe0aece96e29"},
@@ -4493,10 +4508,6 @@ sphinx = [
     {file = "Sphinx-6.2.1.tar.gz", hash = "sha256:6d56a34697bb749ffa0152feafc4b19836c755d90a7c59b72bc7dfd371b9cc6b"},
     {file = "sphinx-6.2.1-py3-none-any.whl", hash = "sha256:97787ff1fa3256a3eef9eda523a63dbf299f7b47e053cfcf684a1c2a8380c912"},
 ]
-sphinx-rtd-theme = [
-    {file = "sphinx_rtd_theme-1.2.2-py2.py3-none-any.whl", hash = "sha256:6a7e7d8af34eb8fc57d52a09c6b6b9c46ff44aea5951bc831eeb9245378f3689"},
-    {file = "sphinx_rtd_theme-1.2.2.tar.gz", hash = "sha256:01c5c5a72e2d025bd23d1f06c59a4831b06e6ce6c01fdd5ebfe9986c0a880fc7"},
-]
 sphinxcontrib-applehelp = [
     {file = "sphinxcontrib_applehelp-1.0.7-py3-none-any.whl", hash = "sha256:094c4d56209d1734e7d252f6e0b3ccc090bd52ee56807a5d9315b19c122ab15d"},
     {file = "sphinxcontrib_applehelp-1.0.7.tar.gz", hash = "sha256:39fdc8d762d33b01a7d8f026a3b7d71563ea3b72787d5f00ad8465bd9d6dfbfa"},
@@ -4508,10 +4519,6 @@ sphinxcontrib-devhelp = [
 sphinxcontrib-htmlhelp = [
     {file = "sphinxcontrib_htmlhelp-2.0.4-py3-none-any.whl", hash = "sha256:8001661c077a73c29beaf4a79968d0726103c5605e27db92b9ebed8bab1359e9"},
     {file = "sphinxcontrib_htmlhelp-2.0.4.tar.gz", hash = "sha256:6c26a118a05b76000738429b724a0568dbde5b72391a688577da08f11891092a"},
-]
-sphinxcontrib-jquery = [
-    {file = "sphinxcontrib-jquery-4.1.tar.gz", hash = "sha256:1620739f04e36a2c779f1a131a2dfd49b2fd07351bf1968ced074365933abc7a"},
-    {file = "sphinxcontrib_jquery-4.1-py2.py3-none-any.whl", hash = "sha256:f936030d7d0147dd026a4f2b5a57343d233f1fc7b363f68b3d4f1cb0993878ae"},
 ]
 sphinxcontrib-jsmath = [
     {file = "sphinxcontrib-jsmath-1.0.1.tar.gz", hash = "sha256:a9925e4a4587247ed2191a22df5f6970656cb8ca2bd6284309578f2153e0c4b8"},

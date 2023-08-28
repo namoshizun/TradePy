@@ -2,7 +2,7 @@
 =============
 
 
-TradePy的实盘交易系统由两个部分组成，适合用于中低频交易（数秒级/分钟级），完整架构见下图:
+TradePy的实盘交易系统由两个部分组成，适合用于基于日K的中低频交易，完整架构见下图:
 
 1. **策略端**: 策略端接收行情数据，并根据策略逻辑生成交易指令。
 2. **交易端**: 交易端接收策略端的交易指令，并将其转发给miniQMT终端下单（暂不支持PTrade）。
@@ -13,19 +13,19 @@ TradePy的实盘交易系统由两个部分组成，适合用于中低频交易�
 
 .. warning::
     
-    - 由于 `Celery <https://github.com/celery/celery>`_ 以及Redis都不支持 Windows，所以策略端和Redis实例必须部署在Linux/MacOS系统。
-    - miniQMT终端则只支持Windows, 所以交易端则必须部署在Windows系统。
+    - 由于 `Celery <https://github.com/celery/celery>`_ 和Redis都不直接支持 Windows，所以策略端和Redis实例必须部署在Linux/MacOS系统。
+    - QMT终端则只支持Windows, 所以交易端则必须部署在Windows系统。
 
 
-..  admonition:: 最低系统配置
+..  admonition:: 系统配置
 
-    - **策略端**: 推荐Debian12, 4G内存, 2核CPU，具体配置请根据策略指标的计算量而定。
+    - **策略端**: Debian或Ubuntu, 4G内存, 2核CPU，具体配置请根据策略指标的计算量而定。
     - **交易端**: Windows10, 4G内存, 2核CPU。
 
 
 ..  admonition:: 防火墙规则
 
-    - **策略端**: 需要开放Redis端口（默认6379）和Ping端口，允许交易端的IP访问。
+    - **策略端**: 需要开放Redis端口（默认6379）和Ping端口, 允许交易端的IP访问。
     - **交易端**: 需要开放交易HTTP服务端口（默认8000）和Ping端口, 允许策略端的IP访问。
 
 
@@ -33,7 +33,7 @@ TradePy的实盘交易系统由两个部分组成，适合用于中低频交易�
 部署策略端
 -------------
 
-**注**: 以下假定您的交易系统部署在云平台上，使用官方提供的操作系统镜像，未事先安装其他软件。
+**注**: 以下假定您的交易系统部署在云平台上，使用官方提供的操作系统镜像。
 
 安装Python
 ~~~~~~~~~~~~~~~~
@@ -54,6 +54,9 @@ TradePy的实盘交易系统由两个部分组成，适合用于中低频交易�
 1. 请根据 `官方教程 <https://redis.io/docs/getting-started/installation/install-redis-on-linux/>`_ 安装Redis
 2. 进入Redis终端: ``redis-cli``
 3. 在终端内设置密码: ``config set requirepass TradePyRocks``, 这里示例密码为"TradePyRocks"
+4. 在终端内设置允许通过内网访问: ``config set bind "127.0.0.1 -::1 10.0.12.17"``。
+
+   - "10.0.12.17"是本示例中的策略端内网IP
 
 
 安装TradePy交易版
@@ -140,10 +143,24 @@ TradePy的实盘交易系统由两个部分组成，适合用于中低频交易�
    👌 已创建配置文件: C:\Users\Administrator\.tradepy\config.yaml
 
 
-配置策略端TradePy
-----------------------
+数据更新与交易引擎配置
+-------------------------
+
+总览
+~~~~~~~~~~~~~~~~~~~~
 TODO
 
+数据更新
+~~~~~~~~~~~~~~~~~~~~
+TODO
+
+交易引擎
+~~~~~~~~~~~~~~~~~~~~
+TODO
+
+策略参数
+~~~~~~~~~~~~~~~~~~~~
+TODO
 
 
 注意事项
