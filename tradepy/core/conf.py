@@ -83,6 +83,9 @@ class TimeoutsConf(ConfBase):
 
     @root_validator(pre=True)
     def check_settings(cls, values):
+        if not values:
+            return values
+
         if values["handle_pre_market_open_call"] < values["compute_open_indicators"]:
             raise ValueError("handle_pre_market_open_call 应该大于 compute_open_indicators")
 
@@ -129,7 +132,6 @@ class StrategyConf(ConfBase):
     max_position_size: float = 1
     max_position_opens: int = 10000
     min_trade_amount: int = 0
-    signals_percent_range: list[int] | tuple[int, int] = [0, 100]
 
     custom_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -166,21 +168,21 @@ class StrategyConf(ConfBase):
 
 
 class TradingConf(ConfBase):
-    pending_order_expiry: float = 0
-    strategy: StrategyConf
-    periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
-    timeouts: TimeoutsConf
     broker: BrokerConf
-    xtquant: XtQuantConf
+    xtquant: XtQuantConf | None = None
+    pending_order_expiry: float = 10
+    strategy: StrategyConf = Field(default_factory=StrategyConf)
+    periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
+    timeouts: TimeoutsConf = Field(default_factory=TimeoutsConf)
 
 
 # ---------
 # Schedules
 # ---------
 class SchedulesConf(ConfBase):
-    update_datasets: str
-    warm_broker_db: str
-    flush_broker_cache: str
+    update_datasets: str = "0 20 * * *"
+    warm_broker_db: str = "0 9 * * *"
+    flush_broker_cache: str = "5 15 * * *"
 
     @staticmethod
     def parse_cron(cron: str):
@@ -253,14 +255,22 @@ class CommonConf(ConfBase):
     trade_lot_vol: int = 100
     blacklist_path: Path | None = None
     redis: RedisConf | None
-    redis_connection_pool: ConnectionPool | None = None
 
     class Config(ConfBase.Config):
         arbitrary_types_allowed = True
 
+    @property
+    def redis_connection_pool(self) -> ConnectionPool | None:
+        if self.redis is None:
+            return None
+        return getattr(self, "_redis_connection_pool", None)
+
+    @redis_connection_pool.setter
+    def redis_connection_pool(self, value: ConnectionPool):
+        self._redis_connection_pool = value
+
     def get_redis_client(self) -> Redis:
         assert self.redis, "未设置Redis配置"
-
         if self.redis_connection_pool is None:
             self.redis_connection_pool = ConnectionPool(
                 host=self.redis.host,

@@ -160,11 +160,7 @@ class StrategyBase(Generic[BarDataType]):
         max_position_size: float | None = None,
     ) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
-        min_sig, max_sig = self.signals_percent_range
         n_options = len(port_df)
-        signal_ratio = 100 * n_options / n_stocks
-        if (signal_ratio < min_sig) or (signal_ratio > max_sig):
-            return pd.DataFrame(), 0
 
         if max_position_opens is None:
             max_position_opens = self.max_position_opens

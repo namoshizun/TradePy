@@ -1,3 +1,4 @@
+import os
 import time
 import tushare as ts
 import pandas as pd
@@ -9,7 +10,11 @@ from tradepy.conversion import (
     convert_tushare_date_to_iso_format,
 )
 
-ts_api = ts.pro_api()
+ts_api = ts.pro_api(
+    os.environ.get(
+        "TUSHARE_TOKEN", "2e8200f738bd44a70ca308b95ae1708b6bac03abd37e16534b9418ae"
+    )
+)
 
 
 def retry(max_retries=4, wait_interval=30):
