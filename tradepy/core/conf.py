@@ -111,7 +111,7 @@ class BrokerConf(ConfBase):
 class XtQuantConf(ConfBase):
     account_id: str
     qmt_data_path: str
-    price_type: str  # not yet supported
+    price_type: str = "FIXED_PRICE"  # not yet supported
 
 
 class SlippageConf(ConfBase):
@@ -255,22 +255,14 @@ class CommonConf(ConfBase):
     trade_lot_vol: int = 100
     blacklist_path: Path | None = None
     redis: RedisConf | None
+    redis_connection_pool: ConnectionPool | None = None
 
     class Config(ConfBase.Config):
         arbitrary_types_allowed = True
 
-    @property
-    def redis_connection_pool(self) -> ConnectionPool | None:
-        if self.redis is None:
-            return None
-        return getattr(self, "_redis_connection_pool", None)
-
-    @redis_connection_pool.setter
-    def redis_connection_pool(self, value: ConnectionPool):
-        self._redis_connection_pool = value
-
     def get_redis_client(self) -> Redis:
         assert self.redis, "未设置Redis配置"
+
         if self.redis_connection_pool is None:
             self.redis_connection_pool = ConnectionPool(
                 host=self.redis.host,
@@ -296,7 +288,7 @@ class CommonConf(ConfBase):
     @validator("database_dir", pre=True)
     def check_database_dir(cls, value):
         p = Path(value)
-        assert p.exists(), f"数据库目录不存在: {p}"
+        p.mkdir(parents=True, exist_ok=True)
         return p
 
 
@@ -325,6 +317,5 @@ class TradePyConf(ConfBase):
 
         if mode in ("paper-trading", "live-trading"):
             assert values["trading"] is not None, "交易模式下, trading 配置项不能为空"
-            assert values["schedules"] is not None, "交易模式下, schedules 配置项不能为空"
 
         return values
