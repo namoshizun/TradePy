@@ -168,13 +168,14 @@ class StrategyConf(ConfBase):
 class TradingConf(ConfBase):
     broker: BrokerConf
     indicators_window_size = 20
-    xtquant: XtQuantConf | None = None
     pending_order_expiry: float = 10
-    markets: tuple[MarketType, ...] = (
-        Markets.SH_MAIN,
-        Markets.SZ_MAIN,
-        Markets.SME,
-        Markets.CHI_NEXT,
+    cache_retention: int = 7  # days
+    xtquant: XtQuantConf | None = None
+    markets: tuple[str, ...] = (
+        "SH_MAIN",
+        "SZ_MAIN",
+        "SME",
+        "CHI_NEXT",
     )
     strategy: StrategyConf = Field(default_factory=StrategyConf)
     periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
@@ -188,6 +189,7 @@ class SchedulesConf(ConfBase):
     update_datasets: str = "0 20 * * *"
     warm_database: str = "0 9 * * *"
     flush_broker_cache: str = "5 15 * * *"
+    vacuum: str = "0 23 * * *"
 
     @staticmethod
     def parse_cron(cron: str):

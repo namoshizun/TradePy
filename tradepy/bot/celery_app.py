@@ -47,6 +47,11 @@ app.conf.beat_schedule = {
         ),
         "args": (),
     },
+    "vacuum": {
+        "task": "tradepy.vacuum",
+        "schedule": crontab(**schedules_conf.parse_cron(schedules_conf.vacuum)),
+        "args": (),
+    },
 }
 
 if trade_conf.pending_order_expiry > 0:

@@ -11,6 +11,7 @@ common:
 
 trading:
   indicators_window_size: 95
+  cache_retention: 7  # days
   pending_order_expiry: 10 # seconds
   markets: ["SH_MAIN", "SZ_MAIN", "SME", "CHI_NEXT"]
   strategy:

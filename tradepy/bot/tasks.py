@@ -1,6 +1,6 @@
 import io
+import subprocess
 import pandas as pd
-from pathlib import Path
 from datetime import datetime
 from celery import shared_task
 from loguru import logger
@@ -42,7 +42,7 @@ def warm_database():
     logger.info("预加载策略端日K")
     engine = TradingEngine()
     df = StocksDailyBarsDepot.load(markets=tradepy.config.trading.markets)  # type: ignore
-    df.to_pickle(engine.workspace_dir / f'{CacheKeys.hist_k}.pkl'}')
+    df.to_pickle(engine.workspace_dir / f"{CacheKeys.hist_k}.pkl")
     logger.info("策略端日K预加载成功")
 
 
@@ -136,3 +136,16 @@ def update_data_sources():
     BroadBasedIndexCollector().run()
     AdjustFactorCollector().run()
     EastMoneyRestrictedSharesReleaseCollector().run(start_date="2016-01-01")
+
+
+@shared_task(name="tradepy.vacuum", expires=60 * 60)
+@notify_failure(title="数据清理失败")
+def vacuum():
+    for sub_command, days in [
+        ["redis", tradepy.config.trading.cache_retention],
+        ["workspace", tradepy.config.trading.cache_retention],
+        ["database", tradepy.config.trading.indicators_window_size],
+    ]:
+        subprocess.run(
+            ["python", "-m", "tradepy.cli.vacuum", sub_command, "--days", str(days)]
+        )
