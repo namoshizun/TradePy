@@ -10,7 +10,9 @@ common:
     password: ${REDIS_PASSWORD}
 
 trading:
+  indicators_window_size: 95
   pending_order_expiry: 10 # seconds
+  markets: ["SH_MAIN", "SZ_MAIN", "SME", "CHI_NEXT"]
   strategy:
     strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
@@ -52,7 +54,7 @@ trading:
 
 schedules:
   update_datasets: "0 20 * * *"
-  warm_broker_db: "0 9 * * *"
+  warm_database: "0 9 * * *"
   flush_broker_cache: "5 15 * * *"
 
 notifications:

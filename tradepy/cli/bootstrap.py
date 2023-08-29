@@ -37,7 +37,7 @@ def conf_to_dict(conf: BaseModel):
 
 
 class ConfigInitializer:
-    conf_dir = Path(os.path.expanduser("~/.tradepy"))
+    conf_dir = Path.home() / ".tradepy"
     conf_file: Path = conf_dir / "config.yaml"
 
     def __init__(self):

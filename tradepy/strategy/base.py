@@ -328,22 +328,19 @@ class BacktestStrategy(StrategyBase[BarData]):
 
 
 class LiveStrategy(StrategyBase[BarDataType]):
-    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
-        pct_chg = calc_pct_chg(position.price, tick["close"])
+
+    def should_stop_loss(self, bar: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg <= -self.stop_loss:
-            return tick["close"]
+            return bar["close"]
 
-    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
-        pct_chg = calc_pct_chg(position.price, tick["close"])
+    def should_take_profit(self, bar: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg >= self.take_profit:
-            return tick["close"]
+            return bar["close"]
 
-    @abc.abstractmethod
-    def compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
-        raise NotImplementedError()
+    def compute_open_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.compute_all_indicators_df(df)
 
-    @abc.abstractmethod
-    def compute_close_indicators(
-        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        raise NotImplementedError()
+    def compute_close_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.compute_all_indicators_df(df)

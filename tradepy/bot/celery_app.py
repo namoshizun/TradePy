@@ -35,9 +35,9 @@ app.conf.beat_schedule = {
         ),
         "args": (),
     },
-    "warm-broker-db": {
-        "task": "tradepy.warm_broker_db",
-        "schedule": crontab(**schedules_conf.parse_cron(schedules_conf.warm_broker_db)),
+    "warm-database": {
+        "task": "tradepy.warm_database",
+        "schedule": crontab(**schedules_conf.parse_cron(schedules_conf.warm_database)),
         "args": (),
     },
     "flush-broker-cache": {

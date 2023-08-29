@@ -10,6 +10,7 @@ from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
 from tradepy.optimization.base import ParameterOptimizer
+from tradepy.types import MarketType, Markets
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
@@ -75,9 +76,9 @@ class PeriodicTasksConf(ConfBase):
 class TimeoutsConf(ConfBase):
     download_quote: int = 3
     download_ask_bid: int = 2
-    compute_open_indicators: int = 240  # <= 4 mins
+    compute_open_indicators: int = 60 * 4  # <= 4 mins
     handle_cont_trade: int = 2
-    compute_close_indicators: int = 240  # <= 4 mins
+    compute_close_indicators: int = 60 * 4  # <= 4 mins
 
     @root_validator(pre=True)
     def check_settings(cls, values):
@@ -166,8 +167,15 @@ class StrategyConf(ConfBase):
 
 class TradingConf(ConfBase):
     broker: BrokerConf
+    indicators_window_size = 20
     xtquant: XtQuantConf | None = None
     pending_order_expiry: float = 10
+    markets: tuple[MarketType, ...] = (
+        Markets.SH_MAIN,
+        Markets.SZ_MAIN,
+        Markets.SME,
+        Markets.CHI_NEXT,
+    )
     strategy: StrategyConf = Field(default_factory=StrategyConf)
     periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
     timeouts: TimeoutsConf = Field(default_factory=TimeoutsConf)
@@ -178,7 +186,7 @@ class TradingConf(ConfBase):
 # ---------
 class SchedulesConf(ConfBase):
     update_datasets: str = "0 20 * * *"
-    warm_broker_db: str = "0 9 * * *"
+    warm_database: str = "0 9 * * *"
     flush_broker_cache: str = "5 15 * * *"
 
     @staticmethod
