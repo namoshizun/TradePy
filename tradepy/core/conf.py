@@ -37,7 +37,7 @@ class ConfBase(BaseModel):
                 return os.path.expandvars(value)
             elif isinstance(value, dict):
                 field_def = cls.__fields__[key]
-                field_type = field_def.outer_type_
+                field_type = field_def.annotation
 
                 with suppress(TypeError):
                     if issubclass(field_type, ConfBase):
@@ -167,8 +167,8 @@ class StrategyConf(ConfBase):
 
 class TradingConf(ConfBase):
     broker: BrokerConf
-    indicators_window_size = 20
-    pending_order_expiry: float = 10
+    indicators_window_size: int = 20
+    pending_order_expiry: float = 0  # seconds, 0 is no expiry
     cache_retention: int = 7  # days
     xtquant: XtQuantConf | None = None
     markets: tuple[MarketType, ...] = (
@@ -197,6 +197,38 @@ class SchedulesConf(ConfBase):
         CRON_FIELDS = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
         parse_value = lambda v: v if v == "*" else int(v)
         return {k: parse_value(v) for k, v in zip(CRON_FIELDS, cron.split())}
+
+    @validator("update_datasets", "flush_broker_cache", "vacuum")
+    def ensure_after_market_close(cls, value):
+        time_specs = cls.parse_cron(value)
+        if time_specs["hour"] < 15:
+            raise ValueError("导出当日交易记录、更新本地数据、清理过期数据，应该在收盘后进行")
+        return value
+
+    @validator("warm_database")
+    def ensure_before_market_open(cls, value):
+        time_specs = cls.parse_cron(value)
+        if time_specs["hour"] > 9 or time_specs["minute"] > 15:
+            raise ValueError("预热数据库应该在09:15前进行")
+        return value
+
+    @root_validator(skip_on_failure=True)
+    def ensure_order(cls, values):
+        def to_iso_time(value):
+            time_specs = cls.parse_cron(value)
+            return f"{time_specs['hour']:02}:{time_specs['minute']:02}"
+
+        flush_cache_time = to_iso_time(values["flush_broker_cache"])
+        update_db_time = to_iso_time(values["update_datasets"])
+        vacuum_time = to_iso_time(values["vacuum"])
+
+        if flush_cache_time > update_db_time or flush_cache_time > vacuum_time:
+            raise ValueError("导出数据库应该在更新本地数据或清理过期数据之前")
+
+        if update_db_time > vacuum_time:
+            raise ValueError("更新本地数据应该在清理过期数据之前")
+
+        return values
 
 
 # --------
@@ -318,7 +350,7 @@ class TradePyConf(ConfBase):
 
         return cls.from_file(config_file_path)
 
-    @root_validator()
+    @root_validator(skip_on_failure=True)
     def check_settings(cls, values):
         mode: ModeType = values["common"].mode
 
