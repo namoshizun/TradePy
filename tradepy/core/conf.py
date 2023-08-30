@@ -171,11 +171,11 @@ class TradingConf(ConfBase):
     pending_order_expiry: float = 10
     cache_retention: int = 7  # days
     xtquant: XtQuantConf | None = None
-    markets: tuple[str, ...] = (
-        "SH_MAIN",
-        "SZ_MAIN",
-        "SME",
-        "CHI_NEXT",
+    markets: tuple[MarketType, ...] = (
+        "上证主板",
+        "深证主板",
+        "中小板",
+        "创业板",
     )
     strategy: StrategyConf = Field(default_factory=StrategyConf)
     periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)

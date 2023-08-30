@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import date
 
 # Trade date list starting from 2000-01-01 to 2023-12-31 in reverse order.
 # This list is updated yearly.
@@ -5837,3 +5838,7 @@ trade_cal = [
     "2000-01-05",
     "2000-01-04",
 ]
+
+
+if str(date.today()) > trade_cal[0]:
+    raise Exception("交易日历已过期! 请升级您的TradePy版本")

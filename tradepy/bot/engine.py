@@ -9,6 +9,7 @@ from pathlib import Path
 import tradepy
 from tradepy.blacklist import Blacklist
 from tradepy.constants import CacheKeys
+from tradepy.core.account import Account
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.conf import TradingConf
 from tradepy.core.models import Order, Position
@@ -85,8 +86,11 @@ class TradingEngine(TradeMixin):
         self.strategy_conf = self.conf.strategy
 
         self.adjust_factors: AdjustFactors = AdjustFactorDepot.load()
-        self.account = BrokerAPI.get_account()
         self.strategy: LiveStrategy = self.strategy_conf.load_strategy()  # type: ignore
+
+    @cached_property
+    def account(self) -> Account:
+        return BrokerAPI.get_account()
 
     def _load_indicators_from_cache(self, key: str) -> pd.DataFrame | None:
         with self.cache.use_redis_cache(key) as (
@@ -97,7 +101,9 @@ class TradingEngine(TradeMixin):
 
     def _load_hist_daily_from_cache(self) -> pd.DataFrame:
         with self.cache.use_local_cache(CacheKeys.hist_k) as (df, _):
-            assert df, "Unable to find the cached day k data!"
+            assert (
+                isinstance(df, pd.DataFrame) and not df.empty
+            ), "Unable to find the cached day k data!"
             return df
 
     def _jit_sell_price(self, price: float, slip_pct: float) -> float:
@@ -117,10 +123,10 @@ class TradingEngine(TradeMixin):
 
         # Remove stocks that don't have enough data for computing the indicators
         n_bars = df.groupby(level="code").size()
-        keep = n_bars[n_bars >= self.conf.indicators_window_size].index
-        df = df.loc[keep].copy()
-
-        return df
+        drop = n_bars[n_bars < self.conf.indicators_window_size].index
+        if drop.empty:
+            return df
+        return df.query("code not in @drop").copy()
 
     def _get_buy_options(
         self, ind_df: pd.DataFrame, orders: list[Order], positions: list[Position]
@@ -179,7 +185,7 @@ class TradingEngine(TradeMixin):
         with self.cache.use_redis_cache(
             cache_key, timeouts_conf.compute_open_indicators
         ) as (df, set_cache):
-            if df:
+            if isinstance(df, pd.DataFrame):
                 LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
                 return df
 
@@ -193,8 +199,8 @@ class TradingEngine(TradeMixin):
             LOG.info(f"计算开盘指标: {timer['seconds']}s")
 
             # Cache the result
-            assert set_cache
-            set_cache(df)
+            assert callable(set_cache), set_cache
+            set_cache(ind_df)
             return df
 
     def _compute_close_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
@@ -215,7 +221,7 @@ class TradingEngine(TradeMixin):
         with self.cache.use_redis_cache(
             cache_key, timeouts_conf.compute_close_indicators
         ) as (df, set_cache):
-            if df:
+            if isinstance(df, pd.DataFrame):
                 LOG.info("已从缓存读取了收盘指标，不再重复计算。交易行为应该与上次相同。")
                 return df
 

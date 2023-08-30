@@ -10,10 +10,11 @@ common:
     password: ${REDIS_PASSWORD}
 
 trading:
-  indicators_window_size: 95
+  indicators_window_size: 120
   cache_retention: 7  # days
-  pending_order_expiry: 10 # seconds
-  markets: ["SH_MAIN", "SZ_MAIN", "SME", "CHI_NEXT"]
+  # pending_order_expiry: 10 # seconds
+  pending_order_expiry: 0 # seconds
+  markets: ["上证主板", "深证主板", "中小板", "创业板"]
   strategy:
     strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
@@ -35,6 +36,8 @@ trading:
       ma60_support_thres: 2.5
       min_volatility: 1.5
       signal_below_support_thres: 0.75
+      min_stock_price: 5
+      debug: false
 
   periodic_tasks:
     tick_fetch_interval: 3

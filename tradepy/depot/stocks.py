@@ -17,7 +17,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
         since_date: str | None = None,
         until_date: str | None = None,
         fields: str = default_loaded_fields,
-        markets: tuple[MarketType] | None = None,
+        markets: tuple[MarketType, ...] | None = None,
     ) -> pd.DataFrame:
         def loader() -> Generator[pd.DataFrame, None, None]:
             source_iter = self.find(codes)
