@@ -21,6 +21,8 @@ class StockDayBarsCollector(DayBarsCollector):
     def download_and_process(self, code, start_date):
         try:
             df = tradepy.ak_api.get_stock_daily(code, start_date)
+            if df.empty:
+                return df
             df["market"] = market = convert_code_to_market(code)
             return self._patch_names(
                 df,

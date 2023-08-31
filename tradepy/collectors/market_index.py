@@ -33,7 +33,7 @@ class EastMoneySectorIndexCollector(DataCollector):
             code = listing_df.query("name == @name").iloc[0]["code"]
             bars_df["code"] = code
 
-            repo.save(self.precompute_indicators(bars_df.copy()), f"{code}.csv")
+            repo.save(bars_df, f"{code}.csv")
 
 
 class BroadBasedIndexCollector(DataCollector):
@@ -55,4 +55,4 @@ class BroadBasedIndexCollector(DataCollector):
                 latest_quote = curr_quote_df.query("code == @code").copy()
                 df = pd.concat([df, latest_quote[df.columns]])
 
-            repo.save(self.precompute_indicators(df.copy()), f"{name}.csv")
+            repo.save(df.copy(), f"{name}.csv")

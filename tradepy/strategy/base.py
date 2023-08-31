@@ -160,11 +160,7 @@ class StrategyBase(Generic[BarDataType]):
         max_position_size: float | None = None,
     ) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
-        min_sig, max_sig = self.signals_percent_range
         n_options = len(port_df)
-        signal_ratio = 100 * n_options / n_stocks
-        if (signal_ratio < min_sig) or (signal_ratio > max_sig):
-            return pd.DataFrame(), 0
 
         if max_position_opens is None:
             max_position_opens = self.max_position_opens
@@ -332,28 +328,19 @@ class BacktestStrategy(StrategyBase[BarData]):
 
 
 class LiveStrategy(StrategyBase[BarDataType]):
-    def should_stop_loss(self, tick: BarDataType, position: Position) -> float | None:
-        pct_chg = calc_pct_chg(position.price, tick["close"])
+
+    def should_stop_loss(self, bar: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg <= -self.stop_loss:
-            return tick["close"]
+            return bar["close"]
 
-    def should_take_profit(self, tick: BarDataType, position: Position) -> float | None:
-        pct_chg = calc_pct_chg(position.price, tick["close"])
+    def should_take_profit(self, bar: BarDataType, position: Position) -> float | None:
+        pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg >= self.take_profit:
-            return tick["close"]
+            return bar["close"]
 
-    @abc.abstractmethod
-    def compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame:
-        raise NotImplementedError()
+    def compute_open_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.compute_all_indicators_df(df)
 
-    @abc.abstractmethod
-    def compute_close_indicators(
-        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def compute_intraday_indicators(
-        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        raise NotImplementedError()
+    def compute_close_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.compute_all_indicators_df(df)

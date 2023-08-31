@@ -1,12 +1,15 @@
 import io
+import subprocess
 import pandas as pd
 from datetime import datetime
 from celery import shared_task
 from loguru import logger
 
 import tradepy
+from tradepy.constants import TRADABLE_PHASES, CacheKeys
 from tradepy.bot.broker import BrokerAPI
 from tradepy.bot.engine import TradingEngine
+from tradepy.conversion import convert_code_to_market
 from tradepy.core.exchange import AStockExchange
 from tradepy.decorators import notify_failure, timeit
 from tradepy.types import MarketPhase
@@ -20,21 +23,27 @@ from tradepy.collectors.adjust_factor import AdjustFactorCollector
 from tradepy.collectors.release_restricted_shares import (
     EastMoneyRestrictedSharesReleaseCollector,
 )
+from tradepy.depot.stocks import StocksDailyBarsDepot
 from tradepy.vendors.types import AskBid
 
 
-@shared_task(name="tradepy.warm_broker_db", expires=10)
+@shared_task(name="tradepy.warm_database", expires=60 * 5)
 @notify_failure(title="数据库预热失败")
-def warm_broker_db():
+def warm_database():
     phase = AStockExchange.market_phase_now()
     if phase == MarketPhase.CLOSED:
         logger.warning("已休市，不预热数据库")
         return
 
     if (res := BrokerAPI.warm_db()) != '"ok"':
-        logger.error(f"数据库预热失败, 可能导致未预期结果! {res}")
+        logger.error(f"交易端数据库预热失败, 可能导致未预期结果! {res}")
+    logger.info("交易端数据库预热成功")
 
-    logger.info("数据库预热成功")
+    logger.info("预加载策略端日K")
+    engine = TradingEngine()
+    df = StocksDailyBarsDepot.load(markets=tradepy.config.trading.markets)  # type: ignore
+    df.to_pickle(engine.workspace_dir / f"{CacheKeys.hist_k}.pkl")
+    logger.info("策略端日K预加载成功")
 
 
 @shared_task(
@@ -44,20 +53,19 @@ def warm_broker_db():
 @notify_failure(title="行情获取失败")
 def fetch_market_quote():
     phase = AStockExchange.market_phase_now()
-    if phase not in (
-        MarketPhase.PRE_OPEN_CALL_P2,
-        MarketPhase.CONT_TRADE,
-        MarketPhase.CONT_TRADE_PRE_CLOSE,
-    ):
+    if phase not in TRADABLE_PHASES:
         return
 
     with timeit() as timer:
+        tradable_markets = tradepy.config.trading.markets  # type: ignore
         df = AStockExchange.get_quote()
+        df["market"] = df.index.map(convert_code_to_market)
+        df = df.query("market in @tradable_markets").copy()
 
     # Serialize the quote frame to a string and send it to the trading engine
-    content_buff = io.StringIO()
-    df.to_csv(content_buff)
-    content_buff.seek(0)
+    buff = io.StringIO()
+    df.to_csv(buff)
+    buff.seek(0)
 
     celery_app.send_task(
         "tradepy.handle_tick",
@@ -65,7 +73,7 @@ def fetch_market_quote():
             payload={
                 "timestamp": datetime.now(),
                 "market_phase": phase,
-                "market_quote": content_buff.read(),
+                "market_quote": buff.read(),
             }
         ),
     )
@@ -128,3 +136,16 @@ def update_data_sources():
     BroadBasedIndexCollector().run()
     AdjustFactorCollector().run()
     EastMoneyRestrictedSharesReleaseCollector().run(start_date="2016-01-01")
+
+
+@shared_task(name="tradepy.vacuum", expires=60 * 60)
+@notify_failure(title="数据清理失败")
+def vacuum():
+    for sub_command, days in [
+        ["redis", tradepy.config.trading.cache_retention],
+        ["workspace", tradepy.config.trading.cache_retention],
+        ["database", tradepy.config.trading.indicators_window_size],
+    ]:
+        subprocess.run(
+            ["python", "-m", "tradepy.cli.vacuum", sub_command, "--days", str(days)]
+        )

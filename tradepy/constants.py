@@ -1,5 +1,7 @@
 from datetime import date
 
+from tradepy.types import MarketPhase
+
 
 class classproperty:
     def __init__(self, method=None):
@@ -39,13 +41,16 @@ class CacheKeys:
         return f"{self.prefix}:dataset:close-indicators-dataframe"
 
     @classproperty
-    def compute_open_indicators(self):
-        return f"{self.prefix}:lock:compute-open-indicators"
-
-    @classproperty
-    def compute_close_indicators(self):
-        return f"{self.prefix}:lock:compute-close-indicators"
-
-    @classproperty
     def update_assets(self):
         return f"{self.prefix}:lock:cache-update"
+
+    @classproperty
+    def hist_k(self):
+        return "hist-k-cache"
+
+
+TRADABLE_PHASES = (
+    MarketPhase.PRE_OPEN_CALL_P2,
+    MarketPhase.CONT_TRADE,
+    MarketPhase.CONT_TRADE_PRE_CLOSE,
+)

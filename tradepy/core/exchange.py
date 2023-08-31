@@ -16,7 +16,6 @@ class AStockExchange:
     @staticmethod
     def market_phase_now():
         _ = MarketPhase
-        # return _.PRE_OPEN_CALL_P2
 
         if not AStockExchange.is_today_trade_day():
             return _.CLOSED

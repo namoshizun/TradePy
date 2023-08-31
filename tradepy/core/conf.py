@@ -10,6 +10,7 @@ from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
 from tradepy.optimization.base import ParameterOptimizer
+from tradepy.types import MarketType, Markets
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class ConfBase(BaseModel):
                 return os.path.expandvars(value)
             elif isinstance(value, dict):
                 field_def = cls.__fields__[key]
-                field_type = field_def.outer_type_
+                field_type = field_def.annotation
 
                 with suppress(TypeError):
                     if issubclass(field_type, ConfBase):
@@ -75,21 +76,21 @@ class PeriodicTasksConf(ConfBase):
 class TimeoutsConf(ConfBase):
     download_quote: int = 3
     download_ask_bid: int = 2
-    handle_pre_market_open_call: int = 240  # 4 mins
-    compute_open_indicators: int = 228  # < 3.8 mins
+    compute_open_indicators: int = 60 * 4  # <= 4 mins
     handle_cont_trade: int = 2
-    handle_cont_trade_pre_close: int = 180  # 3 mins
-    compute_close_indicators: int = 120  # 2mins
+    compute_close_indicators: int = 60 * 4  # <= 4 mins
 
     @root_validator(pre=True)
     def check_settings(cls, values):
-        if values["handle_pre_market_open_call"] < values["compute_open_indicators"]:
-            raise ValueError("handle_pre_market_open_call 应该大于 compute_open_indicators")
+        if not values:
+            return values
 
-        if values["handle_cont_trade_pre_close"] < values["compute_close_indicators"]:
-            raise ValueError(
-                "handle_cont_trade_pre_close 应该大于 compute_close_indicators"
-            )
+        if values["compute_open_indicators"] > 60 * 4:
+            raise ValueError("compute_open_indicators 应该小于 240 (4 分钟)")
+
+        if values["compute_close_indicators"] > 60 * 4:
+            raise ValueError("compute_close_indicators 应该小于 240 (4 分钟)")
+
         return values
 
 
@@ -108,7 +109,7 @@ class BrokerConf(ConfBase):
 class XtQuantConf(ConfBase):
     account_id: str
     qmt_data_path: str
-    price_type: str  # not yet supported
+    price_type: str = "FIXED_PRICE"  # not yet supported
 
 
 class SlippageConf(ConfBase):
@@ -129,7 +130,6 @@ class StrategyConf(ConfBase):
     max_position_size: float = 1
     max_position_opens: int = 10000
     min_trade_amount: int = 0
-    signals_percent_range: list[int] | tuple[int, int] = [0, 100]
 
     custom_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -166,21 +166,30 @@ class StrategyConf(ConfBase):
 
 
 class TradingConf(ConfBase):
-    pending_order_expiry: float = 0
-    strategy: StrategyConf
-    periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
-    timeouts: TimeoutsConf
     broker: BrokerConf
-    xtquant: XtQuantConf
+    indicators_window_size: int = 20
+    pending_order_expiry: float = 0  # seconds, 0 is no expiry
+    cache_retention: int = 7  # days
+    xtquant: XtQuantConf | None = None
+    markets: tuple[MarketType, ...] = (
+        "上证主板",
+        "深证主板",
+        "中小板",
+        "创业板",
+    )
+    strategy: StrategyConf = Field(default_factory=StrategyConf)
+    periodic_tasks: PeriodicTasksConf = Field(default_factory=PeriodicTasksConf)
+    timeouts: TimeoutsConf = Field(default_factory=TimeoutsConf)
 
 
 # ---------
 # Schedules
 # ---------
 class SchedulesConf(ConfBase):
-    update_datasets: str
-    warm_broker_db: str
-    flush_broker_cache: str
+    update_datasets: str = "0 20 * * *"
+    warm_database: str = "0 9 * * *"
+    flush_broker_cache: str = "5 15 * * *"
+    vacuum: str = "0 23 * * *"
 
     @staticmethod
     def parse_cron(cron: str):
@@ -188,6 +197,38 @@ class SchedulesConf(ConfBase):
         CRON_FIELDS = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
         parse_value = lambda v: v if v == "*" else int(v)
         return {k: parse_value(v) for k, v in zip(CRON_FIELDS, cron.split())}
+
+    @validator("update_datasets", "flush_broker_cache", "vacuum")
+    def ensure_after_market_close(cls, value):
+        time_specs = cls.parse_cron(value)
+        if time_specs["hour"] < 15:
+            raise ValueError("导出当日交易记录、更新本地数据、清理过期数据，应该在收盘后进行")
+        return value
+
+    @validator("warm_database")
+    def ensure_before_market_open(cls, value):
+        time_specs = cls.parse_cron(value)
+        if time_specs["hour"] > 9 or time_specs["minute"] > 15:
+            raise ValueError("预热数据库应该在09:15前进行")
+        return value
+
+    @root_validator(skip_on_failure=True)
+    def ensure_order(cls, values):
+        def to_iso_time(value):
+            time_specs = cls.parse_cron(value)
+            return f"{time_specs['hour']:02}:{time_specs['minute']:02}"
+
+        flush_cache_time = to_iso_time(values["flush_broker_cache"])
+        update_db_time = to_iso_time(values["update_datasets"])
+        vacuum_time = to_iso_time(values["vacuum"])
+
+        if flush_cache_time > update_db_time or flush_cache_time > vacuum_time:
+            raise ValueError("导出数据库应该在更新本地数据或清理过期数据之前")
+
+        if update_db_time > vacuum_time:
+            raise ValueError("更新本地数据应该在清理过期数据之前")
+
+        return values
 
 
 # --------
@@ -286,7 +327,7 @@ class CommonConf(ConfBase):
     @validator("database_dir", pre=True)
     def check_database_dir(cls, value):
         p = Path(value)
-        assert p.exists(), f"数据库目录不存在: {p}"
+        p.mkdir(parents=True, exist_ok=True)
         return p
 
 
@@ -309,12 +350,11 @@ class TradePyConf(ConfBase):
 
         return cls.from_file(config_file_path)
 
-    @root_validator()
+    @root_validator(skip_on_failure=True)
     def check_settings(cls, values):
         mode: ModeType = values["common"].mode
 
         if mode in ("paper-trading", "live-trading"):
             assert values["trading"] is not None, "交易模式下, trading 配置项不能为空"
-            assert values["schedules"] is not None, "交易模式下, schedules 配置项不能为空"
 
         return values

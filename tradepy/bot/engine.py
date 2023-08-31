@@ -1,3 +1,4 @@
+import contextlib
 import random
 import pickle
 import pandas as pd
@@ -8,16 +9,16 @@ from pathlib import Path
 import tradepy
 from tradepy.blacklist import Blacklist
 from tradepy.constants import CacheKeys
+from tradepy.core.account import Account
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.conf import TradingConf
 from tradepy.core.models import Order, Position
 from tradepy.strategy.base import LiveStrategy
-from tradepy.decorators import require_mode, timeout
+from tradepy.decorators import require_mode, timeout, timeit
 from tradepy.mixins import TradeMixin
 from tradepy.types import MarketPhase
 from tradepy.bot.broker import BrokerAPI
 from tradepy.depot.misc import AdjustFactorDepot
-from tradepy.conversion import convert_code_to_market
 from tradepy.utils import get_latest_trade_date
 from tradepy.vendors.types import AskBid
 
@@ -26,22 +27,84 @@ LOG = tradepy.LOG
 timeouts_conf = tradepy.config.trading.timeouts
 
 
+class TradingCacheManager:
+    def __init__(self, workspace_dir: Path) -> None:
+        self.workspace = workspace_dir
+
+    @cached_property
+    def redis_client(self):
+        return tradepy.config.common.get_redis_client()
+
+    def __get_lock_key(self, cache_key):
+        return f"{cache_key}:lock"
+
+    @contextlib.contextmanager
+    def use_local_cache(self, key: str):
+        cache_file = self.workspace / f"{key}.pkl"
+        if cache_file.exists():
+            with open(cache_file, "rb") as fh:
+                yield pickle.load(fh), None
+        else:
+            set_cache = lambda obj: cache_file.write_bytes(pickle.dumps(obj))
+            yield None, set_cache
+
+    @contextlib.contextmanager
+    def use_redis_cache(self, key: str, lock_timeout: int = 10):
+        def set_cache(obj):
+            with (self.workspace / f"{key}.pkl").open("wb") as fh:
+                pickle.dump(obj, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            self.redis_client.set(key, pickle.dumps(obj))
+
+        lock_key = self.__get_lock_key(key)
+        with self.redis_client.lock(lock_key, timeout=lock_timeout, sleep=1):
+            if self.redis_client.exists(key):
+                try:
+                    content = self.redis_client.get(key)
+                except UnicodeDecodeError as e:
+                    content = pickle.loads(e.object)
+                    yield content, None
+            elif (local_file := self.workspace / f"{key}.pkl").exists():
+                with open(local_file, "rb") as fh:
+                    content = pickle.load(fh)
+                yield content, None
+            else:
+                yield None, set_cache
+
+    def is_cache_locked(self, cache_key: str) -> bool:
+        lock_key = self.__get_lock_key(cache_key)
+        return bool(self.redis_client.get(lock_key))
+
+
 class TradingEngine(TradeMixin):
     def __init__(self) -> None:
-        self.workspace = Path.home() / ".tradepy" / "workspace" / str(date.today())
-        self.workspace.mkdir(exist_ok=True, parents=True)
+        self.workspace_dir = Path.home() / ".tradepy" / "workspace" / str(date.today())
+        self.workspace_dir.mkdir(exist_ok=True, parents=True)
+        self.cache = TradingCacheManager(self.workspace_dir)
 
         self.conf: TradingConf = tradepy.config.trading  # type: ignore
         assert self.conf
         self.strategy_conf = self.conf.strategy
 
         self.adjust_factors: AdjustFactors = AdjustFactorDepot.load()
-        self.account = BrokerAPI.get_account()
         self.strategy: LiveStrategy = self.strategy_conf.load_strategy()  # type: ignore
 
     @cached_property
-    def redis_client(self):
-        return tradepy.config.common.get_redis_client()
+    def account(self) -> Account:
+        return BrokerAPI.get_account()
+
+    def _load_indicators_from_cache(self, key: str) -> pd.DataFrame | None:
+        with self.cache.use_redis_cache(key) as (
+            content,
+            _,
+        ):
+            return content
+
+    def _load_hist_daily_from_cache(self) -> pd.DataFrame:
+        with self.cache.use_local_cache(CacheKeys.hist_k) as (df, _):
+            assert (
+                isinstance(df, pd.DataFrame) and not df.empty
+            ), "Unable to find the cached day k data!"
+            return df
 
     def _jit_sell_price(self, price: float, slip_pct: float) -> float:
         slip = slip_pct * 1e-2
@@ -50,21 +113,20 @@ class TradingEngine(TradeMixin):
             return price * (1 - jitter)
         return price * (1 - slip)
 
-    def _read_dataframe_from_cache(self, cache_key: str) -> pd.DataFrame | None:
-        if not self.redis_client.exists(cache_key):
-            # Try local disk
-            cache_file = self.workspace / f"{cache_key}.pkl"
-            if cache_file.exists():
-                return pd.read_pickle(cache_file)
+    def _merge_hist_daily_and_current_quote(
+        self, hist_df: pd.DataFrame, quote_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        # Interpolate missing data
+        quote_df["mkt_cap_rank"] = hist_df.groupby(level="code")["mkt_cap_rank"].tail(1)
+        quote_df.dropna(subset=["mkt_cap_rank"], inplace=True)
+        df = pd.concat([hist_df, quote_df])
 
-            # Ooops still miss
-            return None
-
-        try:
-            self.redis_client.get(cache_key)
-            raise Exception("不应该到这里!缓存中的dataframe应该是bytes类型的。")
-        except UnicodeDecodeError as e:
-            return pickle.loads(e.object)
+        # Remove stocks that don't have enough data for computing the indicators
+        n_bars = df.groupby(level="code").size()
+        drop = n_bars[n_bars < self.conf.indicators_window_size].index
+        if drop.empty:
+            return df
+        return df.query("code not in @drop").copy()
 
     def _get_buy_options(
         self, ind_df: pd.DataFrame, orders: list[Order], positions: list[Position]
@@ -115,66 +177,72 @@ class TradingEngine(TradeMixin):
         ]
 
     def _compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
-        lock_key = CacheKeys.compute_open_indicators
-        if self.redis_client.get(lock_key):
+        cache_key = CacheKeys.indicators_df
+        if self.cache.is_cache_locked(cache_key):
             LOG.info("已经有其他进程在计算开盘指标了，不再重复计算。")
             return
 
-        with self.redis_client.lock(
-            lock_key, timeout=timeouts_conf.compute_open_indicators, sleep=1
-        ):
-            cache_key = CacheKeys.indicators_df
-            if not self.redis_client.exists(cache_key):
-                ind_df = self.strategy.compute_open_indicators(quote_df)
-
-                self.redis_client.set(cache_key, pickle.dumps(ind_df))
-                ind_df.to_pickle(self.workspace / f"{cache_key}.pkl")
-                return ind_df
-            else:
+        with self.cache.use_redis_cache(
+            cache_key, timeouts_conf.compute_open_indicators
+        ) as (df, set_cache):
+            if isinstance(df, pd.DataFrame):
                 LOG.info("已从缓存读取了预计算指标，不再重复计算。交易行为应该与上次相同。")
-                val = self._read_dataframe_from_cache(cache_key)
-                assert (
-                    isinstance(val, pd.DataFrame) and not val.empty
-                ), "Indicators cache was set but the value is either not found or empty??"
-                return val
+                return df
 
-    def _compute_close_indicators(
-        self, quote_df: pd.DataFrame, ind_df: pd.DataFrame
-    ) -> pd.DataFrame | None:
-        lock_key = CacheKeys.compute_close_indicators
-        if self.redis_client.get(lock_key):
+            # Compute indicators
+            hist_df = self._load_hist_daily_from_cache()
+            raw_df = self._merge_hist_daily_and_current_quote(hist_df, quote_df)
+            with timeit() as timer:
+                ind_df = self.strategy.compute_open_indicators(raw_df)
+                today = quote_df.iloc[0]["timestamp"]
+                ind_df = ind_df.query("timestamp == @today").copy()
+            LOG.info(f"计算开盘指标: {timer['seconds']}s")
+
+            # Cache the result
+            assert callable(set_cache), set_cache
+            set_cache(ind_df)
+            return df
+
+    def _compute_close_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:
+        cache_key = CacheKeys.close_indicators_df
+        if self.cache.is_cache_locked(cache_key):
             LOG.info("已经有其他进程在计算收盘指标了，不再重复计算。")
             return
 
-        with self.redis_client.lock(
-            lock_key, timeout=timeouts_conf.compute_close_indicators, sleep=1
-        ):
-            positions = BrokerAPI.get_positions(available_only=True)  # type: ignore
-            closable_positions_codes = [
-                pos.code for pos in positions if pos.code in ind_df.index
-            ]
+        positions = BrokerAPI.get_positions(available_only=True)  # type: ignore
+        closable_positions_codes = [
+            pos.code for pos in positions if pos.code in quote_df.index
+        ]
 
-            if not closable_positions_codes:
-                LOG.info("当前没有可平仓位。")
-                return
+        if not closable_positions_codes:
+            LOG.info("当前没有可平仓位。")
+            return
 
-            cache_key = CacheKeys.close_indicators_df
-            if not self.redis_client.exists(cache_key):
-                ind_df = ind_df.loc[closable_positions_codes].copy()
-                df = self.strategy.compute_close_indicators(quote_df.copy(), ind_df)
-
-                self.redis_client.set(cache_key, pickle.dumps(df))
-                df.to_pickle(self.workspace / f"{cache_key}.pkl")
-                return df
-            else:
+        with self.cache.use_redis_cache(
+            cache_key, timeouts_conf.compute_close_indicators
+        ) as (df, set_cache):
+            if isinstance(df, pd.DataFrame):
                 LOG.info("已从缓存读取了收盘指标，不再重复计算。交易行为应该与上次相同。")
-                val = self._read_dataframe_from_cache(cache_key)
-                assert (
-                    isinstance(val, pd.DataFrame) and not val.empty
-                ), "Indicators cache was set but the value is either not found or empty??"
-                return val
+                return df
 
-    def _inday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
+            # Compute indicators
+            hist_df = self._load_hist_daily_from_cache()
+            hist_df = hist_df.loc[closable_positions_codes].copy()
+            quote_df = quote_df.loc[closable_positions_codes].copy()
+            raw_df = self._merge_hist_daily_and_current_quote(hist_df, quote_df)
+
+            with timeit() as timer:
+                ind_df = self.strategy.compute_close_indicators(raw_df)
+                today = quote_df.iloc[0]["timestamp"]
+                ind_df = ind_df.query("timestamp == @today").copy()
+            LOG.info(f"计算收盘指标: {timer['seconds']}s")
+
+            # Cache the result
+            assert set_cache
+            set_cache(ind_df)
+            return ind_df
+
+    def _intraday_trade(self, ind_df: pd.DataFrame, quote_df: pd.DataFrame):
         positions: list[Position] = BrokerAPI.get_positions(available_only=True)  # type: ignore
         trade_date = ind_df.iloc[0]["timestamp"]
 
@@ -268,36 +336,37 @@ class TradingEngine(TradeMixin):
             LOG.log_orders(sell_orders)
             BrokerAPI.place_orders(sell_orders)
 
-    @timeout(timeouts_conf.handle_pre_market_open_call)
+    @timeout(timeouts_conf.compute_open_indicators + 30)
     def on_pre_market_open_call_p2(self, quote_df: pd.DataFrame):
         ind_df = self._compute_open_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame) and not ind_df.empty:
-            self._inday_trade(ind_df, quote_df)
+            self._intraday_trade(ind_df, quote_df)
 
-    @timeout(timeouts_conf.handle_cont_trade)
-    def on_cont_trade(self, quote_df: pd.DataFrame):
-        if self.redis_client.get(CacheKeys.compute_open_indicators):
-            LOG.warn("已进入盘中交易, 但指标计算仍在进行中!")
-            return
-
-        ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        ind_df = self.strategy.compute_intraday_indicators(quote_df.copy(), ind_df)
-        self._inday_trade(ind_df, quote_df)
-
-    @timeout(timeouts_conf.handle_cont_trade_pre_close)
+    @timeout(timeouts_conf.compute_close_indicators + 30)
     def on_cont_trade_pre_close(self, quote_df: pd.DataFrame):
         if not BrokerAPI.get_positions(available_only=True):  # type: ignore
             LOG.info("当前没有可用的持仓仓位，不执行收盘平仓交易逻辑")
             return
 
-        ind_df = self._read_dataframe_from_cache(CacheKeys.indicators_df)
-        ind_df = self._compute_close_indicators(quote_df, ind_df)
+        ind_df = self._compute_close_indicators(quote_df)
         if isinstance(ind_df, pd.DataFrame):
             self._pre_close_trade(ind_df)
 
+    @timeout(timeouts_conf.handle_cont_trade)
+    def on_cont_trade(self, quote_df: pd.DataFrame):
+        cache_key = CacheKeys.indicators_df
+        if not self.cache.is_cache_locked(cache_key):
+            LOG.warn("已进入盘中交易, 但指标仍在计算中!")
+            return
+
+        ind_df = self._load_indicators_from_cache(cache_key)
+        assert ind_df
+        quote_df = self.strategy.adjust_stocks_latest_prices(quote_df)
+        ind_df.update(quote_df)
+        self._intraday_trade(ind_df, quote_df)
+
     @require_mode("live-trading", "paper-trading")
     def handle_tick(self, market_phase: MarketPhase, quote_df: pd.DataFrame):
-        quote_df["market"] = quote_df.index.map(convert_code_to_market)
         quote_df["timestamp"] = str(get_latest_trade_date())
         quote_df["code"] = quote_df.index
 

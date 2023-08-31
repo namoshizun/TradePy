@@ -2,7 +2,6 @@ import os
 import abc
 import time
 import tempfile
-import talib
 import random
 import pandas as pd
 from typing import Any, Callable, Generator, Type
@@ -18,24 +17,6 @@ from tradepy.utils import chunks
 
 
 class DataCollector:
-    def precompute_indicators(self, df):
-        # Moving averages
-        df["ma5"] = talib.SMA(df["close"], 5)
-        df["ma20"] = talib.SMA(df["close"], 20)
-
-        df["ema5"] = talib.EMA(df["close"], 5)
-        df["ema20"] = talib.EMA(df["close"], 20)
-
-        # RSI
-        df["rsi6"] = talib.RSI(df["close"], 6)
-
-        # MACD
-        _, _, macdhist = talib.MACD(df["close"])
-        df["macd"] = macdhist * 2
-
-        df.dropna(inplace=True)
-        return df.round(2)
-
     def run_batch_jobs(
         self,
         jobs: list[Any],

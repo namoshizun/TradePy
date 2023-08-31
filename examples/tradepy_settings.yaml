@@ -10,7 +10,11 @@ common:
     password: ${REDIS_PASSWORD}
 
 trading:
-  pending_order_expiry: 10 # seconds
+  indicators_window_size: 120
+  cache_retention: 7  # days
+  # pending_order_expiry: 10 # seconds
+  pending_order_expiry: 0  # no expiry
+  markets: ["上证主板", "深证主板", "中小板", "创业板"]
   strategy:
     strategy_class: playground.ma60_support_live.MA60SupportStrategyLive
     stop_loss: 1.6
@@ -32,6 +36,8 @@ trading:
       ma60_support_thres: 2.5
       min_volatility: 1.5
       signal_below_support_thres: 0.75
+      min_stock_price: 5
+      debug: false
 
   periodic_tasks:
     tick_fetch_interval: 3
@@ -39,10 +45,8 @@ trading:
     cancel_expired_orders_interval: 5
   timeouts:
     download_quote: 3
-    handle_pre_market_open_call: 240 # 4 mins
     compute_open_indicators: 228 # < 3.8 mins
     handle_cont_trade: 2
-    handle_cont_trade_pre_close: 180 # 3 mins
     compute_close_indicators: 120 # 2mins
   broker:
     host: "192.168.31.47"
@@ -54,7 +58,7 @@ trading:
 
 schedules:
   update_datasets: "0 20 * * *"
-  warm_broker_db: "0 9 * * *"
+  warm_database: "0 9 * * *"
   flush_broker_cache: "5 15 * * *"
 
 notifications:
