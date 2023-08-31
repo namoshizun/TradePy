@@ -33,7 +33,8 @@ release = "v0.1.0"
 extensions = [
     "sphinx.ext.autodoc",
     "nbsphinx",
-    "sphinxcontrib.autodoc_pydantic",
+    # "tradepy.sphinx.parse_pydantic",
+    # "sphinxcontrib.autodoc_pydantic",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
