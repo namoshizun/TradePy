@@ -1,4 +1,17 @@
+html {
+    --pst-font-size-base: 16px;
+}
+
 table {
     /* https://github.com/pandas-dev/pandas/issues/48644 */
     width: auto !important;
 }
+
+.class .method {
+    margin-bottom: 3px !important;
+}
+
+.class .method p {
+    margin-bottom: 0.5em !important;
+}
+

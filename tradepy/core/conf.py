@@ -10,7 +10,7 @@ from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
 from tradepy.optimization.base import ParameterOptimizer
-from tradepy.types import MarketType, Markets
+from tradepy.types import MarketType
 from tradepy.utils import import_class
 
 if TYPE_CHECKING:
@@ -174,7 +174,6 @@ class TradingConf(ConfBase):
     markets: tuple[MarketType, ...] = (
         "上证主板",
         "深证主板",
-        "中小板",
         "创业板",
     )
     strategy: StrategyConf = Field(default_factory=StrategyConf)

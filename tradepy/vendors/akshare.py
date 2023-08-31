@@ -98,7 +98,7 @@ class AkShareClient:
         A_board = [
             code
             for code in all_df.index
-            if convert_code_to_market(code) in ("科创板", "中小板", "创业板", "上证主板", "深证主板")
+            if convert_code_to_market(code) in ("科创板", "创业板", "上证主板", "深证主板")
         ]
         return all_df.loc[A_board]
 
