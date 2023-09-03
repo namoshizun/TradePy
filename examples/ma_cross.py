@@ -35,7 +35,7 @@ class MovingAverageCrossoverStrategy(BacktestStrategy, FactorsMixin):
         if (ema10 > sma120) and (ema10_ref1 < sma30_ref1) and (ema10 > sma30):
             return close, 1
 
-    def should_close(self, ema10, sma30, ema10_ref1, sma30_ref1):
+    def should_sell(self, ema10, sma30, ema10_ref1, sma30_ref1):
         return (ema10_ref1 > sma30_ref1) and (ema10 < sma30)
 
     def pre_process(self, df: pd.DataFrame) -> pd.DataFrame:

@@ -155,6 +155,30 @@ url = "http://mirrors.aliyun.com/pypi/simple"
 reference = "aliyun"
 
 [[package]]
+name = "autodoc-pydantic"
+version = "2.0.1"
+description = "Seamlessly integrate pydantic models in your Sphinx documentation."
+category = "main"
+optional = false
+python-versions = ">=3.7.1,<4.0.0"
+
+[package.dependencies]
+pydantic = ">=2.0,<3.0.0"
+pydantic-settings = ">=2.0,<3.0.0"
+Sphinx = ">=4.0"
+
+[package.extras]
+dev = ["coverage (>=7,<8)", "flake8 (>=3,<4)", "pytest (>=7,<8)", "sphinx-copybutton (>=0.4,<0.5)", "sphinx-rtd-theme (>=1.0,<2.0)", "sphinx-tabs (>=3,<4)", "sphinxcontrib-mermaid (>=0.7,<0.8)", "tox (>=3,<4)"]
+docs = ["sphinx-copybutton (>=0.4,<0.5)", "sphinx-rtd-theme (>=1.0,<2.0)", "sphinx-tabs (>=3,<4)", "sphinxcontrib-mermaid (>=0.7,<0.8)"]
+erdantic = ["erdantic (>=0.6,<0.7)"]
+test = ["coverage (>=7,<8)", "pytest (>=7,<8)"]
+
+[package.source]
+type = "legacy"
+url = "http://mirrors.aliyun.com/pypi/simple"
+reference = "aliyun"
+
+[[package]]
 name = "babel"
 version = "2.12.1"
 description = "Internationalization utilities"
@@ -1624,6 +1648,23 @@ url = "http://mirrors.aliyun.com/pypi/simple"
 reference = "aliyun"
 
 [[package]]
+name = "pydantic-settings"
+version = "2.0.3"
+description = "Settings management using Pydantic"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+pydantic = ">=2.0.1"
+python-dotenv = ">=0.21.0"
+
+[package.source]
+type = "legacy"
+url = "http://mirrors.aliyun.com/pypi/simple"
+reference = "aliyun"
+
+[[package]]
 name = "pydata-sphinx-theme"
 version = "0.13.3"
 description = "Bootstrap-based Sphinx theme from the PyData community"
@@ -2748,14 +2789,14 @@ reference = "aliyun"
 
 [extras]
 bot = ["celery"]
-broker = ["uvicorn"]
-doc = ["pydata-sphinx-theme", "nbsphinx"]
+broker = ["fastapi", "uvicorn"]
+doc = ["pydata-sphinx-theme", "nbsphinx", "autodoc-pydantic"]
 optimizer = ["dask"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10.4"
-content-hash = "7820145d4b0592b78a8219bb7d62c5dd5351493c29446b90f20d2e05cbc18e41"
+content-hash = "1c42f5ecc7cd679c155c039ecf9a82921da363fdebed18181e72e727fefbe064"
 
 [metadata.files]
 accessible-pygments = [
@@ -2793,6 +2834,10 @@ async-timeout = [
 attrs = [
     {file = "attrs-23.1.0-py3-none-any.whl", hash = "sha256:1f28b4522cdc2fb4256ac1a020c78acf9cba2c6b461ccd2c126f3aa8e8335d04"},
     {file = "attrs-23.1.0.tar.gz", hash = "sha256:6279836d581513a26f1bf235f9acd333bc9115683f14f7e8fae46c98fc50e015"},
+]
+autodoc-pydantic = [
+    {file = "autodoc_pydantic-2.0.1-py3-none-any.whl", hash = "sha256:d3c302fdb6d37edb5b721f0f540252fa79cea7018bc1a9a85bf70f33a68b0ce4"},
+    {file = "autodoc_pydantic-2.0.1.tar.gz", hash = "sha256:7a125a4ff18e4903e27be71e4ddb3269380860eacab4a584d6cc2e212fa96991"},
 ]
 babel = [
     {file = "Babel-2.12.1-py3-none-any.whl", hash = "sha256:b4246fb7677d3b98f501a39d43396d3cafdc8eadb045f4a31be01863f655c610"},
@@ -4054,6 +4099,10 @@ pydantic-core = [
     {file = "pydantic_core-2.6.3-pp39-pypy39_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:615a31b1629e12445c0e9fc8339b41aaa6cc60bd53bf802d5fe3d2c0cda2ae8d"},
     {file = "pydantic_core-2.6.3-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:1fa1f6312fb84e8c281f32b39affe81984ccd484da6e9d65b3d18c202c666149"},
     {file = "pydantic_core-2.6.3.tar.gz", hash = "sha256:1508f37ba9e3ddc0189e6ff4e2228bd2d3c3a4641cbe8c07177162f76ed696c7"},
+]
+pydantic-settings = [
+    {file = "pydantic_settings-2.0.3-py3-none-any.whl", hash = "sha256:ddd907b066622bd67603b75e2ff791875540dc485b7307c4fffc015719da8625"},
+    {file = "pydantic_settings-2.0.3.tar.gz", hash = "sha256:962dc3672495aad6ae96a4390fac7e593591e144625e5112d359f8f67fb75945"},
 ]
 pydata-sphinx-theme = [
     {file = "pydata_sphinx_theme-0.13.3-py3-none-any.whl", hash = "sha256:bf41ca6c1c6216e929e28834e404bfc90e080b51915bbe7563b5e6fda70354f0"},

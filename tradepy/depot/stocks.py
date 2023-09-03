@@ -47,6 +47,9 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
         df = pd.concat(loader())
 
+        # Convert "中小板" to "深证主板" for legacy reason
+        df["market"].replace("中小板", "深证主板", inplace=True)
+
         # Optimize the memory storage
         cat_columns = ["company", "market"]
         for col in cat_columns:
@@ -59,9 +62,6 @@ class StocksDailyBarsDepot(GenericBarsDepot):
             df.sort_values("timestamp", inplace=True)
         else:
             df.sort_index(level="timestamp", inplace=True)
-
-        # Convert "中小板" to "深证主板" for legacy reason
-        df["market"].replace("中小板", "深证主板", inplace=True)
 
         if fields != "all":
             _fields = fields.split(",")

@@ -17,9 +17,9 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
   * 数据下载为本地CSV或Pickle文件，不需要安装数据库，下载后即可离线使用
 
 
-* **策略实现**: 提供声明式API以快速实现策略逻辑，并内置多种常用指标
+* **策略实现**: 提供声明式API以快速实现策略逻辑，内置多种常用指标
 
-* **策略回测**: 日K级别的交易回测，并生成回测报告。如果下载了分钟级K线，则支持以日内走势判断买卖点位。
+* **策略回测**: 日K级别的交易回测，并生成回测报告。可用分钟K线做日内走势回测。
 
   * 可设置 每日最大开仓数量、最低开仓金额、个股最大仓位
   * 计算后复权股价，支持多种滑点设置
@@ -27,13 +27,42 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
 * **寻参优化**: 基于网格搜索的参数寻优，并使用 `Dask Distributed <https://distributed.dask.org/>`_ 做并行化。未来将集成更智能的寻参算法，当前也支持使用自定义的寻参算法。
 
-* **实盘交易**: 通过 `XtQuant <http://docs.thinktrader.net/pages/4a989a>`_ 执行实盘交易（需将策略端部署在Windows环境），并自行统计当日持仓和账户余额等信息，以规避QMT终端的诸多数据反馈不及时问题。
+* **实盘交易**: 通过 `XtQuant <http://docs.thinktrader.net/pages/4a989a>`_ 执行实盘交易，并自行统计当日持仓和账户余额等信息，以规避QMT终端的诸多数据反馈不及时问题。
 
-  * 支持设置委托单过期时间，超时不成交且不再当前买一价，则自动撤单.
-  * 支持微信推送异常状态，如“本地数据更新失败”、“过期委托单超时未撤”、“获取行情推送失败”等等.
   * 每日自动更新日K数据。
+  * 支持设置委托单过期时间，超时不成交且不在当前买一价，可自动撤单.
+  * 支持微信推送异常状态。
 
 * **实盘/回测对比**: 读取实盘的交割单PDF，并与同期的回测结果进行比对，以验证回测结果的可信度 （开发中）。
+
+
+示例
+-------------------
+
+以下即实现了一个基于10均与30均的金叉买入、死叉卖出策略，并过滤ST股。将父类改为 ``tradepy.strategy.base.LiveStrategy`` 即可直接用到实盘交易中。
+
+
+.. code-block:: python
+
+    from tradepy.strategy.factors import FactorsMixin
+    from tradepy.strategy.base import BacktestStrategy
+    from tradepy.decorators import tag
+
+    class MovingAverageCrossoverStrategy(BacktestStrategy, FactorsMixin):
+
+        @tag(outputs=["sma10_ref1", "sma30_ref1"], notna=True)
+        def moving_averages_ref1(self, sma10, sma30):
+            return sma10.shift(1), sma30.shift(1)
+
+        def should_buy(self, sma10, sma30,
+                       sma10_ref1, sma30_ref1,
+                       close, company):
+            if "ST" not in company:
+                if (sma10_ref1 < sma30_ref1) and (sma10 > sma30):
+                    return close, 1
+
+        def should_sell(self, sma10, sma30, sma10_ref1, sma30_ref1):
+            return (sma10_ref1 > sma30_ref1) and (sma10 < sma30)
 
 
 安装
