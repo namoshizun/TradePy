@@ -116,7 +116,7 @@ class Backtester(TradeMixin):
         return [
             code
             for code, *indicators in df[strategy.close_indicators].itertuples(name=None)
-            if (code in curr_positions) and strategy.should_close(*indicators)
+            if (code in curr_positions) and strategy.should_sell(*indicators)
         ]
 
     def _trade_using_day_k(

@@ -33,8 +33,7 @@ release = "v0.1.0"
 extensions = [
     "sphinx.ext.autodoc",
     "nbsphinx",
-    # "tradepy.sphinx.parse_pydantic",
-    # "sphinxcontrib.autodoc_pydantic",
+    "sphinxcontrib.autodoc_pydantic",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -74,3 +73,12 @@ html_favicon = "_static/favicon.ico"
 html_theme_options = {
     "header_links_before_dropdown": 8,
 }
+
+# -- Pydantic autodoc -------------------------------------------------
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_config_members = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_member_order = "bysource"

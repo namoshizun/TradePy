@@ -173,7 +173,7 @@ class TradingEngine(TradeMixin):
             for code, *indicators in ind_df[self.strategy.close_indicators].itertuples(
                 name=None
             )
-            if self.strategy.should_close(*indicators)
+            if self.strategy.should_sell(*indicators)
         ]
 
     def _compute_open_indicators(self, quote_df: pd.DataFrame) -> pd.DataFrame | None:

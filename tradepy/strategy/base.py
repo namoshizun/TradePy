@@ -79,7 +79,7 @@ class StrategyBase(Generic[BarDataType]):
             1:
         ]
         self.close_indicators: list[str] = inspect.getfullargspec(
-            self.should_close
+            self.should_sell
         ).args[1:]
         self.stop_loss_indicators: list[str] = inspect.getfullargspec(
             self.should_stop_loss
@@ -147,7 +147,7 @@ class StrategyBase(Generic[BarDataType]):
     def should_buy(self, *indicators) -> BuyOption | None:
         raise NotImplementedError
 
-    def should_close(self, *indicators) -> bool:
+    def should_sell(self, *indicators) -> bool:
         return False
 
     def adjust_portfolio_and_budget(
