@@ -2,7 +2,7 @@
 TradePy
 *******
 
-TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，实现了如下功能。 `点击查阅文档（未完成） <https://namoshizun.github.io/TradePy/>`_ 。
+TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，实现了如下功能。 `点击查阅文档（施工中🚧） <https://docs.trade-py.com/>`_ 。
 
 * **数据下载**
 
