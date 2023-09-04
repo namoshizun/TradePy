@@ -225,3 +225,8 @@ TradePy的实盘交易系统由两个部分组成，适合用于基于日K的中
      . tradepy.vacuum
      . tradepy.warm_database
 
+
+设置微信推送
+----------------------
+
+TODO
