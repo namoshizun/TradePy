@@ -118,7 +118,7 @@ TradePy的实盘交易系统由两个部分组成，适合用于基于日K的中
 安装QMT以及XtQuant
 ~~~~~~~~~~~~~~~~~~~~
 
-到官网下载 `XtQuant <http://docs.thinktrader.net/pages/633b48/>`_，解压后将xtquant文件夹移动到Python的本地库目录下，一般为: ``C:\Users\用户名\AppData\Local\Programs\Python\Python311\Lib\site-packages``。然后安装并登录QMT交易端，登录时注意选择"极简模式"
+到官网下载 `XtQuant <http://docs.thinktrader.net/pages/633b48/>`_，解压后将xtquant文件夹移动到Python的本地库目录下，一般为: ``C:\Users\用户名\AppData\Local\Programs\Python\Python311\Lib\site-packages``。然后安装并登录QMT交易端，登录时注意选择"极简模式"。如果您已安装XtQuant，请确认安装的是最新版。
 
 
 
