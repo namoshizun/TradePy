@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-版本: |release|; Github地址: https://github.com/namoshizun/TradePy
+版本: |release|; Github地址: https://github.com/namoshizun/TradePy; Gitee镜像: `dilu3100/TradePy <https://gitee.com/dilu3100/TradePy>`_
 
 
 简介
@@ -76,8 +76,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
    - Linux系统: 参考此 `教程 <https://cloudstrata.io/install-ta-lib-on-ubuntu-server/>`_
    - MacOS系统: ``brew install ta-lib``
 
-3. 安装TradePy
-4. 运行初始化命令 ``python -m tradepy.cli.bootstrap``
+3. 安装并初始化TradePy
 
 .. parsed-literal::
 
@@ -88,6 +87,9 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
    # 安装TradePy
    cd TradePy
    pip install .
+
+   # 初始化TradePy, 运行模式输入"backtest"
+   python -m tradepy.cli.bootstrap
 
 
 **Windows系统**

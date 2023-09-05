@@ -70,7 +70,7 @@ class StocksDailyBarsDepot(GenericBarsDepot):
 
 
 class StockMinuteBarsDepot(GenericBarsDepot):
-    folder_name = "daily-stocks-minutes"
+    folder_name = "stocks-minutes"
 
     def _load(self, month: str) -> pd.DataFrame:
         file = self.folder / f"{month}.pkl"

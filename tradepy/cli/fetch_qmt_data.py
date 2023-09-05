@@ -8,7 +8,7 @@ from typing import Literal, get_args
 from tqdm import tqdm
 from loguru import logger
 
-from xtquant.xtdata import download_history_data2, get_market_data
+from xtquant.xtdata import download_history_data2, get_local_data
 from tradepy.utils import chunks
 from tradepy.depot.stocks import StockListingDepot
 from tradepy.collectors.stock_listing import StocksListingCollector
@@ -43,9 +43,12 @@ class QMTDataFetcher:
             if not load:
                 yield code
             else:
-                df = pd.read_pickle(file)
-                df["code"] = code
-                yield df
+                try:
+                    df = pd.read_pickle(file)
+                    df["code"] = code
+                    yield df
+                except EOFError:
+                    logger.warning(f"{file}是空的!")
 
     def fetch(self, start_date: date, until_date: date, period: MinutePeriod):
         fetched_codes = set(self.walk_fetched_codes())
@@ -87,7 +90,7 @@ class QMTDataFetcher:
         logger.info(f"开始导出剩余{len(pending_codes)}个股的 {period} K线数据")
         for code in tqdm(pending_codes):
             _code = f"{code}.{convert_code_to_exchange(code)}"
-            res = get_market_data(
+            res = get_local_data(
                 field_list=["time", "open", "high", "low", "close", "volume"],
                 stock_list=[_code],
                 period=period,
@@ -95,17 +98,7 @@ class QMTDataFetcher:
                 end_time=until_date.strftime("%Y%m%d"),
             )
 
-            df = pd.DataFrame(
-                {
-                    "open": res["open"].T[_code],
-                    "high": res["high"].T[_code],
-                    "low": res["low"].T[_code],
-                    "close": res["close"].T[_code],
-                    "vol": res["volume"].T[_code],
-                }
-            )
-
-            if df.empty:
+            if not res or (df := res[_code]).empty:
                 print(f"找不到{code}的本地数据!")
                 continue
 
@@ -115,7 +108,7 @@ class QMTDataFetcher:
             df["close"] = df["close"].astype(np.float32)
             df["high"] = df["high"].astype(np.float32)
             df["low"] = df["low"].astype(np.float32)
-            df["vol"] = df["vol"].astype(np.float32)
+            df["vol"] = df["volume"].astype(np.float32)
             df["month"] = df["date"].map(lambda x: x[:7])
             df.reset_index(drop=True, inplace=True)
 
