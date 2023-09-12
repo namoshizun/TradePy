@@ -114,11 +114,12 @@ class BacktestRunsResult:
 
         # Add the drawdown plot to the second subplot
         fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 name="最大回撤",
                 x=stats_df.index,
                 y=stats_df["drawdown"],
-                marker=dict(color="rgb(255, 0, 0)"),
+                fill="tozeroy",
+                # marker=dict(color="rgb(255, 0, 0)"),
             ),
             row=2,
             col=1,
