@@ -27,7 +27,7 @@ def start(conf: dict[str, Any]):
         return
 
     scheduler = OptimizationScheduler(opt_conf, conf["parameters"])
-    scheduler.run(dask_args=dask_conf.dict())
+    scheduler.run(dask_args=dask_conf.model_dump())
 
 
 if __name__ == "__main__":
