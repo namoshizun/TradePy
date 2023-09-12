@@ -1,8 +1,3 @@
-.. tradepy documentation master file, created by
-   sphinx-quickstart on Thu Aug 17 13:43:52 2023.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 版本: |release|; Github地址: https://github.com/namoshizun/TradePy; Gitee镜像: `dilu3100/TradePy <https://gitee.com/dilu3100/TradePy>`_
 
 
@@ -70,7 +65,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
 **Linux或MacOS系统**
 
-1. 安装Python3.10或3.11
+1. 安装Python3.10或3.11。推荐使用性能更佳的3.11
 2. 安装TA-Lib
 
    - Linux系统: 参考此 `教程 <https://cloudstrata.io/install-ta-lib-on-ubuntu-server/>`_

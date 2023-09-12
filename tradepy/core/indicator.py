@@ -31,7 +31,7 @@ class IndicatorSet:
                 nodes.add(pred)
                 edges.add((pred, name))
 
-            # Indicator => Sucessors
+            # Indicator => Successors
             for out in ind.outputs:
                 if out != name:
                     nodes.add(out)
