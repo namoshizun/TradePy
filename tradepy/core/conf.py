@@ -1,6 +1,6 @@
 import os
 import yaml
-import multiprocessing
+import psutil
 from pathlib import Path
 from contextlib import suppress
 from typing import Any, Literal, Type, TYPE_CHECKING
@@ -268,14 +268,14 @@ class BacktestConf(ConfBase):
 # Optimization
 # ------------
 class DaskConf(ConfBase):
-    n_workers: int = multiprocessing.cpu_count() * 3 // 4
+    n_workers: int = psutil.cpu_count(logical=False) * 3 // 4
     threads_per_worker: int = 1
 
 
 class TaskConf(ConfBase):
     backtest: BacktestConf
     dataset_path: Path | None = None
-    repetition: int = 1
+    repetition: int = Field(1, description="同一批参数组合重复运行次数")
     evaluator_class: str = "tradepy.backtest.evaluation.BasicEvaluator"
 
     def load_evaluator_class(self) -> Type["ResultEvaluator"]:

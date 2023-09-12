@@ -1,5 +1,11 @@
+import random
+import pickle
+import quantstats as qs
 import pandas as pd
+import plotly.subplots as sp
 import plotly.graph_objects as go
+import plotly.express as px
+
 from functools import cached_property, cache
 from pathlib import Path
 from sklearn import manifold
@@ -7,12 +13,151 @@ from sklearn import manifold
 from tradepy.optimization.parameter import Parameter, ParameterGroup
 
 
-class OptimizationResult:
-    def __init__(
-        self, parameters: list[Parameter | ParameterGroup], workspace_dir: Path
-    ) -> None:
-        self.parameters = parameters
+class BacktestRunsResult:
+    def __init__(self, workspace_dir: Path | str) -> None:
+        if isinstance(workspace_dir, str):
+            workspace_dir = Path(workspace_dir)
         self.workspace_dir = workspace_dir
+
+    def load_capital_curves(self) -> pd.DataFrame:
+        cap_df_list = []
+
+        for trade_book_path in (self.workspace_dir / "workers").rglob(
+            "**/trade_book.pkl"
+        ):
+            run_id = trade_book_path.parent.name
+            with trade_book_path.open("rb") as fh:
+                trade_book = pickle.load(fh)
+                caps_df = trade_book.cap_logs_df
+                caps_df["run_id"] = run_id
+                cap_df_list.append(caps_df[["run_id", "capital"]])
+
+        return pd.concat(cap_df_list)
+
+    def plot_equity_curves(self, sample_runs: int | None = None):
+        """
+        绘制多轮回测的收益曲线
+
+        :param sample_runs: 随机抽样的回测轮数
+        """
+
+        cap_curves_df = self.load_capital_curves()
+        if sample_runs:
+            run_ids = cap_curves_df["run_id"].unique().tolist()
+            random.shuffle(run_ids)
+            sampled_runs = run_ids[:sample_runs]
+            cap_curves_df.query("run_id in @sampled_runs", inplace=True)
+
+        fig = px.line(
+            cap_curves_df.reset_index(),
+            x="timestamp",
+            y="capital",
+            color="run_id",
+            title="多轮回测的收益曲线",
+        )
+        fig.update_traces(showlegend=False)
+        fig.show()
+
+    def plot_equity_curve_bands(self):
+        cap_curves_df = self.load_capital_curves()
+        stats_df = cap_curves_df.groupby("timestamp")["capital"].agg(["mean", "std"])
+        stats_df["lower"] = stats_df["mean"] - stats_df["std"]
+        stats_df["upper"] = stats_df["mean"] + stats_df["std"]
+        stats_df["drawdown"] = (
+            100 * qs.stats.to_drawdown_series(stats_df["mean"])
+        ).round(2)
+
+        fig = sp.make_subplots(
+            rows=2, cols=1, shared_xaxes=True, row_heights=[3, 1], vertical_spacing=0.01
+        )
+
+        # Add the main plot with return curves and bands to the first subplot
+        fig.add_trace(
+            go.Scatter(
+                name="平均值",
+                x=stats_df.index,
+                y=stats_df["mean"],
+                mode="lines",
+                line=dict(color="rgb(31, 119, 180)"),
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                name="+1标准差",
+                x=stats_df.index,
+                y=stats_df["upper"],
+                mode="lines",
+                marker=dict(color="#444"),
+                line=dict(width=0),
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                name="-1标准差",
+                x=stats_df.index,
+                y=stats_df["lower"],
+                marker=dict(color="#444"),
+                line=dict(width=0),
+                mode="lines",
+                fillcolor="rgba(68, 68, 68, 0.3)",
+                fill="tonexty",
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Add the drawdown plot to the second subplot
+        fig.add_trace(
+            go.Scatter(
+                name="最大回撤",
+                x=stats_df.index,
+                y=stats_df["drawdown"],
+                fill="tozeroy",
+                # marker=dict(color="rgb(255, 0, 0)"),
+            ),
+            row=2,
+            col=1,
+        )
+
+        # Update y-axis labels
+        fig.update_layout(
+            margin=dict(l=20, r=20, t=30, b=30),
+        )
+        fig.update_xaxes(
+            rangebreaks=[
+                dict(bounds=["sat", "mon"]),  # hide weekends
+            ],
+        )
+
+        # Show the figure
+        fig.show()
+
+    def describe(self, metrics: list[str] | None = None):
+        """
+        统计所用指标的统计值，缺省时使用这些指标:
+        ('total_returns', 'max_drawdown', 'sharpe_ratio', 'win_rate', 'number_of_trades', 'number_of_take_profit', 'number_of_stop_loss')
+
+        :param metrics: 展示这些指标的统计值
+        """
+
+        if not metrics:
+            metrics = [
+                "total_returns",
+                "max_drawdown",
+                "sharpe_ratio",
+                "win_rate",
+                "number_of_trades",
+                "number_of_take_profit",
+                "number_of_stop_loss",
+            ]
+
+        return self.tasks_df[metrics].describe().round(2)
 
     @cached_property
     def tasks_df(self) -> pd.DataFrame:
@@ -22,6 +167,9 @@ class OptimizationResult:
         df["backtest_conf"] = df["backtest_conf"].apply(eval)
         df["metrics"] = df["metrics"].apply(eval)
         metrics_df = df["metrics"].apply(pd.Series)
+        metrics_df.rename(
+            columns={"success_rate": "win_rate"}, inplace=True
+        )  # For backwards compatibility
         params_df = (
             df["backtest_conf"]
             .map(lambda v: v["strategy"])
@@ -41,13 +189,21 @@ class OptimizationResult:
         df = pd.concat([df, metrics_df, params_df], axis=1)
         return df
 
+
+class OptimizationResult(BacktestRunsResult):
+    def __init__(
+        self, parameters: list[Parameter | ParameterGroup], workspace_dir: Path | str
+    ) -> None:
+        self.parameters = parameters
+        super().__init__(workspace_dir)
+
     @cache
     def get_total_metrics(self) -> pd.DataFrame:
         as_iterable = lambda x: x if isinstance(x, (list, tuple)) else [x]
         param_names = [name for p in self.parameters for name in as_iterable(p.name)]
         core_metrics = {
             "total_returns": "收益率",
-            "success_rate": "胜率",
+            "win_rate": "胜率",
             "max_drawdown": "最大回撤",
             "number_of_trades": "开仓数",
             "sharpe_ratio": "夏普比率",

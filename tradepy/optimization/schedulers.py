@@ -136,7 +136,7 @@ class TaskScheduler(Generic[ConfType]):
         if not repetitions:
             repetitions = self.conf.repetition
 
-        _dask_args = DaskConf().dict()
+        _dask_args = DaskConf().model_dump()
         _dask_args.update(dask_args or dict())
 
         # Pre-compute indicators (if required)

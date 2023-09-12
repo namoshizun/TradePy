@@ -41,6 +41,10 @@ class BasicEvaluator(ResultEvaluator):
         return self.trade_book.trade_logs_df
 
     @coerce_type(float)
+    def get_profit_factor(self) -> float:
+        return qs.stats.profit_factor(self.returns)
+
+    @coerce_type(float)
     def get_max_drawdown(self) -> float:
         res = qs.stats.max_drawdown(self.capitals)
         return round(100 * res, 2)  # type: ignore
@@ -55,7 +59,7 @@ class BasicEvaluator(ResultEvaluator):
         return round(100 * self.capitals.iloc[-1] / self.capitals.iloc[0], 2)
 
     @coerce_type(float)
-    def get_success_rate(self) -> float:
+    def get_win_rate(self) -> float:
         wins = (self.trades_df.query('action != "开仓"')["pct_chg"] > 0).sum()
         loss = (self.trades_df.query('action != "开仓"')["pct_chg"] <= 0).sum()
         return round(100 * wins / (wins + loss), 2)
@@ -91,7 +95,8 @@ class BasicEvaluator(ResultEvaluator):
             "total_returns": self.get_total_returns(),
             "max_drawdown": self.get_max_drawdown(),
             "sharpe_ratio": self.get_sharpe_ratio(),
-            "success_rate": self.get_success_rate(),
+            "profit_factor": self.get_profit_factor(),
+            "win_rate": self.get_win_rate(),
             "number_of_trades": self.get_number_of_trades(),
             "number_of_stop_loss": self.get_number_of_stop_loss(),
             "number_of_take_profit": self.get_number_of_take_profit(),
@@ -112,7 +117,7 @@ class BasicEvaluator(ResultEvaluator):
 止损 = {metrics["number_of_stop_loss"]}
 止盈 = {metrics["number_of_take_profit"]}
 提前平仓 = {metrics["number_of_close"]}
-胜率 {metrics["success_rate"]}%
+胜率 {metrics["win_rate"]}%
 最大回撤 = {metrics["max_drawdown"]}%
 期末资金 = {metrics["total_returns"]}%
 平均开仓收益: {metrics["avg_return"]}% (标准差: {metrics["stddev_return"]}%)

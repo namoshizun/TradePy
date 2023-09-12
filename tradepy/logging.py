@@ -43,19 +43,15 @@ class Logging:
         if self._logger is not None:
             return self._logger
 
+        # Clean up existing handlers on the root logger.
+        # Tushare sneaks in a handler that prints to stdout, which causes duplicate messages
+        # get printed to the console...
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            root_logger.removeHandler(handler)
+
         logger = logging.getLogger("tradepy")
         logger.setLevel(logging.DEBUG)
-
-        # Set up colorlog formatter
-        color_formatter = ColoredFormatter(
-            fmt="%(log_color)s[%(module)s] [%(asctime)s] [%(levelname)s]: %(message)s%(reset)s"
-        )
-
-        # Get root logger and add colorlog formatter to console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(color_formatter)
-        console_handler.setLevel(logging.DEBUG)
-        logging.getLogger().addHandler(console_handler)
 
         # Set up file handler
         file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -68,6 +64,16 @@ class Logging:
 
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
+
+        # Add colorlog formatter to console handler
+        color_formatter = ColoredFormatter(
+            fmt="%(log_color)s[%(module)s] [%(asctime)s] [%(levelname)s]: %(message)s%(reset)s"
+        )
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(color_formatter)
+        console_handler.setLevel(logging.DEBUG)
+        logger.addHandler(console_handler)
+
         self._logger = TradePyLogger(logger)
         return self._logger
 
