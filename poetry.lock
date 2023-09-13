@@ -2796,7 +2796,7 @@ optimizer = ["dask"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10.4"
-content-hash = "1c42f5ecc7cd679c155c039ecf9a82921da363fdebed18181e72e727fefbe064"
+content-hash = "b867222e1f8b0787ff73a82891f7156a05abd433fc8237fecd539320f65caf58"
 
 [metadata.files]
 accessible-pygments = [

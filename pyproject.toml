@@ -36,6 +36,7 @@ tushare = "^1.2.89"
 pydata-sphinx-theme = "^0.13.3"
 fastapi = "0.103.0"
 autodoc-pydantic = "^2.0.1"
+psutil = "^5.9.5"
 
 [tool.poetry.extras]
 bot = ["celery"]
