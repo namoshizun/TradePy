@@ -24,6 +24,7 @@ from tradepy.collectors.release_restricted_shares import (
     EastMoneyRestrictedSharesReleaseCollector,
 )
 from tradepy.depot.stocks import StocksDailyBarsDepot
+from tradepy.utils import get_latest_trade_date
 from tradepy.vendors.types import AskBid
 
 
@@ -131,7 +132,15 @@ def flush_broker_db():
 @shared_task(name="tradepy.update_data_sources", expires=60 * 60)
 @notify_failure(title="数据源更新失败")
 def update_data_sources():
-    StockDayBarsCollector().run(batch_size=25, iteration_pause=1)
+    try:
+        wsize = tradepy.config.trading.indicators_window_size
+        last_trade_date = get_latest_trade_date()
+        since_trade_date = last_trade_date - pd.Timedelta(days=wsize)
+        StockDayBarsCollector(since_trade_date).run(batch_size=25, iteration_pause=1)
+    except AttributeError:
+        logger.warning("未配置indicators_window_size, 将使用默认的K线起始日期")
+        StockDayBarsCollector().run(batch_size=25, iteration_pause=1)
+
     EastMoneySectorIndexCollector().run(start_date="2016-01-01")
     BroadBasedIndexCollector().run()
     AdjustFactorCollector().run()
