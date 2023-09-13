@@ -7,14 +7,19 @@ import random
 import yaml
 import subprocess
 from pathlib import Path
+
+import tradepy
 from tradepy.core.conf import (
     BrokerConf,
     CommonConf,
     RedisConf,
     SchedulesConf,
+    TradePyConf,
     TradingConf,
     XtQuantConf,
 )
+from tradepy.collectors.stock_listing import StockListingDepot, StocksListingCollector
+from tradepy.collectors.adjust_factor import AdjustFactorCollector, AdjustFactorDepot
 
 
 def check_host_reachable(host):
@@ -116,6 +121,18 @@ class ConfigInitializer:
             "port": port,
         }
 
+    def fetch_prerequisite_dataset(self):
+        print("检查是否已下载基础数据 ...")
+        print("[1] 股票列表 ")
+        if not StockListingDepot.file_path().exists():
+            print(" ~ 股票列表不存在，开始下载")
+            StocksListingCollector().run(batch_size=25)
+
+        print("[2] 复权因子 ")
+        if not AdjustFactorDepot.file_path().exists():
+            print(" ~ 复权因子不存在，开始下载")
+            AdjustFactorCollector().run(batch_size=25)
+
     def write(self, is_broker: bool) -> Path:
         # Assemble configurations
         conf = dict()
@@ -196,8 +213,11 @@ def main():
     settings_file_path = initializer.write(is_broker)
     print(f"👌 已创建配置文件: {settings_file_path}")
 
-    if initializer.is_trading_mode and not is_broker:
-        print("🚨 策略端的TradePy配置文件内，还需要手动填入您的交易策略的配置项")
+    if initializer.is_trading_mode:
+        if not is_broker:
+            print("🚨 策略端的TradePy配置文件内，还需要手动填入您的交易策略的配置项")
+        tradepy.config = TradePyConf.load_from_config_file()
+        initializer.fetch_prerequisite_dataset()
 
 
 if __name__ == "__main__":
