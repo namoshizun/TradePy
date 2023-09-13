@@ -67,10 +67,7 @@ class DayBarsCollector(DataCollector):
     bars_depot_class: Type[GenericBarsDepot]
     listing_depot_class: Type[GenericListingDepot]
 
-    def __init__(self, since_date: str | date | None = None) -> None:
-        if not since_date:
-            since_date = "2010-01-01"
-
+    def __init__(self, since_date: str | date = "2016-01-01") -> None:
         if isinstance(since_date, str):
             self.since_date: date = date.fromisoformat(since_date)
         else:
