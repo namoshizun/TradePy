@@ -43,7 +43,7 @@ def tag(outputs=list(), notna=False):
         dec.__kwdefaults__ = getattr(ind_fun, "__kwdefaults__", None)
         dec.__dict__.update(ind_fun.__dict__)
 
-        # Reigster the indicator
+        # Register the indicator
         strategy_class_name, indicator_name = ind_fun.__qualname__.split(".")
         indicator = Indicator(
             name=indicator_name,
@@ -53,7 +53,7 @@ def tag(outputs=list(), notna=False):
         )
         StrategyBase.indicators_registry.register(strategy_class_name, indicator)
 
-        # Reigster its external outputs, which are assumed to inherit the same requirements
+        # Register its external outputs, which are assumed to inherit the same requirements
         for out in outputs:
             assert out != indicator_name
             out_ind = Indicator(name=out, notna=notna, predecessors=[indicator_name])
