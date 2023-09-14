@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import suppress
 from typing import Any, Literal, Type, TYPE_CHECKING
 from operator import getitem
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 from redis import Redis, ConnectionPool
 from dotenv import load_dotenv
 
@@ -26,8 +26,7 @@ ModeType = Literal["backtest", "paper-trading", "live-trading"]
 # Base
 # ----
 class ConfBase(BaseModel):
-    class Config:
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
@@ -36,7 +35,7 @@ class ConfBase(BaseModel):
                 # Substitute environment variables
                 return os.path.expandvars(value)
             elif isinstance(value, dict):
-                field_def = cls.__fields__[key]
+                field_def = cls.model_fields[key]
                 field_type = field_def.annotation
 
                 with suppress(TypeError):
@@ -82,18 +81,15 @@ class TimeoutsConf(ConfBase):
     )
     handle_cont_trade: int = Field(2, description="处理每个行情推送的超时时间, 包含了策略给出买卖信号和下单, 单位秒")
 
-    @root_validator(pre=True)
-    def check_settings(cls, values):
-        if not values:
-            return values
-
-        if values["compute_open_indicators"] > 60 * 4:
+    @model_validator(mode="after")
+    def check_settings(self):
+        if self.compute_open_indicators > 60 * 4:
             raise ValueError("compute_open_indicators 应该小于 240 (4 分钟)")
 
-        if values["compute_close_indicators"] > 60 * 4:
+        if self.compute_close_indicators > 60 * 4:
             raise ValueError("compute_close_indicators 应该小于 240 (4 分钟)")
 
-        return values
+        return self
 
 
 class RedisConf(ConfBase):
@@ -216,29 +212,29 @@ class SchedulesConf(ConfBase):
         parse_value = lambda v: v if v == "*" else int(v)
         return {k: parse_value(v) for k, v in zip(CRON_FIELDS, cron.split())}
 
-    @validator("update_datasets", "flush_broker_cache", "vacuum")
+    @field_validator("update_datasets", "flush_broker_cache", "vacuum")
     def ensure_after_market_close(cls, value):
         time_specs = cls.parse_cron(value)
         if time_specs["hour"] < 15:
             raise ValueError("导出当日交易记录、更新本地数据、清理过期数据，应该在收盘后进行")
         return value
 
-    @validator("warm_database")
+    @field_validator("warm_database")
     def ensure_before_market_open(cls, value):
         time_specs = cls.parse_cron(value)
         if time_specs["hour"] > 9 or time_specs["minute"] > 15:
             raise ValueError("预热数据库应该在09:15前进行")
         return value
 
-    @root_validator(skip_on_failure=True)
-    def ensure_order(cls, values):
+    @model_validator(mode="after")
+    def ensure_order(self):
         def to_iso_time(value):
-            time_specs = cls.parse_cron(value)
+            time_specs = self.parse_cron(value)
             return f"{time_specs['hour']:02}:{time_specs['minute']:02}"
 
-        flush_cache_time = to_iso_time(values["flush_broker_cache"])
-        update_db_time = to_iso_time(values["update_datasets"])
-        vacuum_time = to_iso_time(values["vacuum"])
+        flush_cache_time = to_iso_time(self.flush_broker_cache)
+        update_db_time = to_iso_time(self.update_datasets)
+        vacuum_time = to_iso_time(self.vacuum)
 
         if flush_cache_time > update_db_time or flush_cache_time > vacuum_time:
             raise ValueError("导出数据库应该在更新本地数据或清理过期数据之前")
@@ -246,7 +242,7 @@ class SchedulesConf(ConfBase):
         if update_db_time > vacuum_time:
             raise ValueError("更新本地数据应该在清理过期数据之前")
 
-        return values
+        return self
 
 
 # --------
@@ -308,14 +304,15 @@ class NotificationConf(ConfBase):
 # ------
 class CommonConf(ConfBase):
     mode: ModeType = Field(..., description="运行模式, 回测/模拟盘/实盘")
-    database_dir: Path = Field(Path.cwd() / "database", description="本地数据存放目录")
+    database_dir: Path = Field(
+        default_factory=lambda: Path.cwd() / "database", description="本地数据存放目录"
+    )
     trade_lot_vol: int = Field(100, description="每手交易量")
     blacklist_path: Path | None = Field(None, description="股票黑名单文件路径,")
     redis: RedisConf | None = Field(None, description="Redis 配置")
     redis_connection_pool: ConnectionPool | None = None
 
-    class Config(ConfBase.Config):
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True) | ConfBase.model_config
 
     def get_redis_client(self) -> Redis:
         assert self.redis, "未设置Redis配置"
@@ -334,7 +331,7 @@ class CommonConf(ConfBase):
         if self.redis_connection_pool is not None:
             self.redis_connection_pool.disconnect()
 
-    @validator("blacklist_path", pre=True)
+    @field_validator("blacklist_path", mode="before")
     def check_blacklist_path(cls, value):
         if value is None:
             return value
@@ -342,7 +339,7 @@ class CommonConf(ConfBase):
         assert p.exists(), f"黑名单文件不存在: {p}"
         return p
 
-    @validator("database_dir", pre=True)
+    @field_validator("database_dir", mode="before")
     def check_database_dir(cls, value):
         p = Path(value)
         p.mkdir(parents=True, exist_ok=True)
@@ -370,12 +367,12 @@ class TradePyConf(ConfBase):
 
         return cls.from_file(config_file_path)
 
-    @root_validator(skip_on_failure=True)
-    def check_settings(cls, values):
-        mode: ModeType = values["common"].mode
+    @model_validator(mode="after")
+    def check_settings(self):
+        mode: ModeType = self.common.mode
 
         if mode in ("paper-trading", "live-trading"):
-            assert values["trading"] is not None, "交易模式下, trading 配置项不能为空"
-            assert values["schedules"] is not None, "交易模式下, schedules 配置项不能为空"
+            assert self.trading is not None, "交易模式下, trading 配置项不能为空"
+            assert self.schedules is not None, "交易模式下, schedules 配置项不能为空"
 
-        return values
+        return self
