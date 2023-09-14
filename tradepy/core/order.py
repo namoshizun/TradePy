@@ -79,7 +79,7 @@ class Order(BaseModel):
     def is_filled(self) -> bool:
         yes = self.status == "filled"
         if yes and (self.filled_price is None or self.filled_vol is None):
-            raise ValueError("订单已成交, 但没有成交价格或成家笔数!")
+            raise ValueError("订单已成交, 但没有成交价格或成交笔数!")
         return yes
 
     @property
