@@ -304,7 +304,9 @@ class NotificationConf(ConfBase):
 # ------
 class CommonConf(ConfBase):
     mode: ModeType = Field(..., description="运行模式, 回测/模拟盘/实盘")
-    database_dir: Path = Field(Path.cwd() / "database", description="本地数据存放目录")
+    database_dir: Path = Field(
+        default_factory=lambda: Path.cwd() / "database", description="本地数据存放目录"
+    )
     trade_lot_vol: int = Field(100, description="每手交易量")
     blacklist_path: Path | None = Field(None, description="股票黑名单文件路径,")
     redis: RedisConf | None = Field(None, description="Redis 配置")
