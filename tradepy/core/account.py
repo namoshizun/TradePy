@@ -76,12 +76,14 @@ class BacktestAccount(BaseModel):
         stamp_duty_fee = self.get_stamp_duty_fee(amount)
         return amount - broker_commission_fee - stamp_duty_fee
 
-    @round_val
     def get_position_net_pct_chg(self, position: Position) -> float:
         gross_return = position.profit_or_loss_at(position.latest_price)
-        commission_fee = self.get_broker_commission_fee(position.total_value) * 2
+        buy_commission_fee = self.get_broker_commission_fee(position.cost)
+        sell_commission_fee = self.get_broker_commission_fee(position.total_value)
         stamp_duty_fee = self.get_stamp_duty_fee(position.total_value)
-        net_return = gross_return - commission_fee - stamp_duty_fee
+        net_return = (
+            gross_return - buy_commission_fee - sell_commission_fee - stamp_duty_fee
+        )
         return net_return / position.cost
 
     @property
