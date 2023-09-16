@@ -16,7 +16,9 @@ class Position(BaseModel):
     yesterday_vol: int = 0
 
     def to_sell_order(self, timestamp, action: TradeActionType) -> Order:
-        assert self.latest_price, f"Position is not yet closed: {self}"
+        assert (
+            self.avail_vol
+        ), f"Position does not have available volume for sell: {self}"
         price = self.latest_price
         order = Order(
             id=Order.make_id(self.code),
@@ -42,6 +44,11 @@ class Position(BaseModel):
     def total_value(self) -> float:
         return self.total_value_at(self.latest_price)
 
+    @property
+    @round_val
+    def yesterday_total_value(self) -> float:
+        return self.total_value_at(self.price)
+
     @round_val
     def total_value_at(self, price: float) -> float:
         return price * self.vol
@@ -66,16 +73,6 @@ class Position(BaseModel):
 
     def update_price(self, price: float):
         self.latest_price = price
-
-    def close(self, price: float):
-        # NOTE: the actual closing price might be different from the daily close price, which is
-        # used to update the latest price when the position is still in holding
-        self.latest_price = price
-        if not self.yesterday_vol:
-            # only when in backtesting..
-            self.yesterday_vol = self.vol
-            self.vol = 0
-            self.avail_vol = 0
 
     @property
     def is_closed(self) -> bool:

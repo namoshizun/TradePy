@@ -62,7 +62,6 @@ class TradeBook:
     def make_close_position_log(
         self, timestamp: str, pos: Position, action: TradeActionType
     ) -> TradeLog:
-        assert pos.is_closed
         chg = pos.chg_at(pos.latest_price)
         pct_chg = pos.pct_chg_at(pos.latest_price)
         sold_vol = pos.yesterday_vol
