@@ -31,7 +31,7 @@ jobs:
       - name: Sphinx build
         run: |
           cd docs
-          make html
+          poetry run make html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:

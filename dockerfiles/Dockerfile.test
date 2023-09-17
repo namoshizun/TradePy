@@ -1,0 +1,6 @@
+FROM ghcr.io/namoshizun/tradepy:base
+
+COPY . /code
+WORKDIR /code
+
+RUN poetry install --only=test
