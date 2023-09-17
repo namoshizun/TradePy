@@ -22,7 +22,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/namoshizun/tradepy:doc
+      image: ghcr.io/namoshizun/tradepy:docs
       env:
         BUILD_DOC: 'yes'
     steps:
@@ -30,9 +30,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Sphinx build
         run: |
-          poetry run pip list
           cd docs
-          pip list
           poetry run pip list
           poetry run make html
       - name: Upload artifact
