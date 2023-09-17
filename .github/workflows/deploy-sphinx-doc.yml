@@ -22,7 +22,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/namoshizun/tradepy:docs
+      image: ghcr.io/namoshizun/tradepy:doc
       env:
         BUILD_DOC: 'yes'
     steps:
