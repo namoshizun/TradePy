@@ -66,6 +66,7 @@ class Backtester(TradeMixin):
                 timestamp=o.timestamp,
                 vol=o.vol,
                 avail_vol=o.vol,
+                yesterday_vol=o.vol,
             )
             for o in orders
         ]
@@ -162,7 +163,7 @@ class Backtester(TradeMixin):
                         self.strategy_conf.stop_loss_slip,
                         bar["orig_open"],
                     )
-                    pos.close(stop_loss_price)
+                    pos.update_price(stop_loss_price)
                     trade_book.stop_loss(date, pos)
                     sell_positions.append(pos)
                 else:
@@ -172,13 +173,13 @@ class Backtester(TradeMixin):
                         self.strategy_conf.take_profit_slip,
                         bar["orig_open"],
                     )
-                    pos.close(take_profit_price)
+                    pos.update_price(take_profit_price)
                     trade_book.take_profit(date, pos)
                     sell_positions.append(pos)
 
             # Close position in the market closing phase
             elif code in close_codes:
-                pos.close(bar["close"])
+                pos.update_price(bar["close"])
                 trade_book.close(date, pos)
                 sell_positions.append(pos)
 
@@ -262,7 +263,7 @@ class Backtester(TradeMixin):
                         self.strategy_conf.take_profit_slip,
                         bar["orig_open"],
                     )
-                    pos.close(take_profit_price)
+                    pos.update_price(take_profit_price)
                     trade_book.take_profit(date, pos)
                     sell = True
 
@@ -273,7 +274,7 @@ class Backtester(TradeMixin):
                         self.strategy_conf.stop_loss_slip,
                         bar["orig_open"],
                     )
-                    pos.close(stop_loss_price)
+                    pos.update_price(stop_loss_price)
                     trade_book.stop_loss(date, pos)
                     sell = True
 

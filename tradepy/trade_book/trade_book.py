@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from loguru import logger
 from functools import cached_property
@@ -34,6 +35,7 @@ class TradeBook:
             + cap_df["frozen_cash_amount"]
         )
         cap_df["pct_chg"] = cap_df["capital"].pct_change()
+        cap_df["pct_chg"].replace(np.nan, 0, inplace=True)
         cap_df.dropna(inplace=True)
         cap_df.set_index("timestamp", inplace=True)
         return cap_df
@@ -62,7 +64,6 @@ class TradeBook:
     def make_close_position_log(
         self, timestamp: str, pos: Position, action: TradeActionType
     ) -> TradeLog:
-        assert pos.is_closed
         chg = pos.chg_at(pos.latest_price)
         pct_chg = pos.pct_chg_at(pos.latest_price)
         sold_vol = pos.yesterday_vol
@@ -128,9 +129,9 @@ class TradeBook:
         return self.storage.get_opening(date)
 
     @classmethod
-    def backtest(cls) -> "TradeBook":
-        return cls(InMemoryTradeBookStorage())
+    def backtest(cls, *storage_args) -> "TradeBook":
+        return cls(InMemoryTradeBookStorage(*storage_args))
 
     @classmethod
-    def live_trading(cls) -> "TradeBook":
-        return cls(SQLiteTradeBookStorage())
+    def live_trading(cls, *storage_args) -> "TradeBook":
+        return cls(SQLiteTradeBookStorage(*storage_args))

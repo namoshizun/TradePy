@@ -17,7 +17,7 @@ class IndicatorSet:
             elif ind == item:
                 return ind
 
-    def build_graph(self):
+    def build_graph(self) -> nx.DiGraph:
         G = nx.DiGraph()
 
         nodes, edges = set(), set()

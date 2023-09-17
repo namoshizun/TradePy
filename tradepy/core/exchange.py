@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, date
 
 import tradepy
-from tradepy.trade_cal import trade_cal
+from tradepy import trade_cal
 from tradepy.decorators import timeout
 from tradepy.types import MarketPhase
 from tradepy.vendors.types import AskBid
@@ -11,7 +11,7 @@ from tradepy.vendors.types import AskBid
 class AStockExchange:
     @staticmethod
     def is_today_trade_day():
-        return str(date.today()) in trade_cal
+        return str(date.today()) in trade_cal.trade_cal
 
     @staticmethod
     def market_phase_now():

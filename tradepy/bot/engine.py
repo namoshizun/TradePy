@@ -261,7 +261,7 @@ class TradingEngine(TradeMixin):
 
             # Take profit
             if take_profit_price := self.should_take_profit(self.strategy, bar, pos):
-                pos.close(
+                pos.update_price(
                     self._jit_sell_price(
                         take_profit_price, self.strategy_conf.take_profit_slip
                     )
@@ -270,7 +270,7 @@ class TradingEngine(TradeMixin):
 
             # Stop loss
             elif stop_loss_price := self.should_stop_loss(self.strategy, bar, pos):
-                pos.close(
+                pos.update_price(
                     self._jit_sell_price(
                         stop_loss_price, self.strategy_conf.stop_loss_slip
                     )
@@ -318,17 +318,17 @@ class TradingEngine(TradeMixin):
             LOG.info("没有需要平仓的股票")
             return
 
-        positions: list[Position] = [
+        positions_to_close: list[Position] = [
             pos
             for pos in BrokerAPI.get_positions(available_only=True)  # type: ignore
             if pos.code in close_codes
         ]
         sell_orders, trade_date = [], ind_df.iloc[0]["timestamp"]
 
-        for pos in positions:
+        for pos in positions_to_close:
             bar = ind_df.loc[pos.code].to_dict()  # type: ignore
             real_price = self.adjust_factors.to_real_price(pos.code, bar["close"])
-            pos.close(real_price)
+            pos.update_price(real_price)
             sell_orders.append(pos.to_sell_order(trade_date, action="平仓"))
 
         if sell_orders:

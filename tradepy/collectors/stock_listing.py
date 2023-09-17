@@ -11,9 +11,12 @@ class StocksListingCollector(DataCollector):
         for code in listing_df.index:
             yield {"code": code}
 
-    def run(self, batch_size: int = 50):
+    def run(self, batch_size: int = 50, selected_stocks: list[str] | None = None):
         LOG.info("=============== 开始更新A股上市公司列表 ===============")
         listing_df = tradepy.ak_api.get_a_stocks_list()
+
+        if selected_stocks is not None:
+            listing_df.query("code in @selected_stocks", inplace=True)
 
         LOG.info("获取个股的东财行业分类信息")
         # NOTE: We adopt EM's sector tags so that it is easier to look up stock's related sector index data

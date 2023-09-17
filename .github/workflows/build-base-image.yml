@@ -1,4 +1,4 @@
-name: Doc image build & publish
+name: Base image build & publish
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: dockerfiles/Dockerfile.docs
+          file: dockerfiles/Dockerfile.base
           tags: ${{ steps.meta.outputs.tags }}
           push: true
           cache-from: type=gha
