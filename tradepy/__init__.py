@@ -11,6 +11,10 @@ def is_bootstrapping():
     return sys.orig_argv[-1] == "tradepy.cli.bootstrap"
 
 
+def is_running_tests():
+    return "pytest" in sys.modules
+
+
 tqdm.pandas()
 
 random.seed()
@@ -21,7 +25,7 @@ ts_api = tushare
 try:
     config: TradePyConf = TradePyConf.load_from_config_file()
 except FileNotFoundError:
-    if is_bootstrapping():
+    if is_bootstrapping() or is_running_tests():
         pass
     else:
         raise
