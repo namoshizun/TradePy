@@ -31,6 +31,8 @@ jobs:
       - name: Sphinx build
         run: |
           cd docs
+          ls /root/.cache/pypoetry/
+          ls /root/.cache/pypoetry/virtualenvs/
           poetry run pip list
           poetry run make html
       - name: Upload artifact
