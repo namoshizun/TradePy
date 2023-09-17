@@ -72,7 +72,11 @@ class Table(Generic[RowDataType]):
         self.fields: list[Field] = fields
 
     def __serialize(self, v) -> str:
-        return f"'{v}'" if isinstance(v, str) else str(v)
+        if isinstance(v, str):
+            return f"'{v}'"
+        if v is None:
+            return "null"
+        return str(v)
 
     def __deserialize(self, row: list[Any]) -> RowDataType:
         return cast(RowDataType, {f.name: row[i] for i, f in enumerate(self.fields)})
@@ -177,7 +181,7 @@ where {" AND ".join(
             sqlite_type = type_to_sqlite_type[python_type]
 
             descriptions = [sqlite_type]
-            if annot.is_nullable():
+            if not annot.is_nullable():
                 descriptions.append("NOT NULL")
 
             fields.append(Field(name, descriptions))
@@ -192,59 +196,3 @@ where {" AND ".join(
 
     def __repr__(self) -> str:
         return str(self)
-
-
-if __name__ == "__main__":
-    from tradepy.trade_book import TradeLog
-
-    print("-" * 30)
-    table: Table[TradeLog] = Table.from_typed_dict(TradeLog)
-    print(table.schema())
-
-    conn = sqlite3.connect("/tmp/test.db")
-    print("-" * 30)
-    print(table.build_create_table_sql())
-    print(table.create_table(conn))
-
-    print("-" * 30)
-    row: TradeLog = {
-        "timestamp": "2023-03-20",
-        "action": "止损",
-        "id": "1110",
-        "code": "000333",
-        "vol": 100,
-        "price": 50,
-        "total_value": 5000,
-        "chg": 1,
-        "pct_chg": 2,
-        "total_return": 3,
-    }
-    print(table.build_insert_sql(row))
-    print(table.insert(conn, row))
-
-    print("-" * 30)
-    update_args = dict(
-        where={"timestamp": "2023-03-20", "code": "000333"},
-        update={"action": "止盈", "price": 100},
-    )
-    print(table.build_update_sql(**update_args))
-    print(table.update(conn, **update_args))
-
-    print("-" * 30)
-    query = {"timestamp": "2023-03-20", "code": "000333"}
-    print(table.build_select_sql(**query))
-    print(table.select(conn, **query))
-
-    print("-" * 30)
-    print(
-        table.build_delete_sql(
-            timestamp="2023-03-20",
-        )
-    )
-    print(table.delete(conn, timestamp="2023-03-20"))
-
-    print("-" * 30)
-    print(table.build_drop_table_sql())
-    print(table.drop_table(conn))
-
-    conn.close()

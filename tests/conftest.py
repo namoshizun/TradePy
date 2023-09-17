@@ -4,7 +4,14 @@ from pathlib import Path
 from loguru import logger
 
 import tradepy
-from tradepy.core.conf import TradePyConf, CommonConf, SchedulesConf
+from tradepy.core.conf import (
+    TradePyConf,
+    CommonConf,
+    SchedulesConf,
+    TradingConf,
+    BrokerConf,
+    TimeoutsConf,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -23,8 +30,17 @@ def init_tradepy_config():
             blacklist_path=None,
             redis=None,
         ),
-        trading=None,
-        schedules=SchedulesConf(),
+        trading=TradingConf(
+            broker=BrokerConf(
+                host="localhost",
+                port=8001,
+            ),
+            timeouts=TimeoutsConf(
+                download_quote=30,
+                download_ask_bid=30,
+            ),  # type: ignore
+        ),  # type: ignore
+        schedules=SchedulesConf(),  # type: ignore
         notifications=None,
     )
     yield tradepy.config
