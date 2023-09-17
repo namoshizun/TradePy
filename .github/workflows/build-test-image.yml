@@ -1,4 +1,4 @@
-name: Build and Push the base Docker Image for doc
+name: Test image build & publish
 
 on:
   workflow_dispatch:
