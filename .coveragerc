@@ -1,4 +1,6 @@
 [run]
 omit = 
-    # ignore all test cases in tests/
-    tests/*
+    tests/*,
+    docs/*,
+    tradepy/cli/*
+source = .

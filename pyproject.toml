@@ -68,3 +68,4 @@ filterwarnings = [
     "ignore::UserWarning",
     "ignore::FutureWarning",
 ]
+addopts = "-s"

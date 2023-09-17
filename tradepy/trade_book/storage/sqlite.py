@@ -1,5 +1,5 @@
-import os
 import sqlite3
+from pathlib import Path
 from loguru import logger
 
 from tradepy.trade_book.types import TradeLog, CapitalsLog
@@ -8,8 +8,10 @@ from tradepy.trade_book.storage.sqlite_orm import Table
 
 
 class SQLiteTradeBookStorage(TradeBookStorage):
-    def __init__(self) -> None:
-        db_path = os.path.expanduser("~/.tradepy/trade_book.db")
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        if not db_path:
+            db_path = Path.home() / ".tradepy/trade_book.db"
+
         self.conn = sqlite3.connect(db_path)
 
         self.trade_logs_tbl: Table[TradeLog] = Table.from_typed_dict(TradeLog)
