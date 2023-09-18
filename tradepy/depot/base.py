@@ -25,6 +25,11 @@ class GenericListingDepot:
         path = cls.file_path()
         return pd.read_csv(path, index_col="code", dtype={"code": str})
 
+    @classmethod
+    def save(cls, df: pd.DataFrame):
+        path = cls.file_path()
+        df.to_csv(path, index=True)
+
 
 class GenericBarsDepot:
     folder_name: str

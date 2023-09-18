@@ -2,7 +2,7 @@ import numpy as np
 import numba as nb
 
 
-@nb.njit
+@nb.njit(cache=True)
 def evenly_distribute(stocks, budget: float, min_trade_cost: int, trade_lot_vol: int):
     if stocks.shape[0] == 0:
         return stocks

@@ -77,7 +77,7 @@ TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，�
 
    # 获取代码
    # 注: 如果网络错误，也可以从镜像库克隆 https://gitee.com/dilu3100/TradePy.git
-   git clone https://github.com/namoshizun/TradePy.git
+   git clone --depth=1 https://github.com/namoshizun/TradePy.git
 
    # 安装TradePy
    cd TradePy

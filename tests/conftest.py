@@ -12,12 +12,13 @@ from tradepy.core.conf import (
     BrokerConf,
     TimeoutsConf,
 )
+from .fixtures.load import load_dataset
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.yield_fixture(scope="session", autouse=True)
 def init_tradepy_config():
     if getattr(tradepy, "config", None) is not None:
-        yield
+        yield tradepy.config
         return
 
     working_dir = tempfile.TemporaryDirectory()
@@ -48,23 +49,7 @@ def init_tradepy_config():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def download_dataset(init_tradepy_config):
-    from tradepy.collectors.stock_listing import (
-        StocksListingCollector,
-        StockListingDepot,
-    )
-    from tradepy.collectors.adjust_factor import (
-        AdjustFactorCollector,
-        AdjustFactorDepot,
-    )
-
-    if not StockListingDepot.file_path().exists():
-        selected_stocks = ["000333", "000001", "600519"]
-        logger.info(f"Downloading stock listing for {selected_stocks}")
-        StocksListingCollector().run(selected_stocks=selected_stocks)
-
-    if not AdjustFactorDepot.file_path().exists():
-        logger.info(f"Downloading adjust factor")
-        AdjustFactorCollector().run()
-
+def download_dataset(init_tradepy_config: TradePyConf):
+    for name in ["adjust-factors", "daily-k", "listing"]:
+        load_dataset(name, init_tradepy_config.common.database_dir)
     yield

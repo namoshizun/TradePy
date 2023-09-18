@@ -14,13 +14,13 @@ class StockDayBarsCollector(DayBarsCollector):
     bars_depot_class = StocksDailyBarsDepot
     listing_depot_class = StockListingDepot
 
-    def __init__(self, since_date: str | date | None = None) -> None:
-        super().__init__(since_date)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self.sz_name_changes: pd.DataFrame = tradepy.ak_api.get_stock_sz_name_changes()
 
-    def download_and_process(self, code, start_date):
+    def download_and_process(self, code, start_date, end_date):
         try:
-            df = tradepy.ak_api.get_stock_daily(code, start_date)
+            df = tradepy.ak_api.get_stock_daily(code, start_date, end_date)
             if df.empty:
                 return df
             df["market"] = market = convert_code_to_market(code)
@@ -86,9 +86,15 @@ class StockDayBarsCollector(DayBarsCollector):
             ]
             yield day_df
 
-    def run(self, batch_size=50, iteration_pause=5):
+    def run(
+        self, batch_size=50, iteration_pause=5, selected_stocks=None, write_file=True
+    ) -> pd.DataFrame | None:
         LOG.info("=============== 开始更新个股日K数据 ===============")
-        jobs = list(self.jobs_generator())
+        jobs = list(
+            job
+            for job in self.jobs_generator()
+            if (selected_stocks is None) or (job["code"] in selected_stocks)
+        )
 
         results_gen = self.run_batch_jobs(
             jobs,
@@ -108,8 +114,12 @@ class StockDayBarsCollector(DayBarsCollector):
         df = pd.concat(self._compute_mkt_cap_percentile_ranks(df))
         df.reset_index(inplace=True, drop=True)
 
-        LOG.info("保存中")
-        for code, sub_df in df.groupby("code"):
-            sub_df.drop("code", axis=1, inplace=True)
-            assert isinstance(code, str)
-            self.repo.save(sub_df, filename=code + ".csv")
+        if write_file:
+            LOG.info("保存中")
+            for code, sub_df in df.groupby("code"):
+                sub_df.drop("code", axis=1, inplace=True)
+                assert isinstance(code, str)
+                self.repo.save(sub_df, filename=code + ".csv")
+            return
+
+        return df
