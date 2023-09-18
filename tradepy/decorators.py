@@ -8,7 +8,7 @@ import functools
 import traceback
 from functools import wraps
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import tradepy
 from tradepy.core.exceptions import NotConfiguredError, OperationForbidden
@@ -109,7 +109,9 @@ def notify_failure(title: str, channel="wechat"):
     return decor
 
 
-def timeout(seconds, error_message=os.strerror(errno.ETIMEDOUT)):
+def timeout(
+    seconds: int | Callable[..., int], error_message=os.strerror(errno.ETIMEDOUT)
+):
     def decor(func):
         def _handle_timeout(signum, frame):
             raise TimeoutError(error_message)
@@ -117,7 +119,7 @@ def timeout(seconds, error_message=os.strerror(errno.ETIMEDOUT)):
         @functools.wraps(func)
         def inner(*args, **kwargs):
             signal.signal(signal.SIGALRM, _handle_timeout)
-            signal.alarm(seconds)
+            signal.alarm(seconds if isinstance(seconds, int) else seconds())
             try:
                 result = func(*args, **kwargs)
             finally:
