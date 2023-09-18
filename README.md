@@ -3,10 +3,10 @@
 
 ![logo](./docs/source/_static/logo.png)
 
-[![Doc Deploy](https://github.com/namoshizun/TradePy/actions/workflows/deploy-sphinx-doc.yml/badge.svg?branch=main&event=push)](https://github.com/namoshizun/TradePy/actions/workflows/deploy-sphinx-doc.yml)
-
-[![Tests](https://github.com/namoshizun/TradePy/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/namoshizun/TradePy/actions/workflows/run-tests.yml)
-
+<p float="left">
+  <img src="https://github.com/namoshizun/TradePy/actions/workflows/deploy-sphinx-doc.yml/badge.svg?branch=main&event=push" />
+  <img src="https://github.com/namoshizun/TradePy/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push" /> 
+</p>
 
 TradePy是一个面向证券交易的量化策略开发 + 实盘交易框架，实现了如下功能:
 
