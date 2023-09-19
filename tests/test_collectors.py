@@ -18,6 +18,7 @@ from tradepy.collectors.market_index import (
 from tradepy.collectors.stock_listing import StockListingDepot, StocksListingCollector
 from tradepy.collectors.stock_day_bars import StockDayBarsCollector
 from tradepy.conversion import broad_index_code_name_mapping
+from .helpers import skip_if_in_ci
 
 
 @contextlib.contextmanager
@@ -27,12 +28,6 @@ def _use_alternative_stock_listing(listing_df: pd.DataFrame):
             StockListingDepot.save(listing_df)
             with mock.patch("tradepy.listing", StocksPool()):
                 yield
-
-
-skip_if_in_ci = lambda: pytest.mark.skipif(
-    os.environ.get("CI", "false").lower() == "true",
-    reason="Skip this test in CI environment",
-)
 
 
 @skip_if_in_ci()
