@@ -14,7 +14,7 @@ from tradepy.core.conf import (
 )
 from tradepy.depot.stocks import StockListingDepot, StocksDailyBarsDepot
 from tradepy.depot.misc import AdjustFactorDepot
-from .fixtures.load import load_dataset
+from .fixtures_data.load import load_dataset
 
 
 @pytest.yield_fixture(scope="session", autouse=True)
