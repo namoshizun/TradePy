@@ -12,6 +12,8 @@ from tradepy.core.conf import (
     BrokerConf,
     TimeoutsConf,
 )
+from tradepy.depot.stocks import StockListingDepot, StocksDailyBarsDepot
+from tradepy.depot.misc import AdjustFactorDepot
 from .fixtures.load import load_dataset
 
 
@@ -53,3 +55,22 @@ def download_dataset(init_tradepy_config: TradePyConf):
     for name in ["adjust-factors", "daily-k", "listing"]:
         load_dataset(name, init_tradepy_config.common.database_dir)
     yield
+
+
+@pytest.fixture
+def local_listing_df():
+    n_selected = 5
+    df = StockListingDepot.load()
+    if len(df) > n_selected:
+        df = df.iloc[:n_selected].copy()
+    return df
+
+
+@pytest.fixture
+def local_stocks_day_k_df():
+    return StocksDailyBarsDepot.load()
+
+
+@pytest.fixture
+def local_adjust_factors_df():
+    return AdjustFactorDepot.load()

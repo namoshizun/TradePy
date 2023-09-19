@@ -1,9 +1,10 @@
-import contextlib
-from unittest import mock
+import os
 import pytest
+import contextlib
 import tempfile
 import pandas as pd
 from pathlib import Path
+from unittest import mock
 from pandas.testing import assert_frame_equal
 
 from tradepy.stocks import StocksPool
@@ -15,25 +16,8 @@ from tradepy.collectors.market_index import (
     SectorIndexBarsDepot,
 )
 from tradepy.collectors.stock_listing import StockListingDepot, StocksListingCollector
-from tradepy.collectors.stock_day_bars import (
-    StockDayBarsCollector,
-    StocksDailyBarsDepot,
-)
+from tradepy.collectors.stock_day_bars import StockDayBarsCollector
 from tradepy.conversion import broad_index_code_name_mapping
-
-
-@pytest.fixture
-def local_listing_df():
-    n_selected = 5
-    df = StockListingDepot.load()
-    if len(df) > n_selected:
-        df = df.iloc[:n_selected].copy()
-    return df
-
-
-@pytest.fixture
-def local_stocks_day_k_df():
-    return StocksDailyBarsDepot.load()
 
 
 @contextlib.contextmanager
@@ -45,6 +29,13 @@ def _use_alternative_stock_listing(listing_df: pd.DataFrame):
                 yield
 
 
+skip_if_in_ci = lambda: pytest.mark.skipif(
+    os.environ.get("CI", "false").lower() == "true",
+    reason="Skip this test in CI environment",
+)
+
+
+@skip_if_in_ci()
 def test_collect_stock_listing(local_listing_df: pd.DataFrame):
     selected_stocks = local_listing_df.index.tolist()
     fetched_listing_df = StocksListingCollector().run(
@@ -62,6 +53,7 @@ def test_collect_stock_listing(local_listing_df: pd.DataFrame):
     )
 
 
+@skip_if_in_ci()
 def test_update_existing_stocks_day_k(local_stocks_day_k_df: pd.DataFrame):
     selected_stocks = local_stocks_day_k_df["code"].unique().tolist()
     stocks_max_ts = local_stocks_day_k_df["timestamp"].max()
@@ -88,6 +80,7 @@ def test_update_existing_stocks_day_k(local_stocks_day_k_df: pd.DataFrame):
         assert _df["timestamp"].nunique() == n_bars_per_stock
 
 
+@skip_if_in_ci()
 def test_collect_new_stocks_day_k(
     local_stocks_day_k_df: pd.DataFrame, local_listing_df: pd.DataFrame
 ):
@@ -115,6 +108,7 @@ def test_collect_new_stocks_day_k(
         )
 
 
+@skip_if_in_ci()
 def test_collect_stocks_with_name_changes():
     stocks_had_name_changes = [
         ("600115", "中国东航", "20000101", "不重要の板块", 1e6),
@@ -136,12 +130,14 @@ def test_collect_stocks_with_name_changes():
             assert fetched_day_k_df.query("code == @code")["company"].nunique() > 1
 
 
+@skip_if_in_ci()
 def test_collect_broadcast_based_index():
     BroadBasedIndexCollector().run()
     df = BroadBasedIndexBarsDepot.load()
     assert set(df.index.unique()) == set(broad_index_code_name_mapping.values())
 
 
+@skip_if_in_ci()
 def test_collect_sector_index():
     EastMoneySectorIndexCollector().run(start_date="2020-01-01")
     df = SectorIndexBarsDepot.load()
