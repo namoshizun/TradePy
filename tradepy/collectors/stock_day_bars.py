@@ -30,7 +30,7 @@ class StockDayBarsCollector(DayBarsCollector):
                 market,
             )
         except Exception:
-            LOG.error(f"获取{code}日K数据出错")
+            LOG.exception(f"获取{code}日K数据出错")
             raise
 
     def _patch_names(self, df: pd.DataFrame, code: str, market: str):
@@ -88,7 +88,7 @@ class StockDayBarsCollector(DayBarsCollector):
 
     def run(
         self, batch_size=50, iteration_pause=5, selected_stocks=None, write_file=True
-    ) -> pd.DataFrame | None:
+    ) -> pd.DataFrame:
         LOG.info("=============== 开始更新个股日K数据 ===============")
         jobs = list(
             job
@@ -120,6 +120,5 @@ class StockDayBarsCollector(DayBarsCollector):
                 sub_df.drop("code", axis=1, inplace=True)
                 assert isinstance(code, str)
                 self.repo.save(sub_df, filename=code + ".csv")
-            return
 
         return df

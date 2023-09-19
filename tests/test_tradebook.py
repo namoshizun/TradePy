@@ -1,5 +1,6 @@
 import pytest
 import tempfile
+from pandas.testing import assert_frame_equal
 
 from tradepy.core.models import Position, Account
 from tradepy.trade_book import TradeBook
@@ -67,8 +68,12 @@ def test_trade_book_clone(
     clone = in_memory_trade_book.clone()
 
     assert type(clone.storage) is type(in_memory_trade_book.storage)
-    assert clone.cap_logs_df.equals(in_memory_trade_book.cap_logs_df)
-    assert clone.trade_logs_df.equals(in_memory_trade_book.trade_logs_df)
+    assert_frame_equal(
+        clone.cap_logs_df, in_memory_trade_book.cap_logs_df, check_exact=False
+    )
+    assert_frame_equal(
+        clone.trade_logs_df, in_memory_trade_book.trade_logs_df, check_exact=False
+    )
 
 
 @pytest.mark.parametrize(

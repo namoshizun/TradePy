@@ -22,6 +22,7 @@ class TradePyLogger:
         self.debug = logger.debug
         self.warn = logger.warn
         self.error = logger.error
+        self.exception = logger.exception
 
     def log_orders(self, orders: list[Order]):
         self.info("\n" + "\n".join([str(o) for o in orders]))
