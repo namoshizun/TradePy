@@ -2,6 +2,7 @@ import talib
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import quantstats as qs
 from plotly.subplots import make_subplots
 
 import tradepy.trade_cal
@@ -10,7 +11,7 @@ from tradepy.types import BroadIndexType
 from tradepy.depot.index import BroadBasedIndexBarsDepot
 
 
-def plot_capital_curve(
+def plot_equity_curve(
     trade_book: TradeBook,
     baseline_index: BroadIndexType = "SSE",
     since_date="1900-01-01",
@@ -39,12 +40,21 @@ def plot_capital_curve(
         cap_df[col] = cap_df[col].reset_index()[col].interpolate(method="pad").values
 
     cap_df.dropna(inplace=True)
-    cap_df = cap_df.query("@since_date <= timestamp <= @until_date")
+    cap_df.query("@since_date <= timestamp <= @until_date", inplace=True)
+    cap_df["drawdown"] = (100 * qs.stats.to_drawdown_series(cap_df["capital"])).round(2)
 
     # -----
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[3, 1],
+        vertical_spacing=0.01,
+        specs=[[{"secondary_y": True}], [dict()]],
+    )
     fig.add_trace(
         go.Candlestick(
+            name=baseline_index,
             x=cap_df.index,
             open=cap_df[f"{baseline_index}-open"],
             high=cap_df[f"{baseline_index}-high"],
@@ -54,15 +64,30 @@ def plot_capital_curve(
             decreasing_line_color="green",
         ),
         secondary_y=True,
+        row=1,
+        col=1,
     )
     fig.add_trace(
         go.Scatter(
+            name="总资产",
             x=cap_df.index,
             y=cap_df["capital"],
             mode="lines",
             line=dict(color="blue", width=1),
         ),
         secondary_y=False,
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            name="最大回撤",
+            x=cap_df.index,
+            y=cap_df["drawdown"],
+            fill="tozeroy",
+        ),
+        row=2,
+        col=1,
     )
     fig.update_xaxes(
         rangebreaks=[
@@ -73,12 +98,14 @@ def plot_capital_curve(
         layout_xaxis_rangeslider_visible=False,
     )
     fig.update_layout(
-        hovermode="x unified", yaxis=dict(autorange=True, fixedrange=False)
+        hovermode="x unified",
+        yaxis=dict(autorange=True, fixedrange=False),
+        margin=dict(l=20, r=20, t=30, b=30),
     )
     fig.show()
 
 
-def plot_return_curves(
+def plot_return_box(
     trade_books: list[TradeBook],
     since_date="1900-01-01",
     until_date="2100-01-01",

@@ -78,9 +78,9 @@ class StrategyBase(Generic[BarDataType]):
         self.buy_indicators: list[str] = inspect.getfullargspec(self.should_buy).args[
             1:
         ]
-        self.close_indicators: list[str] = inspect.getfullargspec(
-            self.should_sell
-        ).args[1:]
+        self.sell_indicators: list[str] = inspect.getfullargspec(self.should_sell).args[
+            1:
+        ]
         self.stop_loss_indicators: list[str] = inspect.getfullargspec(
             self.should_stop_loss
         ).args[3:]
@@ -90,7 +90,7 @@ class StrategyBase(Generic[BarDataType]):
 
         self._required_indicators: list[str] = list(
             self.buy_indicators
-            + self.close_indicators
+            + self.sell_indicators
             + self.stop_loss_indicators
             + self.take_profit_indicators
         )
@@ -154,14 +154,11 @@ class StrategyBase(Generic[BarDataType]):
         self,  # THE ABSOLUTELY WORST INTERFACE IN THIS PROJECT!
         port_df: pd.DataFrame,
         budget: float,
-        n_stocks: int,
         total_asset_value: float,
         max_position_opens: int | None = None,
         max_position_size: float | None = None,
     ) -> tuple[pd.DataFrame, float]:
         # Reject this bar if signal ratio is abnormal
-        n_options = len(port_df)
-
         if max_position_opens is None:
             max_position_opens = self.max_position_opens
 
@@ -169,15 +166,16 @@ class StrategyBase(Generic[BarDataType]):
             max_position_size = self.max_position_size
 
         # Limit number of new opens
-        if n_options > max_position_opens:
+        assert max_position_opens and max_position_size
+        if len(port_df) > max_position_opens:
             port_df = port_df.sample(n=max_position_opens, weights=port_df["weight"])
 
         # Limit position budget allocation
-        min_position_allocation = budget // n_options
+        min_position_allocation = budget // len(port_df)
         max_position_value = max_position_size * total_asset_value
 
         if min_position_allocation > max_position_value:
-            budget = n_options * max_position_value
+            budget = len(port_df) * max_position_value
 
         return port_df, budget
 
@@ -305,14 +303,14 @@ class BacktestStrategy(StrategyBase[BarData]):
         if low_pct_chg <= -self.stop_loss:
             return position.price_at_pct_change(-self.stop_loss)
 
-    def should_take_profit(self, tick: BarData, position: Position) -> float | None:
+    def should_take_profit(self, bar: BarData, position: Position) -> float | None:
         # During opening
-        open_pct_chg = calc_pct_chg(position.price, tick["open"])
+        open_pct_chg = calc_pct_chg(position.price, bar["open"])
         if open_pct_chg >= self.take_profit:
-            return tick["open"]
+            return bar["open"]
 
         # During exchange
-        high_pct_chg = calc_pct_chg(position.price, tick["high"])
+        high_pct_chg = calc_pct_chg(position.price, bar["high"])
         if high_pct_chg >= self.take_profit:
             return position.price_at_pct_change(self.take_profit)
 
@@ -328,7 +326,6 @@ class BacktestStrategy(StrategyBase[BarData]):
 
 
 class LiveStrategy(StrategyBase[BarDataType]):
-
     def should_stop_loss(self, bar: BarDataType, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg <= -self.stop_loss:

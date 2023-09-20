@@ -11,7 +11,12 @@ class StocksListingCollector(DataCollector):
         for code in listing_df.index:
             yield {"code": code}
 
-    def run(self, batch_size: int = 50, selected_stocks: list[str] | None = None):
+    def run(
+        self,
+        batch_size: int = 50,
+        selected_stocks: list[str] | None = None,
+        write_file: bool = True,
+    ) -> pd.DataFrame:
         LOG.info("=============== 开始更新A股上市公司列表 ===============")
         listing_df = tradepy.ak_api.get_a_stocks_list()
 
@@ -34,5 +39,8 @@ class StocksListingCollector(DataCollector):
             on="code",
         )
 
-        listing_df.to_csv(out_path := StockListingDepot.file_path())
-        LOG.info(f"已下载至 {out_path}")
+        if write_file:
+            listing_df.to_csv(out_path := StockListingDepot.file_path())
+            LOG.info(f"已下载至 {out_path}")
+
+        return listing_df

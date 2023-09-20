@@ -6,6 +6,8 @@ from tradepy import trade_cal
 from tradepy.core.exchange import AStockExchange
 from tradepy.types import MarketPhase
 
+from .helpers import skip_if_in_ci
+
 
 @contextlib.contextmanager
 def patch_trade_date(dt: date | datetime):
@@ -116,6 +118,7 @@ def test_market_phase_now_closed_not_trade_time():
             assert AStockExchange.market_phase_now() == MarketPhase.CLOSED
 
 
+@skip_if_in_ci()
 def test_fetch_quote():
     df = AStockExchange.get_quote()
     assert set(df.columns).issubset(
@@ -137,6 +140,7 @@ def test_fetch_quote():
     assert df.shape[0] > 0
 
 
+@skip_if_in_ci()
 def test_fetch_bid_ask():
     result = AStockExchange.get_bid_ask("000333")
     assert len(result["buy"]) == 5

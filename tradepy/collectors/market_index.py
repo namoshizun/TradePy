@@ -13,7 +13,7 @@ class EastMoneySectorIndexCollector(DataCollector):
                 "name": name,
             }
 
-    def run(self, start_date="2000-01-01", batch_size: int = 20):
+    def run(self, start_date="2000-01-01", batch_size: int = 10, write_file=True):
         LOG.info("=============== 开始更新行业指数 ===============")
         LOG.info("下载东财行业列表")
         listing_df = tradepy.ak_api.get_sectors_listing()
@@ -33,11 +33,12 @@ class EastMoneySectorIndexCollector(DataCollector):
             code = listing_df.query("name == @name").iloc[0]["code"]
             bars_df["code"] = code
 
-            repo.save(bars_df, f"{code}.csv")
+            if write_file:
+                repo.save(bars_df, f"{code}.csv")
 
 
 class BroadBasedIndexCollector(DataCollector):
-    def run(self, start_date: str = "2000-01-01"):
+    def run(self, start_date: str = "2000-01-01", write_file=True):
         LOG.info("=============== 开始更新宽基指数 ===============")
         repo = BroadBasedIndexBarsDepot()
         index_names = list(broad_index_code_name_mapping.values())
@@ -55,4 +56,5 @@ class BroadBasedIndexCollector(DataCollector):
                 latest_quote = curr_quote_df.query("code == @code").copy()
                 df = pd.concat([df, latest_quote[df.columns]])
 
-            repo.save(df.copy(), f"{name}.csv")
+            if write_file:
+                repo.save(df.copy(), f"{name}.csv")

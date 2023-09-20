@@ -93,6 +93,7 @@ class AkShareClient:
         df["timestamp"] = df["timestamp"].dt.date.astype(str)
         return df
 
+    @retry()
     def get_a_stocks_list(self) -> pd.DataFrame:
         all_df = ak.stock_info_a_code_name().set_index("code")
         A_board = [
@@ -104,7 +105,12 @@ class AkShareClient:
 
     # ------
     # Stocks
-    def get_stock_daily(self, code: str, start_date: datetime.date | str):
+    def get_stock_daily(
+        self,
+        code: str,
+        start_date: datetime.date | str,
+        end_date: datetime.date | str = "20500101",
+    ):
         def fetch_legu_indicators():
             indicators_df = ak.stock_a_indicator_lg(symbol=code)
             assert isinstance(indicators_df, pd.DataFrame)
@@ -152,9 +158,15 @@ class AkShareClient:
         if isinstance(start_date, str):
             start_date = datetime.date.fromisoformat(start_date)
 
+        if isinstance(end_date, str):
+            end_date = datetime.date.fromisoformat(end_date)
+
         # Fetch the day-k data
         df = retry()(ak.stock_zh_a_hist)(
-            symbol=code, start_date=start_date.strftime("%Y%m%d"), period="daily"
+            symbol=code,
+            start_date=start_date.strftime("%Y%m%d"),
+            end_date=end_date.strftime("%Y%m%d"),
+            period="daily",
         )
 
         assert isinstance(df, pd.DataFrame)

@@ -67,12 +67,12 @@ class DayBarsCollector(DataCollector):
     bars_depot_class: Type[GenericBarsDepot]
     listing_depot_class: Type[GenericListingDepot]
 
-    def __init__(self, since_date: str | date = "2016-01-01") -> None:
-        if isinstance(since_date, str):
-            self.since_date: date = date.fromisoformat(since_date)
-        else:
-            self.since_date: date = since_date
-
+    def __init__(
+        self, since_date: str | date = "2016-01-01", end_date: str | date = "2050-01-01"
+    ) -> None:
+        to_date = lambda dt: date.fromisoformat(dt) if isinstance(dt, str) else dt
+        self.since_date: date = to_date(since_date)
+        self.end_date: date = to_date(end_date)
         self.repo = self.bars_depot_class()
 
     def jobs_generator(self):
@@ -94,7 +94,11 @@ class DayBarsCollector(DataCollector):
                 latest_date = date.fromisoformat(latest_date)
                 if latest_date < last_trade_date:
                     start_date = latest_date + timedelta(days=1)
-                    yield {"code": code, "start_date": start_date}
+                    yield {
+                        "code": code,
+                        "start_date": start_date,
+                        "end_date": self.end_date.isoformat(),
+                    }
             except Exception as exc:
                 LOG.info(
                     f"!!!!!!!!! failed to genereate update job for {code} !!!!!!!!!"
@@ -110,6 +114,7 @@ class DayBarsCollector(DataCollector):
                 yield {
                     "code": code,
                     "start_date": self.since_date.isoformat(),
+                    "end_date": self.end_date.isoformat(),
                 }
 
 
