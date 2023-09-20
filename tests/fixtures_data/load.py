@@ -20,6 +20,7 @@ def load_dataset(
                 sub_df.to_csv(file_loc, index=None)
         return
 
-    if not (file_loc := database_dir / f"{name}.csv").exists():
-        logger.info(f"Saving {name} to {file_loc}")
+    _name = name.replace("-", "_")
+    if not (file_loc := database_dir / f"{_name}.csv").exists():
+        logger.info(f"Saving {_name} to {file_loc}")
         df.to_csv(file_loc)

@@ -1,7 +1,5 @@
 [run]
 omit = 
-    tests/*,
-    docs/*,
     tradepy/cli/*,
     tradepy/trade_cal.py
-source = .
+source = tradepy

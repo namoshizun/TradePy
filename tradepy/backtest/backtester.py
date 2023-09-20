@@ -107,7 +107,7 @@ class Backtester(TradeMixin):
     def get_close_signals(
         self, df: pd.DataFrame, strategy: "StrategyBase"
     ) -> list[str]:
-        if not strategy.close_indicators:
+        if not strategy.sell_indicators:
             return []
 
         curr_positions = self.account.holdings.position_codes
@@ -116,7 +116,7 @@ class Backtester(TradeMixin):
 
         return [
             code
-            for code, *indicators in df[strategy.close_indicators].itertuples(name=None)
+            for code, *indicators in df[strategy.sell_indicators].itertuples(name=None)
             if (code in curr_positions) and strategy.should_sell(*indicators)
         ]
 
@@ -190,11 +190,9 @@ class Backtester(TradeMixin):
         if not buys_df.empty:
             free_cash = self.account.free_cash_amount
             budget = free_cash - self.account.get_broker_commission_fee(free_cash)
-
             buys_df, budget = strategy.adjust_portfolio_and_budget(
                 port_df=buys_df,
                 budget=budget,
-                n_stocks=len(bars_df),
                 total_asset_value=self.account.total_asset_value,
             )
 
@@ -301,7 +299,6 @@ class Backtester(TradeMixin):
                     _buys_df, budget = strategy.adjust_portfolio_and_budget(
                         port_df=_buys_df,
                         budget=budget,
-                        n_stocks=len(day_df),
                         total_asset_value=self.account.total_asset_value,
                     )
 

@@ -165,12 +165,12 @@ class TradingEngine(TradeMixin):
         )
 
     def _get_close_codes(self, ind_df: pd.DataFrame) -> list[str]:
-        if not self.strategy.close_indicators:
+        if not self.strategy.sell_indicators:
             return []
 
         return [
             code
-            for code, *indicators in ind_df[self.strategy.close_indicators].itertuples(
+            for code, *indicators in ind_df[self.strategy.sell_indicators].itertuples(
                 name=None
             )
             if self.strategy.should_sell(*indicators)
@@ -296,7 +296,6 @@ class TradingEngine(TradeMixin):
                 port_df,
                 budget=self.account.free_cash_amount,
                 total_asset_value=self.account.total_asset_value,
-                n_stocks=len(ind_df),
                 max_position_opens=avail_opens_count,
             )
 

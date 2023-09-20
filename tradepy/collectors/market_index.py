@@ -13,7 +13,7 @@ class EastMoneySectorIndexCollector(DataCollector):
                 "name": name,
             }
 
-    def run(self, start_date="2000-01-01", batch_size: int = 20, write_file=True):
+    def run(self, start_date="2000-01-01", batch_size: int = 10, write_file=True):
         LOG.info("=============== 开始更新行业指数 ===============")
         LOG.info("下载东财行业列表")
         listing_df = tradepy.ak_api.get_sectors_listing()

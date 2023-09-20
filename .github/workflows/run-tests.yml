@@ -17,5 +17,4 @@ jobs:
     - name: Run Pytest
       run: |
         poetry install --with=main,test
-        poetry run coverage run -m pytest
-        poetry run coverage report
+        poetry run pytest --cov
