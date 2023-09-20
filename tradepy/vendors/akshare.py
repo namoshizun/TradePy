@@ -93,6 +93,7 @@ class AkShareClient:
         df["timestamp"] = df["timestamp"].dt.date.astype(str)
         return df
 
+    @retry()
     def get_a_stocks_list(self) -> pd.DataFrame:
         all_df = ak.stock_info_a_code_name().set_index("code")
         A_board = [

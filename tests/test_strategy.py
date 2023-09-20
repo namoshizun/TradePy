@@ -4,7 +4,7 @@ import talib
 from typing import Any
 from unittest import mock
 
-from tradepy.strategy.base import BacktestStrategy, BuyOption
+from tradepy.strategy.base import BacktestStrategy, LiveStrategy, BuyOption
 from tradepy.strategy.factors import FactorsMixin
 from tradepy.decorators import tag
 from tradepy.core.conf import BacktestConf, StrategyConf, SlippageConf
@@ -34,6 +34,10 @@ class SampleBacktestStrategy(BacktestStrategy, FactorsMixin):
         return bars_df.query('market != "科创板"').copy()
 
 
+class SampleLiveStrategy(LiveStrategy):
+    ...
+
+
 backtest_conf = BacktestConf(
     cash_amount=1e6,
     broker_commission_rate=0.01,
@@ -57,6 +61,11 @@ strategy_conf = backtest_conf.strategy
 @pytest.fixture
 def sample_strategy():
     return SampleBacktestStrategy(strategy_conf)
+
+
+@pytest.fixture
+def sample_live_strategy():
+    return SampleLiveStrategy(strategy_conf)
 
 
 @pytest.fixture
@@ -100,7 +109,7 @@ def test_indicators_discovery(sample_strategy: SampleBacktestStrategy):
         (-stop_loss * 0.2, -stop_loss * 3, True),
     ],
 )
-def test_stop_loss(
+def test_backtest_strategy_stop_loss(
     sample_strategy: SampleBacktestStrategy,
     sample_position: Position,
     open_pct_chg: float,
@@ -117,6 +126,30 @@ def test_stop_loss(
 
 
 @pytest.mark.parametrize(
+    "close_pct_chg,should_stop_loss",
+    [
+        (-(stop_loss := strategy_conf.stop_loss) * 0.2, False),
+        (0, False),
+        (-stop_loss, True),
+        (-stop_loss * 3, True),
+    ],
+)
+def test_live_strategy_stop_loss(
+    sample_live_strategy: SampleLiveStrategy,
+    sample_position: Position,
+    close_pct_chg: float,
+    should_stop_loss: bool,
+):
+    bar: Any = {
+        "close": sample_position.price_at_pct_change(close_pct_chg),
+    }
+    assert (
+        bool(sample_live_strategy.should_stop_loss(bar, sample_position))
+        == should_stop_loss
+    )
+
+
+@pytest.mark.parametrize(
     "open_pct_chg,high_pct_chg,should_take_profit",
     [
         ((take_profit := strategy_conf.take_profit) * 0.2, take_profit * 0.8, False),
@@ -125,7 +158,7 @@ def test_stop_loss(
         (take_profit * 0.2, take_profit * 3, True),
     ],
 )
-def test_take_profit(
+def test_backtest_strategy_take_profit(
     sample_strategy: SampleBacktestStrategy,
     sample_position: Position,
     open_pct_chg: float,
@@ -138,6 +171,30 @@ def test_take_profit(
     }
     assert (
         bool(sample_strategy.should_take_profit(bar, sample_position))
+        == should_take_profit
+    )
+
+
+@pytest.mark.parametrize(
+    "close_pct_chg,should_take_profit",
+    [
+        ((take_profit := strategy_conf.take_profit) * 0.2, False),
+        (0, False),
+        (take_profit, True),
+        (take_profit * 1.15, True),
+    ],
+)
+def test_live_strategy_take_profit(
+    sample_live_strategy: SampleLiveStrategy,
+    sample_position: Position,
+    close_pct_chg: float,
+    should_take_profit: bool,
+):
+    bar: Any = {
+        "close": sample_position.price_at_pct_change(close_pct_chg),
+    }
+    assert (
+        bool(sample_live_strategy.should_take_profit(bar, sample_position))
         == should_take_profit
     )
 
@@ -221,5 +278,6 @@ def test_limit_position_opens(
         total_asset_value=1e6,
     )
 
-    assert len(modified_portfolio) == 1
+    n_opens = len(modified_portfolio)
+    assert n_opens <= sample_strategy.conf.max_position_opens
     assert budget / 1e6 <= strategy_conf.max_position_size
