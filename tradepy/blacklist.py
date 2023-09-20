@@ -1,9 +1,11 @@
-from pathlib import Path
-import tempfile
+import re
 from datetime import date
 from dataclasses import dataclass
 import pandas as pd
 import tradepy
+
+
+DATE_REGEX = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
 
 @dataclass
@@ -30,8 +32,11 @@ class Blacklist:
         if not path.exists():
             return set()
 
-        df = pd.read_csv(path, index_col=None, dtype=str)
-        cls.cached = set(BlacklistStock(code, until) for code, until in df.values)
+        try:
+            df = pd.read_csv(path, index_col=None, dtype=str)
+            cls.cached = set(BlacklistStock(code, until) for code, until in df.values)
+        except pd.errors.EmptyDataError:
+            cls.cached = set()
 
         return cls.cached
 
@@ -44,25 +49,17 @@ class Blacklist:
         try:
             stock = next(stock for stock in stocks if stock.code == code)
 
-            if not stock.until:
+            if not stock.until or pd.isna(stock.until):
                 return True
 
             timestamp = timestamp or str(date.today())
+            if not DATE_REGEX.match(timestamp):
+                raise ValueError(f"无效的日期: {timestamp}")
+
             return timestamp <= stock.until
         except StopIteration:
             return False
 
-
-if __name__ == "__main__":
-    # Create a tempfile, write some black listed stock code and until-date into it, then test the function
-    with tempfile.NamedTemporaryFile("w") as f:
-        stocks = pd.DataFrame(
-            {"code": ["000001", "000002"], "until": ["2021-01-01", "2030-01-02"]}
-        ).set_index("code")
-        stocks.to_csv(f.name)
-        tradepy.config.common.blacklist_path = Path(f.name)
-
-        assert Blacklist.contains("000001", stocks.loc["000001", "until"])
-        assert not Blacklist.contains("000001", "2030-01-01")
-        assert Blacklist.contains("000002")
-        assert not Blacklist.contains("11111")
+    @classmethod
+    def purge_cache(cls):
+        cls.cached = None

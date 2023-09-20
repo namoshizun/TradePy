@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 load_dotenv()
 ModeType = Literal["backtest", "paper-trading", "live-trading"]
+SL_TP_Order = Literal["stop loss first", "take profit first", "random"]
 
 
 # ----
@@ -255,7 +256,7 @@ class BacktestConf(ConfBase):
     stamp_duty_rate: float = Field(0.1, description="印花税率%, 千分之一是0.1")
     use_minute_k: bool = Field(False, description="是否使用分钟级K线进行回测")
     strategy: StrategyConf
-    sl_tf_order: Literal["stop loss first", "take profit first", "random"] = Field(
+    sl_tf_order: SL_TP_Order = Field(
         "stop loss first", description="止盈止损单的触发顺序, random 表示随机选择"
     )
 
@@ -336,7 +337,8 @@ class CommonConf(ConfBase):
         if value is None:
             return value
         p = Path(value)
-        assert p.exists(), f"黑名单文件不存在: {p}"
+        if not p.exists():
+            raise FileNotFoundError(f"黑名单文件不存在: {p}")
         return p
 
     @field_validator("database_dir", mode="before")

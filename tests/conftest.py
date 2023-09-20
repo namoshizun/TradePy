@@ -1,5 +1,7 @@
 import pytest
 import tempfile
+import talib
+import pandas as pd
 from pathlib import Path
 from loguru import logger
 
@@ -14,6 +16,9 @@ from tradepy.core.conf import (
 )
 from tradepy.depot.stocks import StockListingDepot, StocksDailyBarsDepot
 from tradepy.depot.misc import AdjustFactorDepot
+from tradepy.strategy.base import BacktestStrategy, BuyOption
+from tradepy.strategy.factors import FactorsMixin
+from tradepy.decorators import tag
 from .fixtures_data.load import load_dataset
 
 
@@ -74,3 +79,26 @@ def local_stocks_day_k_df():
 @pytest.fixture
 def local_adjust_factors_df():
     return AdjustFactorDepot.load()
+
+
+class SampleBacktestStrategy(BacktestStrategy, FactorsMixin):
+    @tag(notna=True)
+    def vol_ref1(self, vol):
+        return vol.shift(1)
+
+    @tag(notna=True, outputs=["boll_upper", "boll_middle", "boll_lower"])
+    def boll_21(self, close):
+        return talib.BBANDS(close, 21, 2, 2)
+
+    def should_buy(self, sma5, boll_lower, close, vol, vol_ref1) -> BuyOption | None:
+        if close <= boll_lower:
+            return close, 1
+
+        if close >= sma5 and vol > vol_ref1:
+            return close, 1
+
+    def should_sell(self, close, boll_upper) -> bool:
+        return close >= boll_upper
+
+    def pre_process(self, bars_df: pd.DataFrame) -> pd.DataFrame:
+        return bars_df.query('market != "科创板"').copy()
