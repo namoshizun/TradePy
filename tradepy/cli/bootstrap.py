@@ -143,7 +143,7 @@ class ConfigInitializer:
                 conf["schedules"] = self._get_schedules_conf()
         # Write the config file
         with open(self.conf_file, "w") as f:
-            yaml.dump(conf, f)
+            yaml.dump(conf, f, allow_unicode=True)
         return self.conf_file
 
     def _get_common_conf(self) -> dict:
