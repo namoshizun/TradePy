@@ -216,8 +216,8 @@ def main():
     if initializer.is_trading_mode:
         if not is_broker:
             print("🚨 策略端的TradePy配置文件内，还需要手动填入您的交易策略的配置项")
-        tradepy.config = TradePyConf.load_from_config_file()
-        initializer.fetch_prerequisite_dataset()
+            tradepy.config = TradePyConf.load_from_config_file()
+            initializer.fetch_prerequisite_dataset()
 
 
 if __name__ == "__main__":

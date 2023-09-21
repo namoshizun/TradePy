@@ -158,7 +158,6 @@ class StrategyBase(Generic[BarDataType]):
         max_position_opens: int | None = None,
         max_position_size: float | None = None,
     ) -> tuple[pd.DataFrame, float]:
-        # Reject this bar if signal ratio is abnormal
         if max_position_opens is None:
             max_position_opens = self.max_position_opens
 
