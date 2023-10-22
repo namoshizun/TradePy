@@ -5,20 +5,20 @@ import pandas as pd
 from functools import cache, cached_property
 from itertools import chain
 from collections import defaultdict
-from typing import TypedDict, Generic, TypeVar
+from typing import TypedDict
 from tqdm import tqdm
 
 import tradepy
-from tradepy import LOG
 from tradepy.core.conf import BacktestConf, StrategyConf
+from tradepy import LOG
 from tradepy.depot.misc import AdjustFactorDepot
 from tradepy.trade_book import TradeBook
 from tradepy.core.order import Order
 from tradepy.core.position import Position
-from tradepy.utils import calc_pct_chg
 from tradepy.core import Indicator, IndicatorSet
 from tradepy.core.adjust_factors import AdjustFactors
 from tradepy.core.budget_allocator import evenly_distribute
+from tradepy.utils import calc_pct_chg
 
 
 class BarData(TypedDict):
@@ -32,9 +32,6 @@ class BarData(TypedDict):
 
     chg: float | None
     pct_chg: float | None
-
-
-BarDataType = TypeVar("BarDataType", bound=BarData)
 
 
 Price = float
@@ -68,7 +65,7 @@ class IndicatorsRegistry:
         return str(self)
 
 
-class StrategyBase(Generic[BarDataType]):
+class StrategyBase:
     indicators_registry: IndicatorsRegistry = IndicatorsRegistry()
 
     def __init__(self, conf: StrategyConf) -> None:
@@ -133,13 +130,13 @@ class StrategyBase(Generic[BarDataType]):
 
     @abc.abstractmethod
     def should_stop_loss(
-        self, tick: BarDataType, position: Position, *indicators
+        self, bar: BarData, position: Position, *indicators
     ) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
     def should_take_profit(
-        self, tick: BarDataType, position: Position, *indicators
+        self, bar: BarData, position: Position, *indicators
     ) -> float | None:
         raise NotImplementedError
 
@@ -290,7 +287,7 @@ class StrategyBase(Generic[BarDataType]):
         )
 
 
-class BacktestStrategy(StrategyBase[BarData]):
+class BacktestStrategy(StrategyBase):
     def should_stop_loss(self, bar: BarData, position: Position) -> float | None:
         # During opening
         open_pct_chg = calc_pct_chg(position.price, bar["open"])
@@ -324,13 +321,13 @@ class BacktestStrategy(StrategyBase[BarData]):
         return bt.run(bars_df.copy(), instance)
 
 
-class LiveStrategy(StrategyBase[BarDataType]):
-    def should_stop_loss(self, bar: BarDataType, position: Position) -> float | None:
+class LiveStrategy(StrategyBase):
+    def should_stop_loss(self, bar: BarData, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg <= -self.stop_loss:
             return bar["close"]
 
-    def should_take_profit(self, bar: BarDataType, position: Position) -> float | None:
+    def should_take_profit(self, bar: BarData, position: Position) -> float | None:
         pct_chg = calc_pct_chg(position.price, bar["close"])
         if pct_chg >= self.take_profit:
             return bar["close"]

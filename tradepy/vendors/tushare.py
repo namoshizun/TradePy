@@ -13,7 +13,9 @@ from tradepy.conversion import (
 
 ts_api = ts.pro_api(
     os.environ.get(
-        "TUSHARE_TOKEN", "2e8200f738bd44a70ca308b95ae1708b6bac03abd37e16534b9418ae"
+        "TUSHARE_TOKEN",
+        "2e8200f738bd44a70ca308b95ae1708b6bac03abd37e16534b9418ae"
+        # Just chill.. it is a free token
     )
 )
 

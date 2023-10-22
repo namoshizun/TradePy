@@ -124,8 +124,8 @@ _default_slippage_conf = lambda: SlippageConf(method="max_pct", params=0.02)
 
 
 class StrategyConf(ConfBase):
-    strategy_class: str | None = Field(
-        None, description="策略类名, 如: my_strategy.SampleStrategy"
+    strategy_class: Any = Field(
+        None, description='策略类，或是策略类的module导入路径, e.g., "my_strategy.SampleStrategy"'
     )
     stop_loss: float = Field(0, description="静态止损百分比， 如果不需要静态止盈止损， 可设置为一个任意大数")
     take_profit: float = Field(0, description="静态止盈百分比")
@@ -146,6 +146,24 @@ class StrategyConf(ConfBase):
 
     def __getattr__(self, name: str):
         return getitem(self.custom_params, name)
+
+    @field_validator("strategy_class")
+    def validate_strategy_class(cls, value):
+        from tradepy.strategy.base import StrategyBase
+
+        if value is None:
+            return value
+
+        if isinstance(value, str):
+            try:
+                import_class(value)
+            except (AttributeError, ImportError):
+                raise ValueError(f"策略类加载失败, 请检查配置中的strategy_class字段, 确保策略类可加载")
+
+        elif not issubclass(value, StrategyBase):
+            raise ValueError("策略类必须是StrategyBase的子类")
+
+        return value
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
@@ -172,8 +190,15 @@ class StrategyConf(ConfBase):
         return kls(self)
 
     def load_strategy_class(self) -> Type["StrategyBase"]:
-        assert self.strategy_class
-        return import_class(self.strategy_class)
+        assert (kls_repr := self.strategy_class)
+
+        if isinstance(kls_repr, str):
+            if "." in kls_repr:
+                return import_class(kls_repr)
+            else:
+                return eval(kls_repr)
+
+        return kls_repr
 
 
 class TradingConf(ConfBase):

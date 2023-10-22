@@ -1,10 +1,12 @@
 import os
 import logging
 import logging.handlers
+from typing import TYPE_CHECKING
 from colorlog import ColoredFormatter
 
-from tradepy.core.order import Order
-from tradepy.core.position import Position
+if TYPE_CHECKING:
+    from tradepy.core.order import Order
+    from tradepy.core.position import Position
 
 
 LOG_DIR = os.path.expanduser("~/.tradepy/logs")
@@ -24,10 +26,10 @@ class TradePyLogger:
         self.error = logger.error
         self.exception = logger.exception
 
-    def log_orders(self, orders: list[Order]):
+    def log_orders(self, orders: list["Order"]):
         self.info("\n" + "\n".join([str(o) for o in orders]))
 
-    def log_positions(self, positions: list[Position]):
+    def log_positions(self, positions: list["Position"]):
         self.info("\n" + "\n".join([str(p) for p in positions]))
 
 

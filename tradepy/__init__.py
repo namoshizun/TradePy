@@ -5,6 +5,8 @@ from tqdm import tqdm
 from tradepy.stocks import StocksPool
 from tradepy.vendors import akshare, tushare
 from tradepy.core.conf import TradePyConf
+from tradepy.hacks import inject_hacks
+from tradepy.logging import LOG  # noqa
 
 
 def is_bootstrapping():
@@ -37,4 +39,4 @@ except FileNotFoundError:
 
 listing: StocksPool = StocksPool()
 
-from tradepy.logging import LOG  # noqa
+inject_hacks()
