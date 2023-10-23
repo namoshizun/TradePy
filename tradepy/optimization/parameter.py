@@ -11,5 +11,5 @@ class Parameter:
 
 @dataclass
 class ParameterGroup:
-    name: tuple[str]
-    choices: tuple[tuple[Number, ...]]
+    name: tuple[str, ...]
+    choices: tuple[tuple[Number, ...], ...]
