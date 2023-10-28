@@ -125,7 +125,9 @@ _default_slippage_conf = lambda: SlippageConf(method="max_pct", params=0.02)
 
 class StrategyConf(ConfBase):
     strategy_class: Any = Field(
-        None, description='策略类，或是策略类的module导入路径, e.g., "my_strategy.SampleStrategy"'
+        None,
+        description='策略类的module导入路径, 比如"my_strategy.SampleStrategy"。'
+        "也可是策略类本身，但是在Jupyter Notebook中不能直接传入策略类",
     )
     stop_loss: float = Field(0, description="静态止损百分比， 如果不需要静态止盈止损， 可设置为一个任意大数")
     take_profit: float = Field(0, description="静态止盈百分比")
@@ -384,15 +386,36 @@ class TradePyConf(ConfBase):
         None, description="微信通知配置，用于推送异常状态，未完成"
     )
 
+    @staticmethod
+    def get_default_config_file_path() -> Path:
+        return Path.home() / ".tradepy" / "config.yaml"
+
     @classmethod
     def load_from_config_file(cls) -> "TradePyConf":
-        if config_file_path := os.environ.get("TRADEPY_CONFIG_FILE"):
-            config_file_path = Path(config_file_path)
+        if _config_file_path := os.environ.get("TRADEPY_CONFIG_FILE"):
+            config_file_path = Path(_config_file_path)
         else:
-            default_path = os.path.expanduser("~/.tradepy/config.yaml")
-            config_file_path = Path(default_path)
+            config_file_path = cls.get_default_config_file_path()
 
-        return cls.from_file(config_file_path)
+        conf = cls.from_file(config_file_path)
+        assert conf
+        return conf
+
+    def save_to_config_file(self, path: str | Path | None = None):
+        if path is None:
+            path = self.get_default_config_file_path()
+
+        elif isinstance(path, str):
+            path = Path(path)
+
+        with path.open("w") as f:
+            conf_dict = self.model_dump()
+            with suppress(KeyError):
+                # Ad-hoc converting `database_path` to str
+                conf_dict["common"]["database_dir"] = str(
+                    conf_dict["common"]["database_dir"]
+                )
+            yaml.safe_dump(conf_dict, f, allow_unicode=True)
 
     @model_validator(mode="after")
     def check_settings(self):

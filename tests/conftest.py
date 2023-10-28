@@ -1,3 +1,4 @@
+import os
 import pytest
 import tempfile
 import talib
@@ -29,11 +30,12 @@ def init_tradepy_config():
         return
 
     working_dir = tempfile.TemporaryDirectory()
+    working_dir_path = Path(working_dir.name)
     logger.info(f"Initializing tradepy config... Temporary database dir: {working_dir}")
     tradepy.config = TradePyConf(
         common=CommonConf(
             mode="backtest",
-            database_dir=Path(working_dir.name),
+            database_dir=working_dir_path,
             trade_lot_vol=100,
             blacklist_path=None,
             redis=None,
@@ -51,7 +53,13 @@ def init_tradepy_config():
         schedules=SchedulesConf(),  # type: ignore
         notifications=None,
     )
+
+    tradepy.config.save_to_config_file(
+        temp_config_path := working_dir_path / "config.yaml"
+    )
+    os.environ["TRADEPY_CONFIG_FILE"] = str(temp_config_path)
     yield tradepy.config
+    os.environ.pop("TRADEPY_CONFIG_FILE")
     working_dir.cleanup()
 
 

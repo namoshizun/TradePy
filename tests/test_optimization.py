@@ -3,6 +3,7 @@ import itertools
 import pytest
 import pandas as pd
 from tradepy.core.conf import BacktestConf, OptimizationConf, SlippageConf, StrategyConf
+from tradepy.optimization.schedulers import OptimizationScheduler, _make_parameter
 from tradepy.strategy.base import BacktestStrategy, BuyOption
 from tradepy.strategy.factors import FactorsMixin
 from tradepy.decorators import tag
@@ -26,11 +27,7 @@ class MovingAverageCrossoverStrategy(BacktestStrategy, FactorsMixin):
         ema10_ref1,
         sma30_ref1,
         close,
-        company,
     ) -> BuyOption | None:
-        if "ST" in company:
-            return
-
         if orig_open < self.min_stock_price:
             return
 
@@ -46,24 +43,24 @@ class MovingAverageCrossoverStrategy(BacktestStrategy, FactorsMixin):
 
 
 @pytest.fixture
-def parameters() -> list[Parameter | ParameterGroup]:
+def parameters_search_ranges():
     return [
-        Parameter("min_stop_price", (3,)),
-        Parameter("min_volatility", (2,)),
-        ParameterGroup(
-            ("stop_loss", "take_profit"),
-            (
+        {"name": "min_stock_price", "range": [3]},
+        {"name": "min_volatility", "range": [2]},
+        {
+            "name": ("stop_loss", "take_profit"),
+            "range": [
                 (1.8, 4),
                 (10, 20),
-            ),
-        ),
+            ],
+        },
     ]
 
 
 @pytest.fixture
 def optimization_conf() -> OptimizationConf:
     return OptimizationConf(
-        repetition=1,
+        repetition=3,
         backtest=BacktestConf(
             cash_amount=1e6,
             broker_commission_rate=0.01,
@@ -80,23 +77,51 @@ def optimization_conf() -> OptimizationConf:
     )
 
 
-def test_grid_search_parameter_generation(parameters):
+def __get_param_names(params: list[Parameter | ParameterGroup]):
+    return list(
+        itertools.chain.from_iterable(
+            [param.name] if isinstance(param.name, str) else param.name
+            for param in params
+        )
+    )
+
+
+def test_grid_search_parameter_generation(parameters_search_ranges):
+    parameters = [
+        _make_parameter(p["name"], p["range"]) for p in parameters_search_ranges
+    ]
     optimizer = GridSearch(parameters)
 
     # Check that the batches cover all the parameter combinations.
     batches = list(optimizer.generate_parameters_batch())
-    assert len(batches) == math.prod(len(param.choices) for param in parameters)
+    assert len(batches[0]) == math.prod(len(param.choices) for param in parameters)
 
     # Check that each batch contains all the parameters.
-    param_names = itertools.chain.from_iterable(
-        [param.name] if isinstance(param.name, str) else param.name
-        for param in parameters
-    )
-    for batch in batches:
-        assert all(param in batch for param in param_names)
+    param_names = __get_param_names(parameters)
+    for param_values in batches[0]:
+        assert all(param in param_values for param in param_names)
 
 
 def test_optimization_scheduler(
-    parameters, optimization_conf: OptimizationConf, local_stocks_day_k_df: pd.DataFrame
+    parameters_search_ranges,
+    optimization_conf: OptimizationConf,
+    local_stocks_day_k_df: pd.DataFrame,
 ):
-    ...
+    scheduler = OptimizationScheduler(optimization_conf, parameters_search_ranges)
+    result = scheduler.run(data_df=local_stocks_day_k_df)
+    optimizer = GridSearch(scheduler.parameters)
+    batches = list(optimizer.generate_parameters_batch())
+
+    # Check the total number of runs executed
+    tasks_df = result.tasks_df
+    n_runs = len(tasks_df)
+    n_param_groups = len(batches[0])
+    param_names = __get_param_names(scheduler.parameters)
+
+    assert n_runs == n_param_groups * optimization_conf.repetition
+    assert tasks_df["repetition"].max() == optimization_conf.repetition
+    assert set(param_names).issubset(set(tasks_df.columns))
+
+    # Check the metrics result
+    metrics_df = result.get_total_metrics()
+    assert sorted(param_names) == sorted(metrics_df.index.names)
