@@ -1,5 +1,7 @@
 import sys
 import random
+import importlib.metadata
+import tomllib
 from loguru import logger
 from tqdm import tqdm
 
@@ -8,6 +10,14 @@ from tradepy.vendors import akshare, tushare
 from tradepy.core.conf import TradePyConf
 from tradepy.hacks import inject_hacks
 from tradepy.logging import LOG  # noqa
+
+
+try:
+    with open("pyproject.toml", "rb") as f:
+        pyproject = tomllib.load(f)
+    __version__ = pyproject["tool"]["poetry"]["version"]
+except FileNotFoundError as e:
+    __version__ = importlib.metadata.version("tradepy")
 
 
 def is_bootstrapping():

@@ -22,7 +22,9 @@ copyright = "2023, Di Lu"
 author = "Di Lu"
 
 # The full version, including alpha/beta/rc tags
-release = "v0.1.0"
+from tradepy import __version__
+
+release = f"v{__version__}"
 
 
 # -- General configuration ---------------------------------------------------
