@@ -397,9 +397,7 @@ class TradePyConf(ConfBase):
         else:
             config_file_path = cls.get_default_config_file_path()
 
-        conf = cls.from_file(config_file_path)
-        assert conf
-        return conf
+        return cls.from_file(config_file_path)
 
     def save_to_config_file(self, path: str | Path | None = None):
         if path is None:
