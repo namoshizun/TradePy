@@ -15,6 +15,7 @@ from tradepy.optimization.parameter import Parameter, ParameterGroup
 from tradepy.optimization.result import OptimizationResult
 from tradepy.optimization.types import Number, TaskRequest, TaskResult
 from tradepy.optimization.worker import Worker
+from tradepy.strategy.base import StrategyBase
 from tradepy.utils import optimize_dtype_memory
 
 
@@ -70,16 +71,19 @@ class TaskScheduler(Generic[ConfType]):
         batch_id: str,
         param_values: dict[str, Number] | None = None,
     ) -> TaskRequest:
-        backtest_conf: BacktestConf = self.conf.backtest.copy()
+        backtest_conf: BacktestConf = self.conf.backtest.model_copy(deep=True)
         if param_values:
             backtest_conf.strategy.update(**param_values)
+
+        if issubclass(kls := backtest_conf.strategy.strategy_class, StrategyBase):
+            backtest_conf.strategy.strategy_class = f"{kls.__module__}.{kls.__name__}"
 
         return {
             "id": get_random_id(),
             "repetition": repetition,
             "batch_id": batch_id,
             "dataset_path": str(self.conf.dataset_path),
-            "backtest_conf": backtest_conf.dict(),
+            "backtest_conf": backtest_conf.model_dump(),
         }
 
     def update_tasks_log(self, batch_df: pd.DataFrame):
@@ -157,8 +161,7 @@ class TaskScheduler(Generic[ConfType]):
             )
             return self._run(repetitions, dask_client)
         except Exception as exc:
-            # logger.exception(exc)
-            ...
+            logger.exception(exc)
         finally:
             dask_client.close()
             logger.info("关闭Dask集群")

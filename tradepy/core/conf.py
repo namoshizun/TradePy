@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 load_dotenv()
 ModeType = Literal["backtest", "paper-trading", "live-trading"]
+SL_TP_Order = Literal["stop loss first", "take profit first", "random"]
 
 
 # ----
@@ -123,8 +124,10 @@ _default_slippage_conf = lambda: SlippageConf(method="max_pct", params=0.02)
 
 
 class StrategyConf(ConfBase):
-    strategy_class: str | None = Field(
-        None, description="策略类名, 如: my_strategy.SampleStrategy"
+    strategy_class: Any = Field(
+        None,
+        description='策略类的module导入路径, 比如"my_strategy.SampleStrategy"。'
+        "也可是策略类本身，但是在Jupyter Notebook中不能直接传入策略类",
     )
     stop_loss: float = Field(0, description="静态止损百分比， 如果不需要静态止盈止损， 可设置为一个任意大数")
     take_profit: float = Field(0, description="静态止盈百分比")
@@ -145,6 +148,24 @@ class StrategyConf(ConfBase):
 
     def __getattr__(self, name: str):
         return getitem(self.custom_params, name)
+
+    @field_validator("strategy_class")
+    def validate_strategy_class(cls, value):
+        from tradepy.strategy.base import StrategyBase
+
+        if value is None:
+            return value
+
+        if isinstance(value, str):
+            try:
+                import_class(value)
+            except (AttributeError, ImportError):
+                raise ValueError(f"策略类加载失败, 请检查配置中的strategy_class字段, 确保策略类可加载")
+
+        elif not issubclass(value, StrategyBase):
+            raise ValueError("策略类必须是StrategyBase的子类")
+
+        return value
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
@@ -171,8 +192,15 @@ class StrategyConf(ConfBase):
         return kls(self)
 
     def load_strategy_class(self) -> Type["StrategyBase"]:
-        assert self.strategy_class
-        return import_class(self.strategy_class)
+        assert (kls_repr := self.strategy_class)
+
+        if isinstance(kls_repr, str):
+            if "." in kls_repr:
+                return import_class(kls_repr)
+            else:
+                return eval(kls_repr)
+
+        return kls_repr
 
 
 class TradingConf(ConfBase):
@@ -255,7 +283,7 @@ class BacktestConf(ConfBase):
     stamp_duty_rate: float = Field(0.1, description="印花税率%, 千分之一是0.1")
     use_minute_k: bool = Field(False, description="是否使用分钟级K线进行回测")
     strategy: StrategyConf
-    sl_tf_order: Literal["stop loss first", "take profit first", "random"] = Field(
+    sl_tf_order: SL_TP_Order = Field(
         "stop loss first", description="止盈止损单的触发顺序, random 表示随机选择"
     )
 
@@ -336,7 +364,8 @@ class CommonConf(ConfBase):
         if value is None:
             return value
         p = Path(value)
-        assert p.exists(), f"黑名单文件不存在: {p}"
+        if not p.exists():
+            raise FileNotFoundError(f"黑名单文件不存在: {p}")
         return p
 
     @field_validator("database_dir", mode="before")
@@ -357,15 +386,36 @@ class TradePyConf(ConfBase):
         None, description="微信通知配置，用于推送异常状态，未完成"
     )
 
+    @staticmethod
+    def get_default_config_file_path() -> Path:
+        return Path.home() / ".tradepy" / "config.yaml"
+
     @classmethod
     def load_from_config_file(cls) -> "TradePyConf":
-        if config_file_path := os.environ.get("TRADEPY_CONFIG_FILE"):
-            config_file_path = Path(config_file_path)
+        if _config_file_path := os.environ.get("TRADEPY_CONFIG_FILE"):
+            config_file_path = Path(_config_file_path)
         else:
-            default_path = os.path.expanduser("~/.tradepy/config.yaml")
-            config_file_path = Path(default_path)
+            config_file_path = cls.get_default_config_file_path()
 
-        return cls.from_file(config_file_path)
+        conf = cls.from_file(config_file_path)
+        assert conf
+        return conf
+
+    def save_to_config_file(self, path: str | Path | None = None):
+        if path is None:
+            path = self.get_default_config_file_path()
+
+        elif isinstance(path, str):
+            path = Path(path)
+
+        with path.open("w") as f:
+            conf_dict = self.model_dump()
+            with suppress(KeyError):
+                # Ad-hoc converting `database_path` to str
+                conf_dict["common"]["database_dir"] = str(
+                    conf_dict["common"]["database_dir"]
+                )
+            yaml.safe_dump(conf_dict, f, allow_unicode=True)
 
     @model_validator(mode="after")
     def check_settings(self):

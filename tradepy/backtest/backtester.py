@@ -73,20 +73,15 @@ class Backtester(TradeMixin):
 
     def get_buy_options(
         self,
-        bars_df: pd.DataFrame,
+        df: pd.DataFrame,
         strategy: "StrategyBase",
     ) -> pd.DataFrame:
         holding_codes = self.account.holdings.position_codes
-        jitter_price = lambda p: p * random.uniform(
-            1 - 1e-4 * 3, 1 + 1e-4 * 3
-        )  # 0.03% slip
 
         # Looks ugly but it's fast...
         codes_and_prices = [
-            (code, jitter_price(price_and_weight[0]), price_and_weight[1])
-            for code, *indicators in bars_df[strategy.buy_indicators].itertuples(
-                name=None
-            )
+            (code, price_and_weight[0], price_and_weight[1])
+            for code, *indicators in df[strategy.buy_indicators].itertuples(name=None)
             if (code not in holding_codes)
             and (not Blacklist.contains(code))
             and (price_and_weight := strategy.should_buy(*indicators))

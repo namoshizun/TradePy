@@ -1,3 +1,4 @@
+import itertools
 import random
 import pickle
 import quantstats as qs
@@ -197,10 +198,17 @@ class OptimizationResult(BacktestRunsResult):
         self.parameters = parameters
         super().__init__(workspace_dir)
 
+    def __get_param_names(self, params: list[Parameter | ParameterGroup]):
+        return list(
+            itertools.chain.from_iterable(
+                [param.name] if isinstance(param.name, str) else param.name
+                for param in params
+            )
+        )
+
     @cache
     def get_total_metrics(self) -> pd.DataFrame:
-        as_iterable = lambda x: x if isinstance(x, (list, tuple)) else [x]
-        param_names = [name for p in self.parameters for name in as_iterable(p.name)]
+        param_names = self.__get_param_names(self.parameters)
         core_metrics = {
             "total_returns": "收益率",
             "win_rate": "胜率",

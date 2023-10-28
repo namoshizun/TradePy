@@ -1,14 +1,13 @@
 import abc
 from typing import Generator
-from dataclasses import dataclass
 
 from tradepy.optimization.types import ParameterValuesBatch, TaskResult
 from tradepy.optimization.parameter import Parameter, ParameterGroup
 
 
-@dataclass
 class ParameterOptimizer:
-    parameters: list[Parameter | ParameterGroup]
+    def __init__(self, parameters: list[Parameter | ParameterGroup]):
+        self.parameters = parameters
 
     @abc.abstractmethod
     def generate_parameters_batch(self) -> Generator[ParameterValuesBatch, None, None]:

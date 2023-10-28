@@ -1,37 +1,12 @@
 import pandas as pd
 import pytest
-import talib
 from typing import Any
 from unittest import mock
 
-from tradepy.strategy.base import BacktestStrategy, LiveStrategy, BuyOption
-from tradepy.strategy.factors import FactorsMixin
-from tradepy.decorators import tag
+from tradepy.strategy.base import LiveStrategy
 from tradepy.core.conf import BacktestConf, StrategyConf, SlippageConf
 from tradepy.core.position import Position
-
-
-class SampleBacktestStrategy(BacktestStrategy, FactorsMixin):
-    @tag(notna=True)
-    def vol_ref1(self, vol):
-        return vol.shift(1)
-
-    @tag(notna=True, outputs=["boll_upper", "boll_middle", "boll_lower"])
-    def boll_21(self, close):
-        return talib.BBANDS(close, 21, 2, 2)
-
-    def should_buy(self, sma5, boll_lower, close, vol, vol_ref1) -> BuyOption | None:
-        if close <= boll_lower:
-            return close, 1
-
-        if close >= sma5 and vol > vol_ref1:
-            return close, 1
-
-    def should_sell(self, close, boll_upper) -> bool:
-        return close >= boll_upper
-
-    def pre_process(self, bars_df: pd.DataFrame) -> pd.DataFrame:
-        return bars_df.query('market != "科创板"').copy()
+from .conftest import SampleBacktestStrategy
 
 
 class SampleLiveStrategy(LiveStrategy):
