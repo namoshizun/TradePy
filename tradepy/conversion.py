@@ -281,11 +281,25 @@ def convert_stock_ask_bid_df(
     df: pd.DataFrame,
 ) -> AskBid:
     df.set_index("item", inplace=True)
-    result = {"buy": [], "sell": []}
+    result = {"buy": [], "sell": [], "buy_vol": [], "sell_vol": []}
 
     for i in range(1, 6):
-        result["sell"].append(df.loc[f"sell_{i}", "value"])
-        result["buy"].append(df.loc[f"buy_{i}", "value"])
+        for direction in ["buy", "sell"]:
+            price = df.loc[f"{direction}_{i}", "value"]
+            vol = df.loc[f"{direction}_{i}_vol", "value"]
+
+            try:
+                price = float(price)
+            except ValueError:
+                price = None
+
+            try:
+                vol = round(int(vol) * 1e-2, 2)
+            except ValueError:
+                vol = None
+
+            result[direction].append(price)
+            result[f"{direction}_vol"].append(vol)
     return result  # type: ignore
 
 
