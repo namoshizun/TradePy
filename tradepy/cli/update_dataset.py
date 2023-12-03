@@ -27,7 +27,7 @@ def fetch_company_name_changes() -> pd.DataFrame:
 def main(dataset_dir: Path):
     dataset_dir.mkdir(exist_ok=True)
     name_changes_df = fetch_company_name_changes()
-    name_changes_df.to_csv(dataset_dir / "company_name_changes.csv")
+    name_changes_df.to_pickle(dataset_dir / "company_name_changes.pkl")
 
 
 if __name__ == "__main__":
