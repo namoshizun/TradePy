@@ -1,3 +1,4 @@
+import os
 import sys
 import random
 import importlib.metadata
@@ -32,6 +33,10 @@ def is_building_docs():
     return "sphinx" in sys.modules
 
 
+def is_ci():
+    return os.environ.get("CI", "no") == "yes"
+
+
 tqdm.pandas()
 
 random.seed()
@@ -43,6 +48,7 @@ environment_status = {
     "bootstrapping": is_bootstrapping(),
     "running_tests": is_running_tests(),
     "building_docs": is_building_docs(),
+    "ci": is_ci(),
 }
 
 try:
@@ -52,6 +58,7 @@ except FileNotFoundError:
         environment_status["bootstrapping"]
         or environment_status["building_docs"]
         or environment_status["running_tests"]
+        or environment_status["ci"]
     ):
         logger.debug(f"TradePy配置项无法从配置文件中加载。当前环境状态{environment_status}")
     else:

@@ -46,11 +46,12 @@ class StockDayBarsCollector(DayBarsCollector):
         else:
             names = tradepy.ak_api.get_stock_name_changes_list(code, current_name)
             if not any(name for name in names if "ST" in name.upper()):
-                # SH board stock whose name changed to ST, so we don't really care
+                # SH board stock whose name never changed to ST, so we don't really care
                 df["company"] = current_name
                 return df
             else:
                 # SH board stock whose name once had "ST" in it, then need to query tushare
+                # for specifically when the name changed, update the company name in the dataset accordingly
                 changes_df = tradepy.ts_api.get_name_change_history(code)
 
         # Patch the history names

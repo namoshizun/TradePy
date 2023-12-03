@@ -20,7 +20,7 @@ ts_api = ts.pro_api(
 )
 
 
-def retry(max_retries=4, wait_interval=30):
+def retry_on_exception(max_retries=4, wait_interval=30):
     def decor(fun):
         @wraps(fun)
         def inner(*args, **kwargs):
@@ -40,10 +40,16 @@ def retry(max_retries=4, wait_interval=30):
     return decor
 
 
-@retry()
-def get_name_change_history(code: str) -> pd.DataFrame:
+@retry_on_exception()
+def get_name_change_history(code: str, n_retry_empty_response: int = 0) -> pd.DataFrame:
     exchange = convert_code_to_exchange(code)
     df = ts_api.namechange(ts_code=f"{code}.{exchange}", fields="name,start_date")
+
+    if df.empty:
+        if n_retry_empty_response > 3:
+            raise ValueError(f"获取{code}名称变更记录失败")
+        time.sleep(5)
+        return get_name_change_history(code, n_retry_empty_response + 1)
 
     to_iso_date = (
         lambda value: value
@@ -53,6 +59,7 @@ def get_name_change_history(code: str) -> pd.DataFrame:
 
     df.rename(columns={"start_date": "timestamp", "name": "company"}, inplace=True)
     df.drop_duplicates("timestamp", inplace=True)
+    df["code"] = code
     df["timestamp"] = df["timestamp"].map(to_iso_date)
     df.set_index("timestamp", inplace=True)
     return df

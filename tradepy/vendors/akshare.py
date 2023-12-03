@@ -184,6 +184,7 @@ class AkShareClient:
             df.set_index("timestamp", inplace=True)
             df["shares"] = indicators_df["mkt_cap"] / df["close"]
             df["shares"].bfill(inplace=True)
+            df["shares"].ffill(inplace=True)
             df["mkt_cap"] = (df["shares"] * df["close"]).round(2)
             df.drop("shares", axis=1, inplace=True)
             df.reset_index(inplace=True)
@@ -303,11 +304,19 @@ class AkShareClient:
         df["timestamp"] = str(get_latest_trade_date())
         return convert_etf_current_quote(df)
 
-    def get_etf_daily(self, code: str, start_date: datetime.date | str) -> pd.DataFrame:
+    def get_etf_daily(
+        self, code: str, start_date: datetime.date | str, end_date: datetime.date | str
+    ) -> pd.DataFrame:
         if isinstance(start_date, str):
             start_date = datetime.date.fromisoformat(start_date)
+        if isinstance(end_date, str):
+            end_date = datetime.date.fromisoformat(end_date)
 
-        df = ak.fund_etf_hist_em(symbol=code, start_date=start_date.strftime("%Y%m%d"))
+        df = ak.fund_etf_hist_em(
+            symbol=code,
+            start_date=start_date.strftime("%Y%m%d"),
+            end_date=end_date.strftime("%Y%m%d"),
+        )
         return convert_etf_day_bar(df)
 
     # -------

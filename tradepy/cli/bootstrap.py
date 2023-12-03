@@ -38,7 +38,7 @@ def check_host_reachable(host):
 
 
 def conf_to_dict(conf: BaseModel):
-    return json.loads(conf.json(exclude_none=True))
+    return json.loads(conf.model_dump_json(exclude_none=True))
 
 
 class ConfigInitializer:
