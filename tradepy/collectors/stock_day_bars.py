@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from datetime import date
 
 import tradepy
 from tradepy import LOG
 from tradepy.conversion import convert_code_to_market
 from tradepy.depot.stocks import StocksDailyBarsDepot, StockListingDepot
+from tradepy.depot.misc import CompanyNameChangesDepot
 from tradepy.collectors.base import DayBarsCollector
 
 
@@ -14,48 +14,48 @@ class StockDayBarsCollector(DayBarsCollector):
     bars_depot_class = StocksDailyBarsDepot
     listing_depot_class = StockListingDepot
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.sz_name_changes: pd.DataFrame = tradepy.ak_api.get_stock_sz_name_changes()
+        self.name_changes_df: pd.DataFrame = CompanyNameChangesDepot.load()
+        self.listing_df: pd.DataFrame = self.listing_depot_class.load()
 
     def download_and_process(self, code, start_date, end_date):
         try:
             df = tradepy.ak_api.get_stock_daily(code, start_date, end_date)
             if df.empty:
                 return df
-            df["market"] = market = convert_code_to_market(code)
+            df["market"] = convert_code_to_market(code)
             return self._patch_names(
                 df,
                 code,
-                market,
             )
         except Exception:
             LOG.exception(f"获取{code}日K数据出错")
             raise
 
-    def _patch_names(self, df: pd.DataFrame, code: str, market: str):
-        current_name = tradepy.listing.get_by_code(code).name
+    def _patch_names(self, df: pd.DataFrame, code: str):
+        try:
+            changes_df = self.name_changes_df.loc[code]
+        except KeyError:
+            LOG.warn(
+                f"Unable to look up the company name change history for stock {code}"
+            )
+            df["company"] = self.listing_df.loc["code", "company"]
+            return df
 
-        if market != "上证主板":
-            try:
-                changes_df = self.sz_name_changes.loc[(code,)]
-            except KeyError:
-                # Name never changed
-                df["company"] = current_name
-                return df
-        else:
-            names = tradepy.ak_api.get_stock_name_changes_list(code, current_name)
-            if not any(name for name in names if "ST" in name.upper()):
-                # SH board stock whose name never changed to ST, so we don't really care
-                df["company"] = current_name
-                return df
-            else:
-                # SH board stock whose name once had "ST" in it, then need to query tushare
-                # for specifically when the name changed, update the company name in the dataset accordingly
-                changes_df = tradepy.ts_api.get_name_change_history(code)
+        if isinstance(changes_df, pd.Series):
+            # No name changes
+            df["company"] = changes_df["company"]
+            return df
+
+        changes_df = changes_df.set_index("timestamp")
+
+        # Name never changed to ST, so we don't care
+        if not any("ST" in name for name in changes_df["company"]):
+            return df
 
         # Patch the history names
-        res = pd.merge(df, changes_df, how="left", on="timestamp")
+        res = pd.merge(df, changes_df, how="left", on="timestamp")  # TODO
         res["company"].ffill(inplace=True)
 
         if res["company"].hasnans:

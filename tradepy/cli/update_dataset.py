@@ -7,7 +7,7 @@ import tradepy
 
 
 def fetch_company_name_changes() -> pd.DataFrame:
-    listing_df = tradepy.ak_api.get_a_stocks_list()[:3]
+    listing_df = tradepy.ak_api.get_a_stocks_list()
     names_df = pd.concat(
         tradepy.tushare.get_name_change_history(code) for code in tqdm(listing_df.index)
     )
