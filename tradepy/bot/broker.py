@@ -4,6 +4,7 @@ import requests as rq
 
 import tradepy
 from tradepy.core.models import Account, Position, Order
+from urllib.parse import urljoin
 
 
 LOG = tradepy.LOG
@@ -13,7 +14,7 @@ BROKER_API_URL = (
 
 
 def get_url(path) -> str:
-    return os.path.join(BROKER_API_URL, path)
+    return urljoin(BROKER_API_URL, path)
 
 
 class BrokerAPI:
