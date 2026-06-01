@@ -1,3 +1,6 @@
+import polars as pl
+
+
 def main():
     print("Hello from tradepy!")
 
