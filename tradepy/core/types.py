@@ -4,6 +4,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
+# -- Basic Types -----------------------
 Period: TypeAlias = Literal[
     "1m", "5m", "10m", "15m", "30m", "60m", "1d", "1w", "1M", "1Q", "1Y"
 ]
@@ -14,7 +15,30 @@ AdjustType: TypeAlias = Literal[
 
 InstrumentType: TypeAlias = Literal["stock", "etf", "index"]
 
-Exchange: TypeAlias = Literal["SZ", "SH", "BJ"]
+ExchangeType: TypeAlias = Literal["SZ", "SH", "BJ"]
+
+BroadIndexType: TypeAlias = Literal[
+    "SSE",
+    "SZSE",
+    "ChiNext",
+    "STAR",
+    "CSI-300",
+    "CSI-500",
+    "CSI-1000",
+    "SSE-50",
+]
+
+
+MarketType: TypeAlias = Literal[
+    "上证主板",
+    "深证主板",
+    "创业板",
+    "北交所",
+    "科创板",
+    "北交所",
+    "CDR",
+    "新三板",
+]
 
 
 class BaseFrameModel(pa.DataFrameModel):
@@ -34,14 +58,12 @@ class BaseFrameModel(pa.DataFrameModel):
 
 # -- Kline ----------------------------
 class KlinesModel(BaseFrameModel):
-    code: pl.Categorical
-    name: pl.Categorical
     open: pl.Float32
     high: pl.Float32
     low: pl.Float32
     close: pl.Float32
-    vol: pl.Int32
-    amount: pl.Int64
+    vol: pl.Int32  # 手
+    amount: pl.Int32  # 万元
     pct_chg: pl.Float16
 
 
@@ -55,12 +77,12 @@ DayKlinesDataFrame = DataFrame[DayKlinesModel]
 # -- Instrument -----------------------
 class InstrumentInfoModel(BaseFrameModel):
     code: pl.Categorical
-    name: pl.Categorical
     type: pl.Categorical  # stock, etf, index
     exchange: pl.Categorical
 
 
 class StocksBasicModel(InstrumentInfoModel):
+    date: pl.Date
     total_shares: pl.Int32  # 单位: 万股
     float_shares: pl.Int32
     free_shares: pl.Int32
@@ -77,13 +99,44 @@ class StocksBasicModel(InstrumentInfoModel):
     sw_level_3: pl.Categorical  # 3: 申万三级行业
 
 
+class StocksListModel(BaseFrameModel):
+    code: pl.Categorical
+    name: pl.Categorical
+    area: pl.Categorical  # 省份地区
+    is_listing: pl.Boolean  # True: 上市, False: 退市
+    list_date: pl.Date
+    delist_date: pl.Date
+    is_hs: pl.Boolean  # True: 沪深港通, False: 非沪深港通
+
+
 class ETFBasicModel(InstrumentInfoModel):
+    date: pl.Date
     total_shares: pl.Int64
     turnover_rate: pl.Float16
 
 
 StocksBasicDataFrame = DataFrame[StocksBasicModel]
 ETFBasicDataFrame = DataFrame[ETFBasicModel]
+
+
+class StockNameChangesModel(BaseFrameModel):
+    code: pl.Categorical
+    name: pl.Categorical
+    since: pl.Date
+    reason: pl.Categorical
+
+
+StockNameChangesDataFrame = DataFrame[StockNameChangesModel]
+
+
+class StockPriceAdjustFactorsModel(BaseFrameModel):
+    code: pl.Categorical
+    date: pl.Date
+    forward: pl.Float32
+    backward: pl.Float32
+
+
+StockPriceAdjustFactorsDataFrame = DataFrame[StockPriceAdjustFactorsModel]
 
 
 # -- Industry ------------------------
@@ -96,4 +149,11 @@ class SWIndustryListModel(BaseFrameModel):
     version_year: pl.Int16  # 2014 or 2021
 
 
+class SWStockIndustryModel(BaseFrameModel):
+    code: pl.Categorical
+    since: pl.Date
+    industry_code: pl.Categorical
+
+
 SWIndustryListDataFrame = DataFrame[SWIndustryListModel]
+SWStockIndustryDataFrame = DataFrame[SWStockIndustryModel]

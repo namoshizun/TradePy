@@ -5,12 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "akshare>=1.18.64",
+    "baostock>=0.9.1",
+    "fastexcel>=0.20.2",
     "pandera[polars]>=0.31.1,<0.40.0",
     "polars[pyarrow,pandas]>=1.41.1,<1.50.0",
     "pydantic>=2.13.4,<3.0.0",
     "tenacity>=9.1.4,<10.0.0",
-    "tickflow>=0.1.22,<0.2.0",
+    "tushare>=1.4.29",
     "typer>=0.26.2",
 ]
 
