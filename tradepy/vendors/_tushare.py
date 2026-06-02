@@ -10,6 +10,7 @@ from tradepy.core.types import (
     StockNameChangesModel,
     StocksBasicDataFrame,
     StocksBasicModel,
+    StocksListDataFrame,
     StocksListModel,
 )
 from tradepy.utils import convert_code_to_exchange
@@ -102,7 +103,7 @@ class TushareClient:
             .sort(by=["since"])  # pyright: ignore[reportCallIssue]
         )
 
-    def get_stock_list(self):
+    def get_stock_list(self) -> StocksListDataFrame:
         fields = "ts_code,name,area,list_date,delist_date,is_hs,list_status"
         df = pd.concat(
             [

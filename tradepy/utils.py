@@ -1,3 +1,5 @@
+from typing import Optional, get_args
+
 from tradepy.core.types import ExchangeType, MarketType
 
 
@@ -30,3 +32,11 @@ def convert_code_to_exchange(code: str) -> ExchangeType:
         case "北交所":
             return "BJ"
     raise ValueError(f"Unknown code {code}")
+
+
+def get_param_type(cls: type) -> Optional[type]:
+    for base in getattr(cls, "__orig_bases__", []):
+        if getattr(base, "__origin__", None):
+            args = get_args(base)
+            if args:
+                return args[0]

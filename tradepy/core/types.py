@@ -109,6 +109,9 @@ class StocksListModel(BaseFrameModel):
     is_hs: pl.Boolean  # True: 沪深港通, False: 非沪深港通
 
 
+StocksListDataFrame = DataFrame[StocksListModel]
+
+
 class ETFBasicModel(InstrumentInfoModel):
     date: pl.Date
     total_shares: pl.Int64
