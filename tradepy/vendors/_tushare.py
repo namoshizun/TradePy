@@ -3,7 +3,17 @@ from datetime import date
 import pandas as pd
 import polars as pl
 import tushare as ts
+from cachetools import TTLCache, cachedmethod
+from tenacity import (
+    Retrying,
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    wait_random,
+)
 
+from tradepy import config
+from tradepy.core.trade_cal import TradeCalendar
 from tradepy.core.types import (
     DayKlinesDataFrame,
     DayKlinesModel,
@@ -15,11 +25,19 @@ from tradepy.core.types import (
 )
 from tradepy.utils import convert_code_to_exchange
 
+RETRY_ARGS = {
+    "stop": stop_after_attempt(3),
+    "wait": wait_exponential(multiplier=1, min=3, max=12) + wait_random(1, 3),
+}
+
 
 class TushareClient:
-    def __init__(self, token: str):
+    def __init__(
+        self, token: str = config.common.tushare_token.get_secret_value()
+    ):
         self.api = ts.pro_api(token)
 
+    @retry(**RETRY_ARGS)
     def get_stock_basic(
         self, code: str, since: date, until: date
     ) -> StocksBasicDataFrame:
@@ -27,7 +45,6 @@ class TushareClient:
             ts_code=code,
             start_date=since.strftime("%Y%m%d"),
             end_date=until.strftime("%Y%m%d"),
-            fields="trade_date,turnover_rate,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share",
         )
         df.rename(
             columns={
@@ -53,56 +70,101 @@ class TushareClient:
             nan_to_null=True,
         )
 
-    def get_day_klines(
-        self, code: str, since: date, until: date
+    def get_stock_day_klines(
+        self,
+        *,
+        code: str | None = None,
+        since: date | None = None,
+        until: date | None = None,
+        trade_date: date | None = None,
     ) -> DayKlinesDataFrame:
-        df = self.api.daily(
-            ts_code=code,
-            start_date=since.strftime("%Y%m%d"),
-            end_date=until.strftime("%Y%m%d"),
-        )
-        df.rename(
-            columns={"trade_date": "date"},
-            inplace=True,
-        )
-        df["date"] = pd.to_datetime(df["date"])
-        df["amount"] /= 10
+        if trade_date is None:
+            assert code is not None and since is not None and until is not None
+            args = {
+                "ts_code": code,
+                "start_date": since.strftime("%Y%m%d"),
+                "end_date": until.strftime("%Y%m%d"),
+            }
+        else:
+            args = {
+                "trade_date": trade_date.strftime("%Y%m%d"),
+            }
+
+        for attempt in Retrying(**RETRY_ARGS):
+            with attempt:
+                df = self.api.daily(**args)
+                if df.empty:
+                    return pl.DataFrame(schema=DayKlinesModel.schema())  # pyright: ignore[reportReturnType]
+
+                df.rename(
+                    columns={"trade_date": "date", "ts_code": "code"},
+                    inplace=True,
+                )
+                df["date"] = pd.to_datetime(df["date"])
+                df["amount"] /= 10
+                return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+                    df[DayKlinesModel.columns()],
+                    schema_overrides=DayKlinesModel.schema(),
+                    nan_to_null=True,
+                )
+
+        raise Exception("Should not reach here")
+
+    @cachedmethod(cache=lambda _: TTLCache(maxsize=10, ttl=60 * 60 * 24))
+    def get_trade_calendar(
+        self, since: date = date(2008, 1, 1)
+    ) -> TradeCalendar:
+        eoy = date.today().replace(month=12, day=31)
+        for attempt in Retrying(**RETRY_ARGS):
+            with attempt:
+                df = self.api.trade_cal(
+                    exchange="SSE",
+                    start_date=since.strftime("%Y%m%d"),
+                    end_date=eoy.strftime("%Y%m%d"),
+                )
+
+                dates = set(
+                    sorted(
+                        f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
+                        for _, dt, is_open, _ in df.itertuples(index=False)
+                        if is_open
+                    )
+                )
+                return TradeCalendar(dates)
+
+        raise Exception("Should not reach here")
+
+    def get_name_changes(self, since: date = date(2008, 1, 1)):
+        dfs = []
+
+        for year in range(since.year, date.today().year + 3):
+            for attempt in Retrying(**RETRY_ARGS):
+                with attempt:
+                    df = self.api.namechange(
+                        start_date=f"{year}0101",
+                        end_date=f"{year + 3}1231",
+                        fields="ts_code,name,start_date,change_reason",
+                    ).rename(
+                        columns={
+                            "ts_code": "code",
+                            "start_date": "since",
+                            "change_reason": "reason",
+                        },
+                    )
+                    df["since"] = pd.to_datetime(df["since"])
+                    dfs.append(df)
+
+        df = pd.concat(dfs)
+        df.sort_values(by=["since"], inplace=True)
+        df.drop_duplicates(subset=["code", "name"], inplace=True)
+
         return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-            df[DayKlinesModel.columns()],
-            schema_overrides=DayKlinesModel.schema(),
+            df[StockNameChangesModel.columns()],
+            schema_overrides=StockNameChangesModel.schema(),
             nan_to_null=True,
         )
 
-    def get_trade_dates(self, since: date) -> set[date]:
-        df = self.api.trade_cal(
-            exchange="SSE",
-            start_date=since.strftime("%Y%m%d"),
-            end_date=date.today().strftime("%Y%m%d"),
-        )
-        return set(pd.to_datetime(df["cal_date"]).dt.date)
-
-    def get_name_changes(self, code: str):
-        df = self.api.namechange(
-            ts_code=code,
-            fields="ts_code,name,start_date,change_reason",
-        ).rename(
-            columns={
-                "ts_code": "code",
-                "start_date": "since",
-                "change_reason": "reason",
-            },
-        )
-        df["since"] = pd.to_datetime(df["since"])
-        return (
-            pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-                df[StockNameChangesModel.columns()],
-                schema_overrides=StockNameChangesModel.schema(),
-                nan_to_null=True,
-            )
-            .unique()
-            .sort(by=["since"])  # pyright: ignore[reportCallIssue]
-        )
-
+    @retry(**RETRY_ARGS)
     def get_stock_list(self) -> StocksListDataFrame:
         fields = "ts_code,name,area,list_date,delist_date,is_hs,list_status"
         df = pd.concat(

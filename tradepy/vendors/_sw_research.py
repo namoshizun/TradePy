@@ -2,10 +2,15 @@ import io
 
 import polars as pl
 import requests as rq
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from tradepy.core.types import SWStockIndustryDataFrame, SWStockIndustryModel
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=3, max=10),
+)
 def fetch_stock_industry_classification_history() -> SWStockIndustryDataFrame:
     url = "https://www.swsresearch.com/swindex/pdf/SwClass2021/StockClassifyUse_stock.xls"
 

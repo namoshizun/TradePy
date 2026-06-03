@@ -68,6 +68,7 @@ class KlinesModel(BaseFrameModel):
 
 
 class DayKlinesModel(KlinesModel):
+    code: pl.Categorical
     date: pl.Date
 
 

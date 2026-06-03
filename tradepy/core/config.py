@@ -75,14 +75,27 @@ class CommonConf(ConfBase):
     blacklist_path: ExistingFilePath = Field(
         default=None, description="股票黑名单文件路径"
     )
+    download_concurrency: Annotated[int, Field(gt=0)] = Field(
+        4, description="数据下载并发数"
+    )
 
     tushare_token: SecretStr = Field(..., description="Tushare API Token")
 
+    def _get_stocks_dir(self) -> Path:
+        p = self.database_dir / "stocks"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     def get_stock_listing_path(self) -> Path:
-        return self.database_dir / "stocks" / "listing.parquet"
+        return self._get_stocks_dir() / "listing.parquet"
 
     def get_stock_industry_class_path(self) -> Path:
-        return self.database_dir / "stocks" / "industry_class.parquet"
+        return self._get_stocks_dir() / "industry_class.parquet"
+
+    def get_stock_day_klines_path(self) -> Path:
+        p = self._get_stocks_dir() / "day"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
 
 # ----
