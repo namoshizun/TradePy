@@ -93,7 +93,12 @@ class CommonConf(ConfBase):
         return self._get_stocks_dir() / "industry_class.parquet"
 
     def get_stock_day_klines_path(self) -> Path:
-        p = self._get_stocks_dir() / "day"
+        p = self._get_stocks_dir() / "day" / "klines"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def get_stock_day_basics_path(self) -> Path:
+        p = self._get_stocks_dir() / "day" / "basics"
         p.mkdir(parents=True, exist_ok=True)
         return p
 

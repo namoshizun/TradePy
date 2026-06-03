@@ -1,10 +1,16 @@
 from datetime import date
 
+import polars as pl
 from loguru import logger
 
 from tradepy import config
-from tradepy.core.types import DayKlinesDataFrame
+from tradepy.core.types import (
+    DayKlinesDataFrame,
+    StocksBasicDataFrame,
+    StocksListDataFrame,
+)
 from tradepy.depot import (
+    StocksDayBasicsDepository,
     StocksDayKlinesDepository,
     StocksIndustryClassListingDepository,
     StocksListingDepository,
@@ -26,56 +32,27 @@ class UpdateDatabasePipeline(Pipeline):
             config.common.tushare_token.get_secret_value()
         )
 
-    def _refresh_stocks_listing(self) -> StocksListingDepository:
-        depot = StocksListingDepository(config.common.get_stock_listing_path())
+        trade_cal = self.ts_client.get_trade_calendar()
+        self.trade_dates = trade_cal.dates_between(self._since, self._until)
 
-        if not depot.is_outdated():
-            logger.info("✅ [股票列表] 已是最新")
-            return depot
-
-        logger.opt(raw=True).info("🔄 [股票列表] 更新中...", end="")
+    def _refresh_stocks_listing(self, depot: StocksListingDepository):
         df = self.ts_client.get_stock_list()
         depot.save(df)
 
-        logger.opt(raw=True).info(" ok\n")
-        return depot
-
     def _refresh_stocks_industry_class(
-        self,
-    ) -> StocksIndustryClassListingDepository:
-        depot = StocksIndustryClassListingDepository(
-            config.common.get_stock_industry_class_path()
-        )
-
-        if not depot.is_outdated():
-            logger.info("✅ [股票行业分类] 已是最新")
-            return depot
-
-        logger.opt(raw=True).info("🔄 [股票行业分类] 更新中...", end="")
+        self, depot: StocksIndustryClassListingDepository
+    ):
         df = fetch_stock_industry_classification_history()
         depot.save(df)
 
         logger.opt(raw=True).info(" ok\n")
-        return depot
 
-    def _refresh_day_klines(self) -> StocksDayKlinesDepository:
-        depot = StocksDayKlinesDepository(
-            config.common.get_stock_day_klines_path(), self._since, self._until
-        )
-
-        if not depot.is_outdated():
-            logger.info("✅ [股票日线数据] 已是最新")
-            return depot
-
-        trade_cal = self.ts_client.get_trade_calendar()
-        trade_dates = trade_cal.dates_between(self._since, self._until)
+    def _refresh_day_klines(
+        self, depot: StocksDayKlinesDepository, listing_df: StocksListDataFrame
+    ):
         trade_dates = [
-            dt for dt in trade_dates if not depot.exists(f"{dt}.parquet")
+            dt for dt in self.trade_dates if not depot.exists(f"{dt}.parquet")
         ]
-
-        if not trade_dates:
-            logger.info("✅ [股票日线数据] 已是最新")
-            return depot
 
         jobs: list[DataFetchJob[DayKlinesDataFrame]] = [
             DataFetchJob(
@@ -85,8 +62,40 @@ class UpdateDatabasePipeline(Pipeline):
             for trade_date in sorted(trade_dates)
         ]
 
-        logger.info(f"🔄 [股票日线数据] 更新中 ... {len(jobs)} 条")
-        fetcher = DataFetcher(title="[股票日线数据]")
+        logger.info(f"🔄 [股票日线K线] 待更新交易日: {len(jobs)} 天")
+        fetcher = DataFetcher(title="[股票日线K线]")
+        for job in fetcher.submit(jobs):
+            trade_date = job.args["trade_date"]
+            if job.error_message:
+                logger.error("[股票日线K线] {} 下载失败!", trade_date)
+                continue
+
+            assert job.result is not None
+            df = job.result.join(
+                listing_df.filter(pl.col("list_date") <= trade_date).select(
+                    "code"
+                ),
+                on=["code"],
+            )
+            depot.save(df, key=f"{trade_date}.parquet")  # pyright: ignore[reportArgumentType]
+
+    def _refresh_stocks_basics(
+        self, depot: StocksDayBasicsDepository, listing_df: StocksListDataFrame
+    ):
+        trade_dates = [
+            dt for dt in self.trade_dates if not depot.exists(f"{dt}.parquet")
+        ]
+
+        jobs: list[DataFetchJob[StocksBasicDataFrame]] = [
+            DataFetchJob(
+                func=self.ts_client.get_stock_basic,
+                args={"trade_date": date.fromisoformat(trade_date)},
+            )
+            for trade_date in sorted(trade_dates)
+        ]
+
+        logger.info(f"🔄 [股票日线基本面] 待更新交易日: {len(jobs)} 天")
+        fetcher = DataFetcher(title="[股票日线基本面]")
         for job in fetcher.submit(jobs):
             trade_date = job.args["trade_date"]
             if job.error_message:
@@ -94,18 +103,51 @@ class UpdateDatabasePipeline(Pipeline):
                 continue
 
             assert job.result is not None
-            depot.save(job.result, key=f"{trade_date}.parquet")
-
-        return depot
-
-    def _refresh_stocks_basics(self): ...
+            df = job.result.join(
+                listing_df.filter(pl.col("list_date") <= trade_date).select(
+                    "code"
+                ),
+                on=["code"],
+            )
+            depot.save(df, key=f"{trade_date}.parquet")  # pyright: ignore[reportArgumentType]
 
     def _refresh_adjust_factors(self): ...
 
     def execute(self):
+        stocks_listing_depot = StocksListingDepository(
+            config.common.get_stock_listing_path()
+        )
+        indu_class_depot = StocksIndustryClassListingDepository(
+            config.common.get_stock_industry_class_path()
+        )
+        day_klines_depot = StocksDayKlinesDepository(
+            config.common.get_stock_day_klines_path(), self._since, self._until
+        )
+        day_basics_depot = StocksDayBasicsDepository(
+            config.common.get_stock_day_basics_path(), self._since, self._until
+        )
+
         logger.info("🚀 开始更新本地数据...")
-        self._refresh_stocks_listing()
-        self._refresh_day_klines()
-        self._refresh_stocks_basics()
+        if stocks_listing_depot.is_outdated():
+            logger.opt(raw=True).info("🔄 [股票列表] 更新中...", end="")
+            self._refresh_stocks_listing(stocks_listing_depot)
+            logger.opt(raw=True).info(" ok\n")
+
+        listing_df = stocks_listing_depot.load()
+
+        if day_klines_depot.is_outdated():
+            logger.opt(raw=True).info("🔄 [股票日线K线] 更新中...", end="")
+            self._refresh_day_klines(day_klines_depot, listing_df)
+            logger.opt(raw=True).info(" ok\n")
+
+        if day_basics_depot.is_outdated():
+            logger.opt(raw=True).info("🔄 [股票日线基本面] 更新中...", end="")
+            self._refresh_stocks_basics(day_basics_depot, listing_df)
+            logger.opt(raw=True).info(" ok\n")
+
         self._refresh_adjust_factors()
-        self._refresh_stocks_industry_class()
+
+        if indu_class_depot.is_outdated():
+            logger.opt(raw=True).info("🔄 [股票行业分类] 更新中...", end="")
+            self._refresh_stocks_industry_class(indu_class_depot)
+            logger.opt(raw=True).info(" ok\n")

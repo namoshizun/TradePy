@@ -100,6 +100,9 @@ class StocksBasicModel(InstrumentInfoModel):
     sw_level_3: pl.Categorical  # 3: 申万三级行业
 
 
+StocksBasicDataFrame = DataFrame[StocksBasicModel]
+
+
 class StocksListModel(BaseFrameModel):
     code: pl.Categorical
     name: pl.Categorical
@@ -119,7 +122,6 @@ class ETFBasicModel(InstrumentInfoModel):
     turnover_rate: pl.Float16
 
 
-StocksBasicDataFrame = DataFrame[StocksBasicModel]
 ETFBasicDataFrame = DataFrame[ETFBasicModel]
 
 

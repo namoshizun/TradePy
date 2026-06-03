@@ -23,7 +23,7 @@ from tradepy.core.types import (
     StocksListDataFrame,
     StocksListModel,
 )
-from tradepy.utils import convert_code_to_exchange
+from tradepy.utils import convert_code_to_exchange, throttle
 
 RETRY_ARGS = {
     "stop": stop_after_attempt(3),
@@ -38,16 +38,31 @@ class TushareClient:
         self.api = ts.pro_api(token)
 
     @retry(**RETRY_ARGS)
+    @throttle("200/m")
     def get_stock_basic(
-        self, code: str, since: date, until: date
+        self,
+        *,
+        code: str | None = None,
+        since: date | None = None,
+        until: date | None = None,
+        trade_date: date | None = None,
     ) -> StocksBasicDataFrame:
-        df = self.api.daily_basic(
-            ts_code=code,
-            start_date=since.strftime("%Y%m%d"),
-            end_date=until.strftime("%Y%m%d"),
-        )
+        if trade_date is None:
+            assert code is not None and since is not None and until is not None
+            args = {
+                "ts_code": code,
+                "start_date": since.strftime("%Y%m%d"),
+                "end_date": until.strftime("%Y%m%d"),
+            }
+        else:
+            args = {
+                "trade_date": trade_date.strftime("%Y%m%d"),
+            }
+
+        df = self.api.daily_basic(**args)
         df.rename(
             columns={
+                "ts_code": "code",
                 "trade_date": "date",
                 "dv_ratio": "dv",
                 "total_share": "total_shares",
@@ -57,9 +72,8 @@ class TushareClient:
             inplace=True,
         )
         df["date"] = pd.to_datetime(df["date"])
-        df["code"] = code
         df["type"] = "stock"
-        df["exchange"] = convert_code_to_exchange(code)
+        df["exchange"] = df["code"].map(convert_code_to_exchange)
         df["sw_level_1"] = pd.NA
         df["sw_level_2"] = pd.NA
         df["sw_level_3"] = pd.NA

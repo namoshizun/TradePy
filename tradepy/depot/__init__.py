@@ -91,7 +91,7 @@ class DataDepository(Generic[T]):
         raise NotImplementedError
 
 
-from .klines import StocksDayKlinesDepository
+from .klines import StocksDayBasicsDepository, StocksDayKlinesDepository
 from .listings import (
     StocksIndustryClassListingDepository,
     StocksListingDepository,
@@ -99,24 +99,7 @@ from .listings import (
 
 __all__ = [
     "StocksListingDepository",
+    "StocksDayBasicsDepository",
     "StocksIndustryClassListingDepository",
     "StocksDayKlinesDepository",
 ]
-
-
-"""
-listing.parquet
-./stocks/
-    listing.csv
-    industry_class.parquet
-    basics/
-        2026-06-01.parquet
-        ...
-    day/
-        2026-06-01.parquet
-        ...
-./etf
-    listing.csv
-    day/
-        ...
-"""

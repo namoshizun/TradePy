@@ -1,12 +1,15 @@
 from datetime import date
 from pathlib import Path
+from typing import TypeVar
 
-from tradepy.core.types import DayKlinesModel
+from tradepy.core.types import BaseFrameModel, DayKlinesModel, StocksBasicModel
 from tradepy.depot import DataDepository
 from tradepy.vendors._tushare import TushareClient
 
+T = TypeVar("T", bound=BaseFrameModel)
 
-class StocksDayKlinesDepository(DataDepository[DayKlinesModel]):
+
+class GenericDailyDepository(DataDepository[T]):
     def __init__(self, path: Path | str, since: date, until: date):
         super().__init__(path)
         self.since = since
@@ -21,3 +24,11 @@ class StocksDayKlinesDepository(DataDepository[DayKlinesModel]):
         trade_dates = trade_cal.dates_between(self.since, self.until)
 
         return not all(self.exists(f"{dt}.parquet") for dt in trade_dates)
+
+
+class StocksDayKlinesDepository(GenericDailyDepository[DayKlinesModel]):
+    pass
+
+
+class StocksDayBasicsDepository(GenericDailyDepository[StocksBasicModel]):
+    pass
