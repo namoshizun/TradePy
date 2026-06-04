@@ -2,7 +2,7 @@ from typing import Literal, TypeAlias
 
 import pandera.polars as pa
 import polars as pl
-from pandera.typing.polars import DataFrame
+from pandera.typing.polars import DataFrame, LazyFrame
 
 # -- Basic Types -----------------------
 Period: TypeAlias = Literal[
@@ -73,6 +73,7 @@ class DayKlinesModel(KlinesModel):
 
 
 DayKlinesDataFrame = DataFrame[DayKlinesModel]
+LazyDayKlinesDataFrame = LazyFrame[DayKlinesModel]
 
 
 # -- Instrument -----------------------
@@ -101,6 +102,7 @@ class StocksBasicModel(InstrumentInfoModel):
 
 
 StocksBasicDataFrame = DataFrame[StocksBasicModel]
+LazyStocksBasicDataFrame = LazyFrame[StocksBasicModel]
 
 
 class StocksListModel(BaseFrameModel):
@@ -142,6 +144,7 @@ class StockPriceAdjustFactorsModel(BaseFrameModel):
 
 
 StockPriceAdjustFactorsDataFrame = DataFrame[StockPriceAdjustFactorsModel]
+LazyStockPriceAdjustFactorsDataFrame = LazyFrame[StockPriceAdjustFactorsModel]
 
 
 # -- Industry ------------------------
@@ -162,3 +165,4 @@ class SWStockIndustryModel(BaseFrameModel):
 
 SWIndustryListDataFrame = DataFrame[SWIndustryListModel]
 SWStockIndustryDataFrame = DataFrame[SWStockIndustryModel]
+LazySWStockIndustryDataFrame = LazyFrame[SWStockIndustryModel]

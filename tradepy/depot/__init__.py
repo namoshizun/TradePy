@@ -1,10 +1,10 @@
 from abc import abstractmethod
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar, overload
 
 import polars as pl
-from pandera.typing.polars import DataFrame
+from pandera.typing.polars import DataFrame, LazyFrame
 
 from tradepy.core.types import BaseFrameModel
 from tradepy.utils import get_param_type
@@ -79,19 +79,37 @@ class DataDepository(Generic[T]):
 
         return _walk(self.path)
 
-    def load(self) -> DataFrame[T]:
+    @overload
+    def load(self, lazy: Literal[True]) -> LazyFrame[T]: ...
+
+    @overload
+    def load(self, lazy: Literal[False] = False) -> DataFrame[T]: ...
+
+    def load(self, lazy: bool = False) -> DataFrame[T] | LazyFrame[T]:
+        schema = self._model.schema()
         if self.path.is_file():
-            return pl.read_parquet(self.path, schema=self._model.schema())  # pyright: ignore[reportReturnType]
+            if lazy:
+                return pl.scan_parquet(  # pyright: ignore[reportReturnType]
+                    self.path.absolute().as_posix(),
+                    schema=schema,
+                )
+            return pl.read_parquet(self.path, schema=schema)  # pyright: ignore[reportReturnType]
 
         is_empty = next(self.path.iterdir(), None) is None
         if is_empty:
-            return pl.DataFrame(schema=self._model.schema())  # pyright: ignore[reportReturnType]
+            df = pl.DataFrame(schema=schema)
+            if lazy:
+                return df.lazy()  # pyright: ignore[reportReturnType]
+            return df  # pyright: ignore[reportReturnType]
 
-        df: DataFrame[T] = pl.scan_parquet(  # pyright: ignore[reportAssignmentType]
-            (self.path / "*.parquet").absolute().as_posix(),
-            schema=self._model.schema(),
-        ).collect()
-        return df
+        lf = pl.scan_parquet(
+            (self.path / "*.parquet").absolute().as_posix(), schema=schema
+        )
+
+        if lazy:
+            return lf  # pyright: ignore[reportReturnType]
+
+        return lf.collect()  # pyright: ignore[reportReturnType]
 
     @abstractmethod
     def is_outdated(self) -> bool:

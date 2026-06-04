@@ -5,6 +5,7 @@ import requests as rq
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from tradepy.core.types import SWStockIndustryDataFrame, SWStockIndustryModel
+from tradepy.utils import convert_code_to_exchange
 
 
 @retry(
@@ -32,5 +33,13 @@ def fetch_stock_industry_classification_history() -> SWStockIndustryDataFrame:
             }
         )
         .drop("更新日期")
+        .with_columns(
+            pl.col("code")
+            .str.zfill(6)
+            .map_elements(
+                lambda c: f"{c}.{convert_code_to_exchange(c)}",
+                return_dtype=pl.Utf8,
+            )
+        )
         .cast(SWStockIndustryModel.schema())
     )
