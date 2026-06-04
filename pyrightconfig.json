@@ -1,0 +1,28 @@
+{
+  "strictListInference": true,
+  "typeCheckingMode": "standard",
+  "reportImportCycles": "warning",
+  "reportDuplicateImport": "error",
+  "reportMissingTypeStubs": false,
+  "reportPrivateUsage": "warning",
+  "reportDeprecated": "warning",
+  "reportUnreachable": "warning",
+  "reportMissingParameterType": "error",
+  "reportUnknownVariableType": "information",
+  "reportUnusedCallResult": false,
+  "deprecateTypingAliases": true,
+  "ignore": [".venv"],
+  "exclude": [
+    ".venv",
+    "build",
+    "dist",
+    "recipes",
+    "**/node_modules",
+    "**/__pycache__",
+    "tests",
+    "docs",
+    "examples",
+    "v1"
+  ],
+  "pythonPlatform": "Linux"
+}

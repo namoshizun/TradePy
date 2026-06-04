@@ -1,0 +1,46 @@
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "_build",
+    "build",
+    "dist",
+    "site-packages",
+    "venv",
+    "v1",
+]
+
+line-length = 80
+indent-width = 4
+
+[lint]
+select = ["E", "N", "W", "F", "I"]
+ignore = [
+    "E501", # line too long
+    "E731", # allow using `lambda` expressions
+    "E402", # allow imports after other statements
+    "F811", # allow redefining names
+]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
