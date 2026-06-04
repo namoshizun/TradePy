@@ -102,6 +102,11 @@ class CommonConf(ConfBase):
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    def get_adjust_factors_path(self) -> Path:
+        p = self._get_stocks_dir() / "adjust_factors"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
 
 # ----
 # Main

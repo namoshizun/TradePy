@@ -18,6 +18,8 @@ from tradepy.core.types import (
     DayKlinesDataFrame,
     DayKlinesModel,
     StockNameChangesModel,
+    StockPriceAdjustFactorsDataFrame,
+    StockPriceAdjustFactorsModel,
     StocksBasicDataFrame,
     StocksBasicModel,
     StocksListDataFrame,
@@ -202,5 +204,24 @@ class TushareClient:
         return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
             df[StocksListModel.columns()],
             schema_overrides=StocksListModel.schema(),
+            nan_to_null=True,
+        )
+
+    @retry(**RETRY_ARGS)
+    @throttle("200/m")
+    def get_stock_price_adjust_factors(
+        self, code: str
+    ) -> StockPriceAdjustFactorsDataFrame:
+        df = self.api.adj_factor(ts_code=code).rename(
+            columns={
+                "ts_code": "code",
+                "trade_date": "date",
+                "adj_factor": "backward",
+            },
+        )
+        df["date"] = pd.to_datetime(df["date"])
+        return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+            df[StockPriceAdjustFactorsModel.columns()],
+            schema_overrides=StockPriceAdjustFactorsModel.schema(),
             nan_to_null=True,
         )

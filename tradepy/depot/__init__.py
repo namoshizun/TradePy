@@ -43,6 +43,9 @@ class DataDepository(Generic[T]):
         key: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Path:
+        if data.is_empty():
+            return self.path
+
         if not key:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             data.write_parquet(self.path, metadata=metadata)
@@ -80,6 +83,10 @@ class DataDepository(Generic[T]):
         if self.path.is_file():
             return pl.read_parquet(self.path, schema=self._model.schema())  # pyright: ignore[reportReturnType]
 
+        is_empty = next(self.path.iterdir(), None) is None
+        if is_empty:
+            return pl.DataFrame(schema=self._model.schema())  # pyright: ignore[reportReturnType]
+
         df: DataFrame[T] = pl.scan_parquet(  # pyright: ignore[reportAssignmentType]
             (self.path / "*.parquet").absolute().as_posix(),
             schema=self._model.schema(),
@@ -91,6 +98,7 @@ class DataDepository(Generic[T]):
         raise NotImplementedError
 
 
+from .adjust_factors import StocksAdjustFactorsDepository
 from .klines import StocksDayBasicsDepository, StocksDayKlinesDepository
 from .listings import (
     StocksIndustryClassListingDepository,
@@ -102,4 +110,5 @@ __all__ = [
     "StocksDayBasicsDepository",
     "StocksIndustryClassListingDepository",
     "StocksDayKlinesDepository",
+    "StocksAdjustFactorsDepository",
 ]

@@ -41,11 +41,10 @@ class BaostockClient:
             .rename(
                 {
                     "dividOperateDate": "date",
-                    "foreAdjustFactor": "forward",
                     "backAdjustFactor": "backward",
                 }
             )
-            .drop("adjustFactor")
+            .drop("adjustFactor", "foreAdjustFactor")
             .cast(StockPriceAdjustFactorsModel.schema())
         )
 

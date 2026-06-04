@@ -138,7 +138,6 @@ StockNameChangesDataFrame = DataFrame[StockNameChangesModel]
 class StockPriceAdjustFactorsModel(BaseFrameModel):
     code: pl.Categorical
     date: pl.Date
-    forward: pl.Float32
     backward: pl.Float32
 
 
