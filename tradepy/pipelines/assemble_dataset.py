@@ -1,5 +1,7 @@
 from datetime import date
 
+import polars as pl
+
 from tradepy import config
 from tradepy.core.types import (
     LazyDayKlinesDataFrame,
@@ -29,8 +31,15 @@ class AssembleDatasetPipeline(Pipeline):
         ind_class_df: LazySWStockIndustryDataFrame,
     ):
         df = (
-            klines_df.join(adj_df, on=["code", "date"], how="inner")
+            klines_df.filter(
+                pl.col("date").is_between(self._since, self._until)
+            )
+            .join(adj_df, on=["code", "date"], how="inner")
             .rename({"backward": "adj_factor"})
+            .with_columns(
+                pl.col(c) * pl.col("adj_factor")
+                for c in ("open", "high", "low", "close")
+            )
             .join(basics_df, on=["code", "date"], how="inner")
             .sort("date")
             .join_asof(
@@ -43,6 +52,7 @@ class AssembleDatasetPipeline(Pipeline):
             )
             .drop("since")
             .drop_nulls(subset=["industry_code"])
+            .sort("code", "date")
             .collect()
         )
 
