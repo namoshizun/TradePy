@@ -22,4 +22,27 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ipython>=9.13.0", "pyright>=1.1.409", "pytest>=9.0.3", "ruff>=0.15.14"]
+dev = [
+    "ipython>=9.13.0",
+    "pyright>=1.1.409",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.14",
+]
+
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::FutureWarning",
+]
+addopts = "-v --cov=tradepy --cov-report=term"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tradepy"]
