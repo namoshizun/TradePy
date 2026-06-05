@@ -10,7 +10,6 @@ dependencies = [
     "dotenv>=0.9.9,<1.0.0",
     "fastexcel>=0.20.2,<1.0.0",
     "loguru>=0.7.3",
-    "networkx>=3.6.1,<4.0.0",
     "pandera[polars]>=0.31.1,<0.40.0",
     "polars[pyarrow,pandas]>=1.41.1,<1.50.0",
     "pydantic>=2.13.4,<3.0.0",
@@ -28,6 +27,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.14",
+    "ta-lib>=0.6.8",
 ]
 
 

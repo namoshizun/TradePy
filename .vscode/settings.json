@@ -5,7 +5,8 @@
     "editor.codeActionsOnSave": {
       "source.organizeImports.ruff": "explicit",
       "source.fixAll.ruff": "explicit"
-    },
+    }
   },
-  "cSpell.words": ["Klines"]
+  "cSpell.words": ["Klines"],
+  "python.REPL.enableREPLSmartSend": false
 }

@@ -25,7 +25,8 @@ from tradepy.core.types import (
     StocksListDataFrame,
     StocksListModel,
 )
-from tradepy.utils import convert_code_to_exchange, throttle
+from tradepy.decors import throttle
+from tradepy.utils import convert_code_to_exchange
 
 RETRY_ARGS = {
     "stop": stop_after_attempt(3),
