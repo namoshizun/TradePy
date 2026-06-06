@@ -5,6 +5,7 @@ import polars as pl
 from tradepy import config
 from tradepy.core.types import (
     LazyDayKlinesDataFrame,
+    LazyStockDailyMetricsDataFrame,
     LazyStockPriceAdjustFactorsDataFrame,
     LazyStocksBasicDataFrame,
     LazySWStockIndustryDataFrame,
@@ -29,12 +30,9 @@ class AssembleDatasetPipeline(Pipeline):
         basics_df: LazyStocksBasicDataFrame,
         adj_df: LazyStockPriceAdjustFactorsDataFrame,
         ind_class_df: LazySWStockIndustryDataFrame,
-    ):
-        df = (
-            klines_df.filter(
-                pl.col("date").is_between(self._since, self._until)
-            )
-            .join(adj_df, on=["code", "date"], how="inner")
+    ) -> LazyStockDailyMetricsDataFrame:
+        return (  # pyright: ignore[reportReturnType]
+            klines_df.join(adj_df, on=["code", "date"], how="inner")
             .rename({"backward": "adj_factor"})
             .with_columns(
                 pl.col(c) * pl.col("adj_factor")
@@ -53,12 +51,9 @@ class AssembleDatasetPipeline(Pipeline):
             .drop("since")
             .drop_nulls(subset=["industry_code"])
             .sort("code", "date")
-            .collect()
         )
 
-        return df
-
-    def execute(self):
+    def execute(self) -> LazyStockDailyMetricsDataFrame:
         indu_class_depot = StocksIndustryClassListingDepository(
             config.common.get_stock_industry_class_path()
         )

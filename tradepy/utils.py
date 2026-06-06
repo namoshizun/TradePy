@@ -1,4 +1,6 @@
-from typing import Optional, get_args
+from typing import Literal, Optional, get_args, overload
+
+from pandera.typing.polars import DataFrame, LazyFrame
 
 from tradepy.core.types import ExchangeType, MarketType
 
@@ -39,3 +41,21 @@ def get_param_type(cls: type) -> Optional[type]:
             args = get_args(base)
             if args:
                 return args[0]
+
+
+@overload
+def ensure_laziness(df: DataFrame, lazy: Literal[True]) -> LazyFrame: ...
+@overload
+def ensure_laziness(df: LazyFrame, lazy: Literal[False]) -> DataFrame: ...
+
+
+def ensure_laziness(
+    df: DataFrame | LazyFrame, lazy: bool
+) -> DataFrame | LazyFrame:
+    if lazy and isinstance(df, DataFrame):
+        return df.lazy()  # pyright: ignore[reportReturnType]
+
+    if not lazy and isinstance(df, LazyFrame):
+        return df.collect()  # pyright: ignore[reportReturnType]
+
+    return df

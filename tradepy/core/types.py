@@ -96,9 +96,6 @@ class StocksBasicModel(InstrumentInfoModel):
     ps_ttm: pl.Float16
     dv: pl.Float16
     dv_ttm: pl.Float16
-    sw_level_1: pl.Categorical  # 1: 申万一级行业
-    sw_level_2: pl.Categorical  # 2: 申万二级行业
-    sw_level_3: pl.Categorical  # 3: 申万三级行业
 
 
 StocksBasicDataFrame = DataFrame[StocksBasicModel]
@@ -166,3 +163,13 @@ class SWStockIndustryModel(BaseFrameModel):
 SWIndustryListDataFrame = DataFrame[SWIndustryListModel]
 SWStockIndustryDataFrame = DataFrame[SWStockIndustryModel]
 LazySWStockIndustryDataFrame = LazyFrame[SWStockIndustryModel]
+
+
+# -- Assembled snapshots dataframes -----------------------
+class StockDailyMetricsModel(DayKlinesModel, StocksBasicModel):
+    industry_code: pl.Categorical
+    adj_factor: pl.Float32
+
+
+StockDailyMetricsDataFrame = DataFrame[StockDailyMetricsModel]
+LazyStockDailyMetricsDataFrame = LazyFrame[StockDailyMetricsModel]

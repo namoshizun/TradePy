@@ -1,8 +1,18 @@
+import inspect
 from abc import ABC
+from dataclasses import dataclass
+from typing import Any, Callable
 
 import polars as pl
+from loguru import logger
+from pandera.typing.polars import DataFrame
 
+from tradepy.core.types import (
+    LazyStockDailyMetricsDataFrame,
+    StockDailyMetricsDataFrame,
+)
 from tradepy.decors import indicator
+from tradepy.utils import ensure_laziness
 
 
 def _row_index() -> pl.Expr:
@@ -33,36 +43,57 @@ WARMUP_FACTORS = {
 }
 
 
+@dataclass
+class IndicatorExpression:
+    name: str
+    expr: pl.Expr
+    not_na: bool = True
+
+
 class StrategyBase(ABC):
-    @indicator(not_na=True)
+    _tradepy_strategy: bool = True
+
+    buy: Callable[..., Any]
+    sell: Callable[..., Any] = lambda *args: False
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        for klass in cls.__mro__:
+            if klass is StrategyBase:
+                break
+            if "buy" in klass.__dict__:
+                return
+        raise TypeError(f"{cls.__name__} must define a buy method")
+
+    @indicator()
     def sma5(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=5)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma10(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=10)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma20(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=20)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma30(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=30)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma60(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=60)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma120(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=120)
 
-    @indicator(not_na=True)
+    @indicator()
     def sma250(self) -> pl.Expr:
         return pl.col("close").rolling_mean(window_size=250)
 
-    @indicator(not_na=True)
+    @indicator()
     def macd(self) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
         fast_period = 12
         slow_period = 26
@@ -75,16 +106,16 @@ class StrategyBase(ABC):
         macd_line = fast_ema - slow_ema
         signal = macd_line.ewm_mean(alpha=2 / (signal_period + 1), adjust=False)
         return (
-            _mask_warmup(macd_line, warmup).alias("macd"),
-            _mask_warmup(signal, warmup).alias("macd_signal"),
+            _mask_warmup(macd_line, warmup).alias("macd_dif"),
+            _mask_warmup(signal, warmup).alias("macd_dea"),
             _mask_warmup(macd_line - signal, warmup).alias("macd_hist"),
         )
 
-    @indicator(not_na=True)
+    @indicator()
     def typical_price(self) -> pl.Expr:
         return (pl.col("high") + pl.col("low") + pl.col("close")) / 3
 
-    @indicator(not_na=True)
+    @indicator()
     def atr(self) -> pl.Expr:
         period = 14
         prev_close = pl.col("close").shift(1)
@@ -97,7 +128,7 @@ class StrategyBase(ABC):
             true_range, alpha=1 / period, warmup=WARMUP_FACTORS["atr"] * period
         )
 
-    @indicator(not_na=True)
+    @indicator()
     def rsi(self) -> tuple[pl.Expr, ...]:
         def _rsi(period: int) -> pl.Expr:
             warmup = WARMUP_FACTORS["rsi"] * period
@@ -119,8 +150,8 @@ class StrategyBase(ABC):
             _rsi(24).alias("rsi_slow"),
         )
 
-    @indicator(not_na=True)
-    def boll(self) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
+    @indicator()
+    def boll(self) -> tuple[pl.Expr, ...]:
         boll_window = 20
         k = 2.0
         mid = pl.col("close").rolling_mean(window_size=boll_window)
@@ -134,3 +165,76 @@ class StrategyBase(ABC):
             upper.alias("boll_upper"),
             lower.alias("boll_lower"),
         )
+
+    def infer_required_indicators(self) -> list[str]:
+        required: set[str] = set()
+        for method_name in ("buy", "sell"):
+            method = getattr(self.__class__, method_name)
+            for name, param in inspect.signature(method).parameters.items():
+                if name == "self":
+                    continue
+                if param.kind in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
+                    continue
+                required.add(name)
+        return list(required)
+
+    def collect_indicator_expressions(self) -> tuple[IndicatorExpression, ...]:
+        exprs: list[IndicatorExpression] = list()
+
+        for cls in self.__class__.__mro__:
+            if not getattr(cls, "_tradepy_strategy", False):
+                continue
+
+            for name, attr in cls.__dict__.items():
+                if not getattr(attr, "_tradepy_indicator_compute", False):
+                    continue
+
+                # Get the actual polars expression
+                results = attr(self)
+                if not isinstance(results, tuple):
+                    results = (results,)
+
+                _expr: pl.Expr
+                for _expr in results:
+                    output_name = _expr.meta.output_name()
+                    if (
+                        output_name in _expr.meta.root_names()
+                        or output_name == "literal"
+                    ):
+                        # Column-rooted or anonymous polars names → method name
+                        _expr = _expr.alias(name)
+
+                    exprs.append(
+                        IndicatorExpression(
+                            name=_expr.meta.output_name(),
+                            expr=_expr,
+                            not_na=getattr(
+                                attr, "_tradepy_indicator_not_na", True
+                            ),
+                        )
+                    )
+
+        return tuple(exprs)
+
+    def compute_indicators(
+        self, df: StockDailyMetricsDataFrame | LazyStockDailyMetricsDataFrame
+    ) -> DataFrame:
+        required_indicators = self.infer_required_indicators()
+        indicator_expressions = tuple(
+            expr
+            for expr in self.collect_indicator_expressions()
+            if expr.name in required_indicators
+        )
+
+        logger.info(f"🏋️ 开始计算因子: {required_indicators} ...")
+
+        _df = df.with_columns(
+            *(expr.expr.over("code") for expr in indicator_expressions)
+        ).drop_nulls(
+            subset=[expr.name for expr in indicator_expressions if expr.not_na]
+        )
+
+        return ensure_laziness(_df, False)  # pyright: ignore[reportCallIssue, reportUnknownVariableType, reportArgumentType]

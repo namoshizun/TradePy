@@ -7,7 +7,7 @@ import polars as pl
 from pandera.typing.polars import DataFrame, LazyFrame
 
 from tradepy.core.types import BaseFrameModel
-from tradepy.utils import get_param_type
+from tradepy.utils import ensure_laziness, get_param_type
 
 T = TypeVar("T", bound=BaseFrameModel)
 
@@ -79,6 +79,12 @@ class DataDepository(Generic[T]):
 
         return _walk(self.path)
 
+    def sources(self) -> list[str]:
+        if self.path.is_file():
+            return [self.path.absolute().as_posix()]
+
+        return [p.absolute().as_posix() for p in self.path.glob("*.parquet")]
+
     @overload
     def load(self, lazy: Literal[True]) -> LazyFrame[T]: ...
 
@@ -87,29 +93,13 @@ class DataDepository(Generic[T]):
 
     def load(self, lazy: bool = False) -> DataFrame[T] | LazyFrame[T]:
         schema = self._model.schema()
-        if self.path.is_file():
-            if lazy:
-                return pl.scan_parquet(  # pyright: ignore[reportReturnType]
-                    self.path.absolute().as_posix(),
-                    schema=schema,
-                )
-            return pl.read_parquet(self.path, schema=schema)  # pyright: ignore[reportReturnType]
 
-        is_empty = next(self.path.iterdir(), None) is None
-        if is_empty:
-            df = pl.DataFrame(schema=schema)
-            if lazy:
-                return df.lazy()  # pyright: ignore[reportReturnType]
-            return df  # pyright: ignore[reportReturnType]
+        if not (sources := self.sources()):
+            df: Any = pl.DataFrame(schema=schema)
+        else:
+            df = pl.scan_parquet(sources, schema=schema, extra_columns="ignore")
 
-        lf = pl.scan_parquet(
-            (self.path / "*.parquet").absolute().as_posix(), schema=schema
-        )
-
-        if lazy:
-            return lf  # pyright: ignore[reportReturnType]
-
-        return lf.collect()  # pyright: ignore[reportReturnType]
+        return ensure_laziness(df, lazy)
 
     @abstractmethod
     def is_outdated(self) -> bool:

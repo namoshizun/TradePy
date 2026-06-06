@@ -77,9 +77,6 @@ class TushareClient:
         df["date"] = pd.to_datetime(df["date"])
         df["type"] = "stock"
         df["exchange"] = df["code"].map(convert_code_to_exchange)
-        df["sw_level_1"] = pd.NA
-        df["sw_level_2"] = pd.NA
-        df["sw_level_3"] = pd.NA
 
         return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
             df[StocksBasicModel.columns()],
@@ -87,6 +84,7 @@ class TushareClient:
             nan_to_null=True,
         )
 
+    @throttle("500/m")
     def get_stock_day_klines(
         self,
         *,

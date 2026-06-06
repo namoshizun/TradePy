@@ -64,7 +64,7 @@ IndicatorComputeFunc: TypeAlias = Callable[
 ]
 
 
-def indicator(not_na: bool = False):
+def indicator(not_na: bool = True):
 
     def inner(
         func: IndicatorComputeFunc,

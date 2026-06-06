@@ -15,6 +15,15 @@ class GenericDailyDepository(DataDepository[T]):
         self.since = since
         self.until = until
 
+    def sources(self) -> list[str]:
+        since_s = self.since.isoformat()
+        until_s = self.until.isoformat()
+        return sorted(
+            p.absolute().as_posix()
+            for p in self.path.glob("*.parquet")
+            if since_s <= p.stem <= until_s
+        )
+
     def is_outdated(self) -> bool:
         if not self.path.exists():
             return True
