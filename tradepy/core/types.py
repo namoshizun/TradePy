@@ -33,7 +33,6 @@ MarketType: TypeAlias = Literal[
     "上证主板",
     "深证主板",
     "创业板",
-    "北交所",
     "科创板",
     "北交所",
     "CDR",

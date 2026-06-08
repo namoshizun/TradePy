@@ -1,7 +1,7 @@
 import os
 from contextlib import suppress
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -12,6 +12,11 @@ from pydantic import (
     Field,
     SecretStr,
 )
+
+from tradepy.utils import import_class
+
+if TYPE_CHECKING:
+    from tradepy.strategy import StrategyBase
 
 load_dotenv()
 
@@ -58,6 +63,113 @@ class ConfBase(BaseModel):
         with file_path.open("r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
             return cls(**config)
+
+
+# --------
+# Strategy
+# --------
+class SlippageConf(ConfBase):
+    method: Annotated[
+        Literal["max_pct", "max_jump", "weibull"],
+        Field(
+            description="滑点计算方法, max_pct=最大随机百分比, max_jump=最大随机跳点",
+        ),
+    ]
+    params: Annotated[
+        Any,
+        Field(
+            description="滑点计算方法的参数, 如: method=max_jump, params=2, 即为最大可随机出两跳价位的滑点",
+        ),
+    ]
+
+
+def _default_slippage_conf() -> SlippageConf:
+    return SlippageConf(method="max_pct", params=0.02)
+
+
+class StrategyConf(ConfBase):
+    strategy_class: Annotated[
+        str,
+        Field(
+            description='策略类的module导入路径, 比如"my_strategy.SampleStrategy"',
+        ),
+    ]
+    stop_loss: Annotated[
+        float,
+        Field(
+            default=0,
+            description="静态止损百分比， 如果不需要静态止盈止损， 可设置为一个任意大数",
+        ),
+    ]
+    take_profit: Annotated[
+        float,
+        Field(default=0, description="静态止盈百分比"),
+    ]
+    take_profit_slip: Annotated[
+        SlippageConf,
+        Field(default_factory=_default_slippage_conf, description="止盈滑点"),
+    ]
+    stop_loss_slip: Annotated[
+        SlippageConf,
+        Field(default_factory=_default_slippage_conf, description="止损滑点"),
+    ]
+    max_position_size: Annotated[
+        float,
+        Field(
+            default=1,
+            description="最大持仓百分比(0-1), 1 表示允许满仓单股",
+        ),
+    ]
+    max_position_opens: Annotated[
+        int,
+        Field(
+            default=10000,
+            description="每日最大开仓数量, 如果触发买入信号的标的数量大于此值, 则按照买入信号的权重值顺序买入，权重一致则随机选择",
+        ),
+    ]
+    min_trade_amount: Annotated[
+        int,
+        Field(default=0, description="每次开仓的最小买入金额, 0 表示不限制"),
+    ]
+
+    def load_strategy(self) -> "StrategyBase":
+        assert (kls_repr := self.strategy_class)
+
+        if "." in kls_repr:
+            kls = import_class(kls_repr)
+        else:
+            kls = eval(kls_repr)
+
+        return kls(self)
+
+
+# --------
+# Backtest
+# --------
+class BacktestConf(ConfBase):
+    initial_capital: Annotated[
+        float,
+        Field(description="回测初始资金"),
+    ]
+    stamp_duty_rate: Annotated[
+        float,
+        Field(default=0.1, description="印花税率%, 千分之一是0.1"),
+    ]
+    broker_commission_rate: Annotated[
+        float,
+        Field(default=0.05, description="佣金费率%, 万五是0.05"),
+    ]
+    min_broker_commission_fee: Annotated[
+        float,
+        Field(default=5, description="佣金最低收取金额"),
+    ]
+    sl_tf_order: Annotated[
+        SL_TP_Order,
+        Field(
+            default="stop loss first",
+            description="日K线同时满足止盈和止损条件时, 止盈止损单的触发顺序, random 表示随机选择",
+        ),
+    ]
 
 
 # ------

@@ -1,17 +1,24 @@
 import inspect
+import sys
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable, Generic
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar  # pyright: ignore[reportUnreachable]
+else:
+    from typing_extensions import TypeVar  # pyright: ignore[reportUnreachable]
 
 import polars as pl
-from loguru import logger
 from pandera.typing.polars import DataFrame
 
+from tradepy.core.config import StrategyConf
 from tradepy.core.types import (
     LazyStockDailyMetricsDataFrame,
     StockDailyMetricsDataFrame,
 )
 from tradepy.decors import indicator
+from tradepy.strategy.transpiler import PolarsExprTranspiler
 from tradepy.utils import ensure_laziness
 
 
@@ -50,11 +57,17 @@ class IndicatorExpression:
     not_na: bool = True
 
 
-class StrategyBase(ABC):
+ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
+
+
+class StrategyBase(ABC, Generic[ConfigT]):
     _tradepy_strategy: bool = True
 
-    buy: Callable[..., Any]
-    sell: Callable[..., Any] = lambda *args: False
+    buy: Callable[..., bool]
+    sell: Callable[..., bool] = lambda *args: False
+
+    def __init__(self, config: ConfigT) -> None:
+        self.config = config
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -229,12 +242,19 @@ class StrategyBase(ABC):
             if expr.name in required_indicators
         )
 
-        logger.info(f"🏋️ 开始计算因子: {required_indicators} ...")
-
         _df = df.with_columns(
             *(expr.expr.over("code") for expr in indicator_expressions)
-        ).drop_nulls(
-            subset=[expr.name for expr in indicator_expressions if expr.not_na]
         )
 
-        return ensure_laziness(_df, False)  # pyright: ignore[reportCallIssue, reportUnknownVariableType, reportArgumentType]
+        not_null_columns = [
+            expr.name for expr in indicator_expressions if expr.not_na
+        ]
+        if not_null_columns:
+            _df = _df.drop_nulls(subset=not_null_columns)
+
+        _df = ensure_laziness(_df, False)
+
+        return _df  # pyright: ignore[reportReturnType]
+
+    def transpile_buy_expr(self) -> pl.Expr:
+        return PolarsExprTranspiler(self).transpile("buy")

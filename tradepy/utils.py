@@ -1,6 +1,9 @@
-from typing import Literal, Optional, get_args, overload
+import importlib
+import time
+from typing import Any, Literal, Optional, get_args, overload
 
-from pandera.typing.polars import DataFrame, LazyFrame
+import polars as pl
+from loguru import logger
 
 from tradepy.core.types import ExchangeType, MarketType
 
@@ -43,19 +46,73 @@ def get_param_type(cls: type) -> Optional[type]:
                 return args[0]
 
 
+def import_class(path: str) -> type:
+    *module_path, class_name = path.split(".")
+    module_path = ".".join(module_path)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+
+class Timer:
+    def __init__(
+        self,
+        unit: Literal["s", "ms"] = "ms",
+        warning_thresh: float | int | None = None,
+        warning_message: str | None = None,
+        rounded: bool = False,
+    ):
+        self.unit = unit
+        self.rounded = rounded
+        self.warning_thresh = warning_thresh
+        self.warning_message = warning_message
+
+    def elapsed(self):
+        return time.monotonic() - self.start
+
+    def __enter__(self):
+        self.start = time.monotonic()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        cost = self.elapsed()
+        if self.unit == "ms":
+            self.duration = cost * 1000
+        else:
+            self.duration = cost
+
+        if self.rounded:
+            self.duration = round(self.duration)
+
+        if (
+            self.warning_thresh
+            and self.warning_message
+            and self.duration > self.warning_thresh
+        ):
+            try:
+                logger.warning(
+                    self.warning_message.format(duration=self.duration)
+                )
+            except Exception:
+                logger.warning(self.warning_message)
+
+
 @overload
-def ensure_laziness(df: DataFrame, lazy: Literal[True]) -> LazyFrame: ...
+def ensure_laziness(
+    df: pl.DataFrame | pl.LazyFrame, lazy: Literal[True]
+) -> pl.LazyFrame: ...
 @overload
-def ensure_laziness(df: LazyFrame, lazy: Literal[False]) -> DataFrame: ...
+def ensure_laziness(
+    df: pl.DataFrame | pl.LazyFrame, lazy: Literal[False]
+) -> pl.DataFrame: ...
 
 
 def ensure_laziness(
-    df: DataFrame | LazyFrame, lazy: bool
-) -> DataFrame | LazyFrame:
-    if lazy and isinstance(df, DataFrame):
+    df: pl.DataFrame | pl.LazyFrame, lazy: bool
+) -> pl.DataFrame | pl.LazyFrame:
+    if lazy and isinstance(df, pl.DataFrame):
         return df.lazy()  # pyright: ignore[reportReturnType]
 
-    if not lazy and isinstance(df, LazyFrame):
+    if isinstance(df, pl.LazyFrame) and not lazy:
         return df.collect()  # pyright: ignore[reportReturnType]
 
     return df
