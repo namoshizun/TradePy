@@ -1053,6 +1053,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pydash"
+version = "8.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/75/c1/1c55272f49d761cec38ddb80be9817935b9c91ebd6a8988e10f532868d56/pydash-8.0.6.tar.gz", hash = "sha256:b2821547e9723f69cf3a986be4db64de41730be149b2641947ecd12e1e11025a", size = 164338, upload-time = "2026-01-17T16:42:56.576Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/b7/cc5e7974699db40014d58c7dd7c4ad4ffc244d36930dc9ec7d06ee67d7a9/pydash-8.0.6-py3-none-any.whl", hash = "sha256:ee70a81a5b292c007f28f03a4ee8e75c1f5d7576df5457b836ec7ab2839cc5d0", size = 101561, upload-time = "2026-01-17T16:42:55.448Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1483,6 +1495,7 @@ dependencies = [
     { name = "pandera", extra = ["polars"] },
     { name = "polars", extra = ["pandas", "pyarrow"] },
     { name = "pydantic" },
+    { name = "pydash" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "tenacity" },
@@ -1510,6 +1523,7 @@ requires-dist = [
     { name = "pandera", extras = ["polars"], specifier = ">=0.31.1,<0.40.0" },
     { name = "polars", extras = ["pyarrow", "pandas"], specifier = ">=1.41.1,<1.50.0" },
     { name = "pydantic", specifier = ">=2.13.4,<3.0.0" },
+    { name = "pydash", specifier = ">=8.0.6" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "tenacity", specifier = ">=9.1.4,<10.0.0" },

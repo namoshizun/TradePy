@@ -1,10 +1,12 @@
 from datetime import date
+from typing import Any
 
 import polars as pl
 import pytest
 
 from tradepy.core.config import SlippageConf, StrategyConf
 from tradepy.strategy import StrategyBase
+from tradepy.strategy.transpiler import PolarsExprTranspiler
 
 
 def _config() -> StrategyConf:
@@ -13,12 +15,22 @@ def _config() -> StrategyConf:
         strategy_class="UnusedStrategy",
         stop_loss=0,
         take_profit=0,
-        take_profit_slip=slippage,
-        stop_loss_slip=slippage,
+        slippage=slippage,
         max_position_size=1,
         max_position_opens=10000,
         min_trade_amount=0,
     )
+
+
+class _RisklessStrategy(StrategyBase):
+    def buy(self) -> None:
+        return None
+
+    def should_stop_loss(self, bar: Any, position: Any) -> float | None:
+        return None
+
+    def should_take_profit(self, bar: Any, position: Any) -> float | None:
+        return None
 
 
 def test_subclass_without_buy_raises() -> None:
@@ -29,9 +41,9 @@ def test_subclass_without_buy_raises() -> None:
 
 
 def test_subclass_may_inherit_buy_from_parent() -> None:
-    class ParentStrategy(StrategyBase):
-        def buy(self, sma5: float):
-            return True
+    class ParentStrategy(_RisklessStrategy):
+        def buy(self, sma5: float) -> float | None:
+            return sma5
 
     class ChildStrategy(ParentStrategy):
         pass
@@ -42,19 +54,21 @@ def test_subclass_may_inherit_buy_from_parent() -> None:
 def test_collect_indicator_expressions_names_atr_not_literal() -> None:
     names = {
         expr.name
-        for expr in StrategyBase(_config()).collect_indicator_expressions()
+        for expr in _RisklessStrategy(_config()).collect_indicator_expressions()
     }
     assert "atr" in names
     assert "literal" not in names
 
 
 def test_infer_required_indicators_unions_buy_and_sell_params() -> None:
-    class ExampleStrategy(StrategyBase):
-        def buy(self, sma20: float, macd_hist: float):
-            return True
+    class ExampleStrategy(_RisklessStrategy):
+        def buy(self, sma20: float, macd_hist: float) -> float | None:
+            return sma20 if macd_hist > 0 else None
 
-        def sell(self, sma20: float, macd_hist: float, atr: float):
-            return False
+        def sell(
+            self, sma20: float, macd_hist: float, atr: float
+        ) -> float | None:
+            return sma20 + atr if macd_hist < 0 else None
 
     assert set(ExampleStrategy(_config()).infer_required_indicators()) == {
         "sma20",
@@ -64,17 +78,32 @@ def test_infer_required_indicators_unions_buy_and_sell_params() -> None:
 
 
 def test_infer_required_indicators_ignores_var_positional() -> None:
-    class VarArgStrategy(StrategyBase):
-        def buy(self, sma5: float):
-            return True
+    class VarArgStrategy(_RisklessStrategy):
+        def buy(self, sma5: float) -> float | None:
+            return sma5
 
     assert VarArgStrategy(_config()).infer_required_indicators() == ["sma5"]
 
 
+def test_default_sell_transpiles_to_null_price() -> None:
+    class BuyOnlyStrategy(_RisklessStrategy):
+        def buy(self, close: float) -> float | None:
+            return close
+
+    strategy = BuyOnlyStrategy(_config())
+    df = pl.DataFrame({"close": [1.0, 2.0]})
+
+    transpiler = PolarsExprTranspiler(strategy)
+    out = df.with_columns(transpiler.transpile("sell").alias("sell_price"))
+
+    assert strategy.sell() is None
+    assert out["sell_price"].to_list() == [None, None]
+
+
 def test_compute_indicators_partitions_by_code() -> None:
-    class Sma5Strategy(StrategyBase):
-        def buy(self, sma5: float):
-            return True
+    class Sma5Strategy(_RisklessStrategy):
+        def buy(self, sma5: float) -> float | None:
+            return sma5
 
     dates = [date(2024, 1, day) for day in range(1, 6)]
     df = pl.DataFrame(

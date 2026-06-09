@@ -21,9 +21,9 @@ class _ValueReturn:
 
 class PolarsExprTranspiler:
     """
-    Inspects the AST of a bool-returning method at runtime and transpiles
-    it into a native Polars expression. Users write pure Python; this
-    class handles the conversion to Rust-speed execution.
+    Inspects the AST of a price-returning method at runtime and transpiles
+    it into a native Polars expression. Users write pure Python; this class
+    handles the conversion to Rust-speed execution.
 
     Supported constructs:
       - Comparisons:       <, <=, >, >=, ==, !=
@@ -45,17 +45,18 @@ class PolarsExprTranspiler:
 
         self._param_names = self._collect_param_names(func_def)
 
-        branches, _ = self._eval_bool_stmts(
+        returns, _ = self._eval_optional_value_stmts(
             func_def.body,
             [_PathState(guards=[], locals={})],
         )
 
-        if not branches:
-            expr = pl.lit(False)
+        if not returns:
+            expr = pl.lit(None)
         else:
-            expr = branches[0]
-            for b in branches[1:]:
-                expr = expr | b
+            expr = pl.when(returns[0].guard).then(returns[0].value)
+            for branch in returns[1:]:
+                expr = expr.when(branch.guard).then(branch.value)
+            expr = expr.otherwise(None)
 
         return expr.alias(alias or method_name)
 
@@ -190,6 +191,78 @@ class PolarsExprTranspiler:
             )
             if stmt.orelse:
                 else_returns, else_live = self._eval_value_stmts(
+                    stmt.orelse, [else_state]
+                )
+            else:
+                else_returns, else_live = [], [else_state]
+
+            return body_returns + else_returns, body_live + else_live
+
+        if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+            return [], [self._assign_local(stmt, state)]
+
+        if isinstance(stmt, ast.Pass):
+            return [], [state]
+
+        if self._is_docstring_expr(stmt):
+            return [], [state]
+
+        raise NotImplementedError(
+            f"Unsupported statement: {ast.unparse(stmt)!r}"
+        )
+
+    def _eval_optional_value_stmts(
+        self, stmts: list[ast.stmt], states: list[_PathState]
+    ) -> tuple[list[_ValueReturn], list[_PathState]]:
+        returns: list[_ValueReturn] = []
+        live_states = states
+
+        for stmt in stmts:
+            next_states: list[_PathState] = []
+            for state in live_states:
+                stmt_returns, stmt_states = self._eval_optional_value_stmt(
+                    stmt, state
+                )
+                returns.extend(stmt_returns)
+                next_states.extend(stmt_states)
+            live_states = next_states
+            if not live_states:
+                break
+
+        return returns, live_states
+
+    def _eval_optional_value_stmt(
+        self, stmt: ast.stmt, state: _PathState
+    ) -> tuple[list[_ValueReturn], list[_PathState]]:
+        if isinstance(stmt, ast.Return):
+            value = (
+                pl.lit(None)
+                if stmt.value is None
+                else self._to_value_expr(stmt.value, state.locals)
+            )
+            return [
+                _ValueReturn(
+                    guard=self._guard_expr(state.guards),
+                    value=value,
+                )
+            ], []
+
+        if isinstance(stmt, ast.If):
+            test = self._to_bool_expr(stmt.test, state.locals)
+            body_state = _PathState(
+                guards=state.guards + [test],
+                locals=dict(state.locals),
+            )
+            else_state = _PathState(
+                guards=state.guards + [~test],
+                locals=dict(state.locals),
+            )
+
+            body_returns, body_live = self._eval_optional_value_stmts(
+                stmt.body, [body_state]
+            )
+            if stmt.orelse:
+                else_returns, else_live = self._eval_optional_value_stmts(
                     stmt.orelse, [else_state]
                 )
             else:
@@ -463,9 +536,29 @@ class PolarsExprTranspiler:
     def _parse_func(method: Callable) -> ast.FunctionDef:
         source = textwrap.dedent(inspect.getsource(method))
         node = ast.parse(source).body[0]
-        if not isinstance(node, ast.FunctionDef):
-            raise TypeError("Expected a function definition")
-        return node
+        if isinstance(node, ast.FunctionDef):
+            return node
+
+        lambda_node: ast.Lambda | None = None
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
+            lambda_node = node.value
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.value, ast.Lambda)
+        ):
+            lambda_node = node.value
+
+        if lambda_node is not None:
+            return ast.FunctionDef(
+                name=getattr(method, "__name__", "<lambda>"),
+                args=lambda_node.args,
+                body=[ast.Return(value=lambda_node.body)],
+                decorator_list=[],
+                returns=None,
+                type_comment=None,
+            )
+
+        raise TypeError("Expected a function definition or lambda assignment")
 
     @staticmethod
     def _collect_param_names(func_def: ast.FunctionDef) -> set[str]:

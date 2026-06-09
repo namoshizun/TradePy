@@ -29,56 +29,61 @@ class _Ma60SupportStrategy:
         rsi_fast: float,
         sma60: float,
         n_below_ma60_support_past_20: bool,
-    ) -> bool:
+    ) -> float | None:
         if rsi_fast < 15:
-            return True
+            return close
 
         if sma20 > sma60:
-            return True
+            return close
 
         if close > self.__ma60_support_level(sma60):
-            return True
+            return close
 
         if n_below_ma60_support_past_20:
             if rsi_fast < 30:
-                return True
+                return close
             if sma5 > sma20:
-                return True
+                return close
 
-        return False
+        return None
 
-    def should_sell(self, close: float, sma20: float) -> bool:
+    def should_sell(self, close: float, sma20: float) -> float | None:
         if close < sma20 * (1 - self.conf.ma60_support_thres * 1e-2):
-            return True
-        return False
+            return close
+        return None
 
 
 def _ma60_support_level(conf: _Ma60Conf, ma60: float) -> float:
     return round(ma60 * (1 + conf.ma60_support_thres * 1e-2), 2)
 
 
-def _ref_should_buy(row: dict[str, Any], conf: _Ma60Conf) -> bool:
+def _ref_should_buy(row: dict[str, Any], conf: _Ma60Conf) -> float | None:
     if row["rsi_fast"] < 15:
-        return True
+        return row["close"]
     if row["sma20"] > row["sma60"]:
-        return True
+        return row["close"]
     if row["close"] > _ma60_support_level(conf, row["sma60"]):
-        return True
+        return row["close"]
     if row["n_below_ma60_support_past_20"]:
         if row["rsi_fast"] < 30:
-            return True
+            return row["close"]
         if row["sma5"] > row["sma20"]:
-            return True
-    return False
+            return row["close"]
+    return None
 
 
-def _ref_should_sell(row: dict[str, Any], conf: _Ma60Conf) -> bool:
-    return row["close"] < row["sma20"] * (1 - conf.ma60_support_thres * 1e-2)
+def _ref_should_sell(row: dict[str, Any], conf: _Ma60Conf) -> float | None:
+    should_sell = row["close"] < row["sma20"] * (
+        1 - conf.ma60_support_thres * 1e-2
+    )
+    return row["close"] if should_sell else None
 
 
-def _eval_mask(strategy: Any, method_name: str, df: pl.DataFrame) -> list[bool]:
+def _eval_values(
+    strategy: Any, method_name: str, df: pl.DataFrame
+) -> list[float | None]:
     expr = PolarsExprTranspiler(strategy).transpile(method_name)
-    return df.with_columns(expr.alias("_mask"))["_mask"].to_list()
+    return df.with_columns(expr.alias("_value"))["_value"].to_list()
 
 
 def _assert_matches_reference(
@@ -87,7 +92,7 @@ def _assert_matches_reference(
     df: pl.DataFrame,
     ref: Any,
 ) -> None:
-    got = _eval_mask(strategy, method_name, df)
+    got = _eval_values(strategy, method_name, df)
     expected = [ref(row) for row in df.iter_rows(named=True)]
     assert got == expected
 
@@ -127,7 +132,7 @@ def test_ma60_should_sell_matches_python_reference() -> None:
     )
 
 
-def test_config_change_retranspile_changes_buy_mask() -> None:
+def test_config_change_retranspile_changes_buy_price() -> None:
     # Only the close vs ma60-support branch can fire on this row.
     df = pl.DataFrame(
         {
@@ -142,17 +147,17 @@ def test_config_change_retranspile_changes_buy_mask() -> None:
     low = _Ma60SupportStrategy(_Ma60Conf(ma60_support_thres=0.0))
     high = _Ma60SupportStrategy(_Ma60Conf(ma60_support_thres=10.0))
 
-    assert _eval_mask(low, "should_buy", df) == [True]
-    assert _eval_mask(high, "should_buy", df) == [False]
+    assert _eval_values(low, "should_buy", df) == [105.0]
+    assert _eval_values(high, "should_buy", df) == [None]
 
 
 class _UnaryLogicStrategy:
-    def signal(self, x: float, y: float) -> bool:
+    def signal(self, x: float, y: float) -> float | None:
         if x < 1 and y > 2:
-            return True
+            return 1.0
         if not (x == 0):
-            return True
-        return False
+            return 1.0
+        return None
 
 
 def test_boolean_ops_and_not() -> None:
@@ -161,17 +166,21 @@ def test_boolean_ops_and_not() -> None:
         _UnaryLogicStrategy(),
         "signal",
         df,
-        lambda row: (row["x"] < 1 and row["y"] > 2) or not (row["x"] == 0),
+        lambda row: (
+            1.0
+            if (row["x"] < 1 and row["y"] > 2) or not (row["x"] == 0)
+            else None
+        ),
     )
 
 
 class _ChainedCompareStrategy:
-    def signal(self, a: float, b: float, c: float) -> bool:
+    def signal(self, a: float, b: float, c: float) -> float | None:
         if 1 < a < 10:
-            return True
+            return 1.0
         if b <= c <= 100:
-            return True
-        return False
+            return 1.0
+        return None
 
 
 def test_chained_comparisons() -> None:
@@ -186,7 +195,11 @@ def test_chained_comparisons() -> None:
         _ChainedCompareStrategy(),
         "signal",
         df,
-        lambda row: (1 < row["a"] < 10) or (row["b"] <= row["c"] <= 100),
+        lambda row: (
+            1.0
+            if (1 < row["a"] < 10) or (row["b"] <= row["c"] <= 100)
+            else None
+        ),
     )
 
 
@@ -202,10 +215,10 @@ class _ArithmeticStrategy:
     def level(self, base: float) -> float:
         return base * (1 + self.conf.k * 1e-2)
 
-    def signal(self, price: float, base: float) -> bool:
+    def signal(self, price: float, base: float) -> float | None:
         if price > self.level(base):
-            return True
-        return False
+            return price
+        return None
 
 
 def test_arithmetic_and_self_attr_in_helper() -> None:
@@ -214,16 +227,20 @@ def test_arithmetic_and_self_attr_in_helper() -> None:
         _ArithmeticStrategy(),
         "signal",
         df,
-        lambda row: row["price"] > round(row["base"] * 1.02, 2),
+        lambda row: (
+            row["price"]
+            if row["price"] > round(row["base"] * 1.02, 2)
+            else None
+        ),
     )
 
 
 class _TruthyFlagStrategy:
-    def signal(self, flag: bool, x: float) -> bool:
+    def signal(self, flag: bool, x: float) -> float | None:
         if flag:
             if x > 0:
-                return True
-        return False
+                return x
+        return None
 
 
 def test_truthy_column_parameter() -> None:
@@ -234,19 +251,19 @@ def test_truthy_column_parameter() -> None:
         _TruthyFlagStrategy(),
         "signal",
         df,
-        lambda row: bool(row["flag"]) and row["x"] > 0,
+        lambda row: row["x"] if bool(row["flag"]) and row["x"] > 0 else None,
     )
 
 
 class _IfElseStrategy:
-    def signal(self, flag: bool, x: float) -> bool:
+    def signal(self, flag: bool, x: float) -> float | None:
         if flag:
             if x > 0:
-                return True
+                return x
         else:
             if x < 0:
-                return True
-        return False
+                return x
+        return None
 
 
 def test_else_branch_is_guarded_by_negated_if_condition() -> None:
@@ -261,18 +278,21 @@ def test_else_branch_is_guarded_by_negated_if_condition() -> None:
         "signal",
         df,
         lambda row: (
-            (row["flag"] and row["x"] > 0) or (not row["flag"] and row["x"] < 0)
+            row["x"]
+            if (row["flag"] and row["x"] > 0)
+            or (not row["flag"] and row["x"] < 0)
+            else None
         ),
     )
 
 
 class _ReturnFalseElifStrategy:
-    def signal(self, x: float) -> bool:
+    def signal(self, x: float) -> float | None:
         if x > 10:
-            return False
+            return None
         elif x > 5:
-            return True
-        return False
+            return x
+        return None
 
 
 def test_elif_after_return_false_respects_python_reachability() -> None:
@@ -281,34 +301,36 @@ def test_elif_after_return_false_respects_python_reachability() -> None:
         _ReturnFalseElifStrategy(),
         "signal",
         df,
-        lambda row: False if row["x"] > 10 else row["x"] > 5,
+        lambda row: row["x"] if 5 < row["x"] <= 10 else None,
     )
 
 
 class _ReturnExpressionStrategy:
-    def signal(self, x: float, y: float) -> bool:
+    def signal(self, x: float, y: float) -> float | None:
         if x > 10:
-            return False
-        return y > 0
+            return None
+        return y
 
 
-def test_bool_return_expression_is_transpiled() -> None:
+def test_value_return_expression_is_transpiled() -> None:
     df = pl.DataFrame({"x": [11.0, 7.0, 4.0], "y": [1.0, 1.0, -1.0]})
     _assert_matches_reference(
         _ReturnExpressionStrategy(),
         "signal",
         df,
-        lambda row: False if row["x"] > 10 else row["y"] > 0,
+        lambda row: None if row["x"] > 10 else row["y"],
     )
 
 
 class _LocalVariableStrategy:
     def signal(
         self, atr: float, typical_price: float, threshold: float
-    ) -> bool:
+    ) -> float | None:
         volatility = 100 * atr / typical_price
         is_hot: bool = volatility > threshold
-        return is_hot
+        if is_hot:
+            return volatility
+        return None
 
 
 def test_local_assignments_can_feed_later_conditions_and_returns() -> None:
@@ -323,7 +345,11 @@ def test_local_assignments_can_feed_later_conditions_and_returns() -> None:
         _LocalVariableStrategy(),
         "signal",
         df,
-        lambda row: 100 * row["atr"] / row["typical_price"] > row["threshold"],
+        lambda row: (
+            100 * row["atr"] / row["typical_price"]
+            if 100 * row["atr"] / row["typical_price"] > row["threshold"]
+            else None
+        ),
     )
 
 
@@ -334,8 +360,10 @@ class _PiecewiseHelperStrategy:
             return scaled
         return -base * 3
 
-    def signal(self, price: float, base: float) -> bool:
-        return price > self.__level(base)
+    def signal(self, price: float, base: float) -> float | None:
+        if price > self.__level(base):
+            return price
+        return None
 
 
 def test_piecewise_private_helper_is_inlined_with_control_flow() -> None:
@@ -351,14 +379,18 @@ def test_piecewise_private_helper_is_inlined_with_control_flow() -> None:
         df,
         lambda row: (
             row["price"]
+            if row["price"]
             > (row["base"] * 2 if row["base"] > 0 else -row["base"] * 3)
+            else None
         ),
     )
 
 
 class _UnaryValueStrategy:
-    def signal(self, x: float, y: float) -> bool:
-        return -x > 2 and +y > 0
+    def signal(self, x: float, y: float) -> float | None:
+        if -x > 2 and +y > 0:
+            return y
+        return None
 
 
 def test_unary_value_operators() -> None:
@@ -367,13 +399,15 @@ def test_unary_value_operators() -> None:
         _UnaryValueStrategy(),
         "signal",
         df,
-        lambda row: -row["x"] > 2 and +row["y"] > 0,
+        lambda row: row["y"] if -row["x"] > 2 and +row["y"] > 0 else None,
     )
 
 
 class _KeywordOnlyParamStrategy:
-    def signal(self, *, x: float) -> bool:
-        return x > 0
+    def signal(self, *, x: float) -> float | None:
+        if x > 0:
+            return x
+        return None
 
 
 def test_keyword_only_parameters_are_columns() -> None:
@@ -382,42 +416,42 @@ def test_keyword_only_parameters_are_columns() -> None:
         _KeywordOnlyParamStrategy(),
         "signal",
         df,
-        lambda row: row["x"] > 0,
+        lambda row: row["x"] if row["x"] > 0 else None,
     )
 
 
 class _AlwaysFalseStrategy:
-    def signal(self, x: float) -> bool:
+    def signal(self, x: float) -> float | None:
         if x > 0:
-            return False
-        return False
+            return None
+        return None
 
 
-def test_no_true_return_paths_yields_false() -> None:
+def test_no_price_return_paths_yields_null() -> None:
     df = pl.DataFrame({"x": [1.0, -1.0, 0.0]})
-    got = _eval_mask(_AlwaysFalseStrategy(), "signal", df)
-    assert got == [False, False, False]
+    got = _eval_values(_AlwaysFalseStrategy(), "signal", df)
+    assert got == [None, None, None]
 
 
 class _AliasStrategy:
-    def go(self, x: float) -> bool:
+    def go(self, x: float) -> float | None:
         if x > 0:
-            return True
-        return False
+            return x
+        return None
 
 
 def test_transpile_alias() -> None:
     expr = PolarsExprTranspiler(_AliasStrategy()).transpile(
-        "go", alias="buy_signal"
+        "go", alias="buy_price"
     )
-    assert expr.meta.output_name() == "buy_signal"
+    assert expr.meta.output_name() == "buy_price"
 
 
 class _OrInConditionStrategy:
-    def signal(self, x: float, y: float) -> bool:
+    def signal(self, x: float, y: float) -> float | None:
         if x < 0 or y > 10:
-            return True
-        return False
+            return y
+        return None
 
 
 def test_or_inside_if_condition() -> None:
@@ -426,7 +460,7 @@ def test_or_inside_if_condition() -> None:
         _OrInConditionStrategy(),
         "signal",
         df,
-        lambda row: row["x"] < 0 or row["y"] > 10,
+        lambda row: row["y"] if row["x"] < 0 or row["y"] > 10 else None,
     )
 
 
@@ -434,10 +468,10 @@ class _RoundStrategy:
     def scaled(self, v: float) -> float:
         return round(v * 1.3333, 2)
 
-    def signal(self, a: float, b: float) -> bool:
+    def signal(self, a: float, b: float) -> float | None:
         if a > self.scaled(b):
-            return True
-        return False
+            return a
+        return None
 
 
 def test_round_builtin_in_inlined_helper() -> None:
@@ -446,15 +480,17 @@ def test_round_builtin_in_inlined_helper() -> None:
         _RoundStrategy(),
         "signal",
         df,
-        lambda row: row["a"] > round(row["b"] * 1.3333, 2),
+        lambda row: (
+            row["a"] if row["a"] > round(row["b"] * 1.3333, 2) else None
+        ),
     )
 
 
 class _BadNameStrategy:
-    def signal(self, x: float) -> bool:
-        if mystery > 1:  # noqa: F821
-            return True
-        return False
+    def signal(self, x: float) -> float | None:
+        if mystery > 1:  # pyright: ignore[reportUndefinedVariable]  # noqa: F821
+            return x
+        return None
 
 
 def test_unknown_name_in_condition_raises() -> None:
@@ -463,10 +499,10 @@ def test_unknown_name_in_condition_raises() -> None:
 
 
 class _BadCallStrategy:
-    def signal(self, x: float) -> bool:
+    def signal(self, x: float) -> float | None:
         if len(x) > 1:  # pyright: ignore[reportArgumentType]
-            return True
-        return False
+            return x
+        return None
 
 
 def test_unsupported_call_raises() -> None:
@@ -474,22 +510,29 @@ def test_unsupported_call_raises() -> None:
         PolarsExprTranspiler(_BadCallStrategy()).transpile("signal")
 
 
-class _BadReturnStrategy:
-    def signal(self, x: float) -> bool:
-        return 1  # pyright: ignore[reportReturnType]
+class _ConstantPriceStrategy:
+    def signal(self, x: float) -> float | None:
+        if x > 0:
+            return 1.5
+        return None
 
 
-def test_non_bool_constant_return_raises() -> None:
-    with pytest.raises(NotImplementedError, match="Unsupported bool return"):
-        PolarsExprTranspiler(_BadReturnStrategy()).transpile("signal")
+def test_constant_price_return_is_transpiled() -> None:
+    df = pl.DataFrame({"x": [1.0, -1.0]})
+    _assert_matches_reference(
+        _ConstantPriceStrategy(),
+        "signal",
+        df,
+        lambda row: 1.5 if row["x"] > 0 else None,
+    )
 
 
 class _UnsupportedStatementStrategy:
-    def signal(self, x: float) -> bool:
+    def signal(self, x: float) -> float | None:
         for threshold in (1, 2):
             if x > threshold:
-                return True
-        return False
+                return x
+        return None
 
 
 def test_unsupported_statement_raises() -> None:
@@ -500,12 +543,14 @@ def test_unsupported_statement_raises() -> None:
 
 
 class _NonExhaustiveHelperStrategy:
-    def level(self, x: float) -> float:
+    def level(self, x: float) -> float:  # pyright: ignore[reportReturnType]
         if x > 0:
             return x
 
-    def signal(self, price: float, x: float) -> bool:
-        return price > self.level(x)
+    def signal(self, price: float, x: float) -> float | None:
+        if price > self.level(x):
+            return price
+        return None
 
 
 def test_helper_with_missing_return_path_raises() -> None:
@@ -515,26 +560,30 @@ def test_helper_with_missing_return_path_raises() -> None:
 
 class _HelperScopeLeakStrategy:
     def helper(self, x: float) -> float:
-        return x + close  # noqa: F821
+        return x + close  # pyright: ignore[reportUndefinedVariable]  # noqa: F821
 
-    def signal(self, close: float, rsi_fast: float) -> bool:
-        return close > self.helper(rsi_fast)
+    def signal(self, close: float, rsi_fast: float) -> float | None:
+        if close > self.helper(rsi_fast):
+            return close
+        return None
 
 
-def test_helper_unknown_name_does_not_resolve_from_outer_method_params() -> None:
+def test_helper_unknown_name_does_not_resolve_from_outer_method_params() -> (
+    None
+):
     with pytest.raises(NameError, match="close"):
         PolarsExprTranspiler(_HelperScopeLeakStrategy()).transpile("signal")
 
 
 class _ElifStrategy:
-    def signal(self, bucket: float, x: float) -> bool:
+    def signal(self, bucket: float, x: float) -> float | None:
         if bucket == 1:
             if x > 10:
-                return True
+                return x
         elif bucket == 2:
             if x < 5:
-                return True
-        return False
+                return x
+        return None
 
 
 def test_elif_collects_or_branches() -> None:
@@ -546,17 +595,21 @@ def test_elif_collects_or_branches() -> None:
         "signal",
         df,
         lambda row: (
-            (row["bucket"] == 1 and row["x"] > 10)
+            row["x"]
+            if (row["bucket"] == 1 and row["x"] > 10)
             or (row["bucket"] == 2 and row["x"] < 5)
+            else None
         ),
     )
 
 
 class _PowerStrategy:
-    def signal(self, base: float, exp: float, limit: float) -> bool:
+    def signal(
+        self, base: float, exp: float, limit: float
+    ) -> float | None:
         if base**exp > limit:
-            return True
-        return False
+            return base
+        return None
 
 
 def test_power_operator() -> None:
@@ -567,7 +620,9 @@ def test_power_operator() -> None:
         _PowerStrategy(),
         "signal",
         df,
-        lambda row: row["base"] ** row["exp"] > row["limit"],
+        lambda row: (
+            row["base"] if row["base"] ** row["exp"] > row["limit"] else None
+        ),
     )
 
 
@@ -590,5 +645,5 @@ def test_ma60_support_level_inlined_matches_round_formula() -> None:
         strategy,
         "should_buy",
         df,
-        lambda row: row["close"] > support,
+        lambda row: row["close"] if row["close"] > support else None,
     )

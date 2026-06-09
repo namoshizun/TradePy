@@ -87,3 +87,12 @@ def indicator(not_na: bool = True):
         return wrapper
 
     return inner
+
+
+def round_val(fun: Callable[..., float]):
+    @wraps(fun)
+    def inner(*args: Any, **kwargs: Any):
+        val = fun(*args, **kwargs)
+        return round(val, 2)
+
+    return inner

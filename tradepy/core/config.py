@@ -105,32 +105,26 @@ class StrategyConf(ConfBase):
         float,
         Field(default=0, description="静态止盈百分比"),
     ]
-    take_profit_slip: Annotated[
+    slippage: Annotated[
         SlippageConf,
-        Field(default_factory=_default_slippage_conf, description="止盈滑点"),
-    ]
-    stop_loss_slip: Annotated[
-        SlippageConf,
-        Field(default_factory=_default_slippage_conf, description="止损滑点"),
+        Field(default_factory=_default_slippage_conf, description="卖出滑点"),
     ]
     max_position_size: Annotated[
         float,
         Field(
-            default=1,
             description="最大持仓百分比(0-1), 1 表示允许满仓单股",
         ),
-    ]
+    ] = 1
     max_position_opens: Annotated[
         int,
         Field(
-            default=10000,
             description="每日最大开仓数量, 如果触发买入信号的标的数量大于此值, 则按照买入信号的权重值顺序买入，权重一致则随机选择",
         ),
-    ]
+    ] = 10000
     min_trade_amount: Annotated[
         int,
-        Field(default=0, description="每次开仓的最小买入金额, 0 表示不限制"),
-    ]
+        Field(description="每次开仓的最小买入金额, 0 表示不限制"),
+    ] = 0
 
     def load_strategy(self) -> "StrategyBase":
         assert (kls_repr := self.strategy_class)

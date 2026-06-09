@@ -53,6 +53,11 @@ def import_class(path: str) -> type:
     return getattr(module, class_name)
 
 
+def calc_pct_chg(base_price: float, then_price: float) -> float:
+    res = 100 * (then_price - base_price) / base_price
+    return round(res, 2)
+
+
 class Timer:
     def __init__(
         self,

@@ -1,3 +1,3 @@
-from .base import StrategyBase
+from .base import BacktestStrategyBase, StrategyBase
 
-__all__ = ["StrategyBase"]
+__all__ = ["StrategyBase", "BacktestStrategyBase"]

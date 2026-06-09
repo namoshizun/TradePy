@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 import pandera.polars as pa
@@ -5,6 +6,13 @@ import polars as pl
 from pandera.typing.polars import DataFrame, LazyFrame
 
 # -- Basic Types -----------------------
+TradeActionType = Literal[
+    "开仓",
+    "平仓",
+    "止损",
+    "止盈",
+]
+
 Period: TypeAlias = Literal[
     "1m", "5m", "10m", "15m", "30m", "60m", "1d", "1w", "1M", "1Q", "1Y"
 ]
@@ -172,3 +180,33 @@ class StockDailyMetricsModel(DayKlinesModel, StocksBasicModel):
 
 StockDailyMetricsDataFrame = DataFrame[StockDailyMetricsModel]
 LazyStockDailyMetricsDataFrame = LazyFrame[StockDailyMetricsModel]
+
+
+# -- Trading -----------------------
+@dataclass(frozen=True, slots=True)
+class BarData:
+    code: str
+    open: float
+    close: float
+    high: float
+    low: float
+    vol: int
+    pct_chg: float
+    adj_factor: float
+    sell_price: float | None
+
+    @property
+    def orig_open(self) -> float:
+        return self.open / self.adj_factor
+
+    @property
+    def orig_high(self) -> float:
+        return self.high / self.adj_factor
+
+    @property
+    def orig_low(self) -> float:
+        return self.low / self.adj_factor
+
+    @property
+    def orig_close(self) -> float:
+        return self.close / self.adj_factor

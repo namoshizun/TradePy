@@ -1,8 +1,13 @@
+import abc
 import inspect
+import random
 import sys
-from abc import ABC
 from dataclasses import dataclass
 from typing import Callable, Generic
+
+import numpy as np
+
+from tradepy.core.position import Position
 
 if sys.version_info >= (3, 13):
     from typing import TypeVar  # pyright: ignore[reportUnreachable]
@@ -14,12 +19,13 @@ from pandera.typing.polars import DataFrame
 
 from tradepy.core.config import StrategyConf
 from tradepy.core.types import (
+    BarData,
     LazyStockDailyMetricsDataFrame,
     StockDailyMetricsDataFrame,
 )
 from tradepy.decors import indicator
 from tradepy.strategy.transpiler import PolarsExprTranspiler
-from tradepy.utils import ensure_laziness
+from tradepy.utils import calc_pct_chg, ensure_laziness
 
 
 def _row_index() -> pl.Expr:
@@ -60,23 +66,39 @@ class IndicatorExpression:
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
 
 
-class StrategyBase(ABC, Generic[ConfigT]):
+class StrategyBase(abc.ABC, Generic[ConfigT]):
     _tradepy_strategy: bool = True
 
-    buy: Callable[..., bool]
-    sell: Callable[..., bool] = lambda *args: False
+    buy: Callable[..., float | None]
+    sell: Callable[..., float | None] = lambda self: None
 
     def __init__(self, config: ConfigT) -> None:
         self.config = config
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+
+        if cls.__name__ in ("BacktestStrategyBase",):
+            return
+
         for klass in cls.__mro__:
             if klass is StrategyBase:
                 break
             if "buy" in klass.__dict__:
                 return
         raise TypeError(f"{cls.__name__} must define a buy method")
+
+    @abc.abstractmethod
+    def should_stop_loss(
+        self, bar: BarData, position: Position
+    ) -> float | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def should_take_profit(
+        self, bar: BarData, position: Position
+    ) -> float | None:
+        raise NotImplementedError
 
     @indicator()
     def sma5(self) -> pl.Expr:
@@ -179,6 +201,40 @@ class StrategyBase(ABC, Generic[ConfigT]):
             lower.alias("boll_lower"),
         )
 
+    def apply_slippage(
+        self,
+        price: float,
+        ref_price: float,
+    ) -> float:
+
+        method, params = (
+            self.config.slippage.method,
+            self.config.slippage.params,
+        )
+
+        if method == "max_jump":
+            max_num_jumps = int(params)
+            one_jump_pct_chg = 0.01 / ref_price
+            pct_chgs = [
+                one_jump_pct_chg * i for i in range(1, max_num_jumps + 1)
+            ]
+            slip_pct = random.choice(pct_chgs + [0])
+            return price * (1 - slip_pct)
+
+        if method == "max_pct":
+            max_pct_chg = float(params)
+            jitter = random.uniform(0, max_pct_chg * 1e-2)
+            return price * (1 - jitter)
+
+        if method == "weibull":
+            slip_pct_chg = (
+                np.random.weibull(params["shape"]) * params["scale"]
+                + params["shift"]
+            )
+            return price * (1 - slip_pct_chg * 1e-2)
+
+        raise ValueError(f"无效的滑点配置: {self.config.slippage}")
+
     def infer_required_indicators(self) -> list[str]:
         required: set[str] = set()
         for method_name in ("buy", "sell"):
@@ -256,5 +312,40 @@ class StrategyBase(ABC, Generic[ConfigT]):
 
         return _df  # pyright: ignore[reportReturnType]
 
-    def transpile_buy_expr(self) -> pl.Expr:
-        return PolarsExprTranspiler(self).transpile("buy")
+    def build_buy_expr(self) -> pl.Expr:
+        return PolarsExprTranspiler(self).transpile("buy") / pl.col(
+            "adj_factor"
+        )
+
+    def build_sell_expr(self) -> pl.Expr:
+        return PolarsExprTranspiler(self).transpile("sell") / pl.col(
+            "adj_factor"
+        )
+
+
+class BacktestStrategyBase(StrategyBase[ConfigT]):
+    def should_stop_loss(
+        self, bar: BarData, position: Position
+    ) -> float | None:
+        # During opening
+        open_pct_chg = calc_pct_chg(position.price, bar.orig_open)
+        if open_pct_chg <= -self.config.stop_loss:
+            return bar.orig_open
+
+        # During exchange
+        low_pct_chg = calc_pct_chg(position.price, bar.orig_low)
+        if low_pct_chg <= -self.config.stop_loss:
+            return position.price_at_pct_change(-self.config.stop_loss)
+
+    def should_take_profit(
+        self, bar: BarData, position: Position
+    ) -> float | None:
+        # During opening
+        open_pct_chg = calc_pct_chg(position.price, bar.orig_open)
+        if open_pct_chg >= self.config.take_profit:
+            return bar.orig_open
+
+        # During exchange
+        high_pct_chg = calc_pct_chg(position.price, bar.orig_high)
+        if high_pct_chg >= self.config.take_profit:
+            return position.price_at_pct_change(self.config.take_profit)
