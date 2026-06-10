@@ -1,14 +1,27 @@
 from .base import BacktestStrategyBase, StrategyBase
-from .indicators import ATR, BOLL, MACD, RSI, SMA, Indicator, Ref, Take
+from .indicators import (
+    ATR,
+    BIAS,
+    BOLL,
+    KDJ,
+    MACD,
+    RSI,
+    SMA,
+    Indicator,
+    Ref,
+    Take,
+)
 
 __all__ = [
     "StrategyBase",
     "BacktestStrategyBase",
     "Indicator",
     "SMA",
+    "BIAS",
     "RSI",
     "MACD",
     "BOLL",
+    "KDJ",
     "ATR",
     "Ref",
     "Take",

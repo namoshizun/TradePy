@@ -174,4 +174,4 @@ cython_debug/
 *.parquet
 
 notes.txt
-.cursor
+.cursor/plans
