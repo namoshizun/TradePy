@@ -1,14 +1,14 @@
+import dataclasses
 from collections.abc import Iterable
 from typing import Callable
-
-from pydantic import BaseModel, Field
 
 from tradepy.core.holdings import Holdings
 from tradepy.core.position import Position
 from tradepy.decors import round_val
 
 
-class Account(BaseModel):
+@dataclasses.dataclass
+class Account:
     free_cash_amount: float
     frozen_cash_amount: float
     market_value: float
@@ -31,17 +31,15 @@ class Account(BaseModel):
 PriceLookupFun = Callable[[str], float]
 
 
-class BacktestAccount(BaseModel):
+@dataclasses.dataclass
+class BacktestAccount:
     free_cash_amount: float
     frozen_cash_amount: float
     broker_commission_rate: float
     min_broker_commission_fee: float
     stamp_duty_rate: float
 
-    holdings: Holdings = Field(default_factory=Holdings)
-
-    class Config:
-        arbitrary_types_allowed = True
+    holdings: Holdings = dataclasses.field(default_factory=Holdings)
 
     def update_holdings(self, price_lookup: PriceLookupFun):
         if not any(self.holdings):
@@ -104,7 +102,9 @@ class BacktestAccount(BaseModel):
 
     @property
     def total_asset_value(self) -> float:
-        return self.market_value + self.free_cash_amount
+        return (
+            self.market_value + self.free_cash_amount + self.frozen_cash_amount
+        )
 
     @property
     def market_value(self) -> float:

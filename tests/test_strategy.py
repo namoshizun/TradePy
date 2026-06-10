@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from tradepy.core.config import SlippageConf, StrategyConf
-from tradepy.strategy import ATR, BOLL, MACD, RSI, SMA, Ref, StrategyBase, Take
+from tradepy.strategy import ATR, BOLL, MACD, RSI, SMA, Lag, StrategyBase, Take
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 
 
@@ -154,8 +154,8 @@ def test_multi_output_indicators_are_selected_by_take() -> None:
 
 
 def test_indicator_composition_with_ref() -> None:
-    class SmaRefStrategy(_RisklessStrategy):
-        def buy(self, sma5_ref1: float = SMA(5) | Ref(1)) -> float | None:
+    class SmaLagStrategy(_RisklessStrategy):
+        def buy(self, sma5_ref1: float = SMA(5) | Lag(1)) -> float | None:
             return sma5_ref1
 
     dates = [date(2024, 1, day) for day in range(1, 7)]
@@ -167,7 +167,7 @@ def test_indicator_composition_with_ref() -> None:
         }
     )
 
-    out = SmaRefStrategy(_config()).compute_indicators(df)  # pyright: ignore[reportArgumentType]
+    out = SmaLagStrategy(_config()).compute_indicators(df)  # pyright: ignore[reportArgumentType]
 
     assert out.tail(1)["sma5_ref1"].item() == pytest.approx(3.0)
 

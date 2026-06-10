@@ -24,6 +24,7 @@ from tradepy.core.types import (
     StockDailyMetricsDataFrame,
 )
 from tradepy.strategy.indicators import Indicator
+from tradepy.strategy.portfolio_alloc import portfolio_alloc
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 from tradepy.utils import calc_pct_chg, ensure_laziness
 
@@ -60,6 +61,23 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                 return
         raise TypeError(f"{cls.__name__} must define a buy method")
 
+    def _strategy_parameters(
+        self,
+    ) -> tuple[inspect.Parameter, ...]:
+        params: list[inspect.Parameter] = []
+        for method_name in ("buy", "sell"):
+            method = getattr(self.__class__, method_name)
+            for name, param in inspect.signature(method).parameters.items():
+                if name == "self":
+                    continue
+                if param.kind in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
+                    continue
+                params.append(param)
+        return tuple(params)
+
     @abc.abstractmethod
     def should_stop_loss(
         self, bar: BarData, position: Position
@@ -71,6 +89,30 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         self, bar: BarData, position: Position
     ) -> float | None:
         raise NotImplementedError
+
+    def plan_positions(
+        self,
+        options_df: pl.DataFrame,
+        budget: float,
+        total_capital: float,
+        max_opens_count: int | None = None,
+    ) -> list[Position]:
+        if max_opens_count is None:
+            max_opens_count = self.config.max_position_opens
+
+        position_max_value = total_capital * self.config.max_position_size
+        position_min_value = self.config.min_trade_amount
+
+        codes = options_df["code"].to_numpy()
+        buy_prices = options_df["buy_price"].to_numpy()
+        return portfolio_alloc(
+            codes,
+            buy_prices,
+            budget,
+            max_opens_count,
+            position_max_value,
+            position_min_value,
+        )
 
     def apply_slippage(
         self,
@@ -105,23 +147,6 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
             return price * (1 - slip_pct_chg * 1e-2)
 
         raise ValueError(f"无效的滑点配置: {self.config.slippage}")
-
-    def _strategy_parameters(
-        self,
-    ) -> tuple[inspect.Parameter, ...]:
-        params: list[inspect.Parameter] = []
-        for method_name in ("buy", "sell"):
-            method = getattr(self.__class__, method_name)
-            for name, param in inspect.signature(method).parameters.items():
-                if name == "self":
-                    continue
-                if param.kind in (
-                    inspect.Parameter.VAR_POSITIONAL,
-                    inspect.Parameter.VAR_KEYWORD,
-                ):
-                    continue
-                params.append(param)
-        return tuple(params)
 
     def infer_required_indicators(self) -> list[str]:
         required: set[str] = set(

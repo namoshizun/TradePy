@@ -23,11 +23,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "cython>=3.2.5",
     "ipython>=9.13.0",
     "pyright>=1.1.409",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.14",
+    "setuptools>=82.0.1",
     "ta-lib>=0.6.8",
 ]
 
@@ -42,8 +44,8 @@ filterwarnings = [
 addopts = "-v --cov=tradepy --cov-report=term"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools", "wheel", "cython>=3.2.5"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["tradepy"]
+[tool.setuptools.packages.find]
+include = ["tradepy*"]

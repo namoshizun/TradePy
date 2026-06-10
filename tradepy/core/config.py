@@ -171,9 +171,6 @@ class BacktestConf(ConfBase):
 # ------
 class CommonConf(ConfBase):
     mode: ModeType = Field(..., description="运行模式, 回测/模拟盘/实盘")
-    trade_lot_vol: Annotated[int, Field(gt=0)] = Field(
-        100, description="每手交易量"
-    )
     database_dir: AutoCreateDirPath = Field(
         default_factory=lambda: Path.cwd() / "database",
         description="本地数据存放目录",

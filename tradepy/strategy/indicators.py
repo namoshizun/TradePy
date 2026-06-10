@@ -115,7 +115,7 @@ class Take(Indicator):
 
 
 @dataclass(frozen=True)
-class Ref(Indicator):
+class Lag(Indicator):
     periods: int = 1
 
     def _eval(self, value: IndicatorValue | None) -> pl.Expr:

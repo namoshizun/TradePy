@@ -8,7 +8,7 @@ from .indicators import (
     RSI,
     SMA,
     Indicator,
-    Ref,
+    Lag,
     Take,
 )
 
@@ -23,6 +23,6 @@ __all__ = [
     "BOLL",
     "KDJ",
     "ATR",
-    "Ref",
+    "Lag",
     "Take",
 ]

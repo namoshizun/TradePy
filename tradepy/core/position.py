@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+import dataclasses
 
 from tradepy.core.order import Order
 from tradepy.core.types import TradeActionType
@@ -6,7 +6,8 @@ from tradepy.decors import round_val
 from tradepy.utils import calc_pct_chg
 
 
-class Position(BaseModel):
+@dataclasses.dataclass
+class Position:
     id: str
     timestamp: str
     code: str

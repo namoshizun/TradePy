@@ -1,10 +1,10 @@
+import dataclasses
 import uuid
 from datetime import date, datetime
 from typing import Literal, TypedDict
 
 from dateutil import parser as date_parser
 from loguru import logger
-from pydantic import BaseModel, Field
 
 from tradepy.core.types import TradeActionType
 
@@ -29,17 +29,18 @@ ACTION_TO_CODE: dict[TradeActionType, str] = {
 }
 
 
-class Order(BaseModel):
-    id: str | None = None  # Can be null when creating an order
+@dataclasses.dataclass
+class Order:
     timestamp: str
     code: str  # e.g., 000333
     price: float
     vol: int
+    direction: Literal["buy", "sell"]
+    status: OrderStatus = "created"
+    tags: dict = dataclasses.field(default_factory=dict)
     filled_price: float = 0
     filled_vol: int = 0
-    status: OrderStatus = "created"
-    direction: Literal["buy", "sell"]
-    tags: dict = Field(default_factory=dict)
+    id: str | None = None  # Can be null when creating an order
 
     @property
     def duration(self) -> int:

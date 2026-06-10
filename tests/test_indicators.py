@@ -9,7 +9,7 @@ from tradepy.strategy.indicators import (
     KDJ,
     SMA,
     IndicatorValue,
-    Ref,
+    Lag,
     Take,
 )
 
@@ -86,7 +86,7 @@ def test_sma_ref_sma_pipeline(
         timeperiod=sma_period,
     )
     actual = eval_indicator(
-        (SMA(base_period) | Ref(lag_period) | SMA(sma_period)).resolve(),
+        (SMA(base_period) | Lag(lag_period) | SMA(sma_period)).resolve(),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -163,7 +163,7 @@ def test_ref(fake_klines_convergence: pl.DataFrame, lag_period: int) -> None:
     close = fake_klines_convergence["close"].to_numpy().astype(np.float64)
     expected = talib_lag(talib.SMA(close, timeperiod=sma_period), lag_period)
     actual = eval_indicator(
-        (SMA(sma_period) | Ref(lag_period)).resolve(),
+        (SMA(sma_period) | Lag(lag_period)).resolve(),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -171,4 +171,4 @@ def test_ref(fake_klines_convergence: pl.DataFrame, lag_period: int) -> None:
 
 def test_ref_requires_upstream() -> None:
     with pytest.raises(ValueError, match="requires an upstream indicator"):
-        Ref().resolve()
+        Lag().resolve()
