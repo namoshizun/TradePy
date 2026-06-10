@@ -23,37 +23,9 @@ from tradepy.core.types import (
     LazyStockDailyMetricsDataFrame,
     StockDailyMetricsDataFrame,
 )
-from tradepy.decors import indicator
+from tradepy.strategy.indicators import Indicator
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 from tradepy.utils import calc_pct_chg, ensure_laziness
-
-
-def _row_index() -> pl.Expr:
-    return pl.int_range(pl.len())
-
-
-def _mask_warmup(value: pl.Expr, warmup: int) -> pl.Expr:
-    return pl.when(_row_index() < warmup).then(None).otherwise(value)
-
-
-def _fast_ewm(value: pl.Expr, *, alpha: float, warmup: int) -> pl.Expr:
-    """Recursive EMA (``adjust=False``) with the unreliable warm-up masked off.
-
-    Unlike TA-Lib we seed from the first observation instead of a simple moving
-    average, which keeps this to a single native polars kernel (no rolling-mean
-    seed, no per-row masking). The seed discrepancy decays geometrically by a
-    factor of ``1 - alpha`` per bar, so ``warmup`` nulls out the leading region
-    before the result is indistinguishable from TA-Lib.
-    """
-    ewm = value.ewm_mean(alpha=alpha, adjust=False, ignore_nulls=True)
-    return _mask_warmup(ewm, warmup)
-
-
-WARMUP_FACTORS = {
-    "macd": 3,
-    "atr": 2,
-    "rsi": 2,
-}
 
 
 @dataclass
@@ -100,107 +72,6 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
     ) -> float | None:
         raise NotImplementedError
 
-    @indicator()
-    def sma5(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=5)
-
-    @indicator()
-    def sma10(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=10)
-
-    @indicator()
-    def sma20(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=20)
-
-    @indicator()
-    def sma30(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=30)
-
-    @indicator()
-    def sma60(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=60)
-
-    @indicator()
-    def sma120(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=120)
-
-    @indicator()
-    def sma250(self) -> pl.Expr:
-        return pl.col("close").rolling_mean(window_size=250)
-
-    @indicator()
-    def macd(self) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
-        fast_period = 12
-        slow_period = 26
-        signal_period = 9
-        warmup = WARMUP_FACTORS["macd"] * slow_period
-
-        close = pl.col("close")
-        fast_ema = close.ewm_mean(alpha=2 / (fast_period + 1), adjust=False)
-        slow_ema = close.ewm_mean(alpha=2 / (slow_period + 1), adjust=False)
-        macd_line = fast_ema - slow_ema
-        signal = macd_line.ewm_mean(alpha=2 / (signal_period + 1), adjust=False)
-        return (
-            _mask_warmup(macd_line, warmup).alias("macd_dif"),
-            _mask_warmup(signal, warmup).alias("macd_dea"),
-            _mask_warmup(macd_line - signal, warmup).alias("macd_hist"),
-        )
-
-    @indicator()
-    def typical_price(self) -> pl.Expr:
-        return (pl.col("high") + pl.col("low") + pl.col("close")) / 3
-
-    @indicator()
-    def atr(self) -> pl.Expr:
-        period = 14
-        prev_close = pl.col("close").shift(1)
-        true_range = pl.max_horizontal(
-            pl.col("high") - pl.col("low"),
-            (pl.col("high") - prev_close).abs(),
-            (pl.col("low") - prev_close).abs(),
-        )
-        return _fast_ewm(
-            true_range, alpha=1 / period, warmup=WARMUP_FACTORS["atr"] * period
-        )
-
-    @indicator()
-    def rsi(self) -> tuple[pl.Expr, ...]:
-        def _rsi(period: int) -> pl.Expr:
-            warmup = WARMUP_FACTORS["rsi"] * period
-            delta = pl.col("close").diff()
-            gain = delta.clip(lower_bound=0.0)
-            loss = (-delta).clip(lower_bound=0.0)
-            avg_gain = _fast_ewm(gain, alpha=1 / period, warmup=warmup)
-            avg_loss = _fast_ewm(loss, alpha=1 / period, warmup=warmup)
-            total = avg_gain + avg_loss
-            return (
-                pl.when(total == 0)
-                .then(0.0)
-                .otherwise(100.0 * avg_gain / total)
-            )
-
-        return (
-            _rsi(6).alias("rsi_fast"),
-            _rsi(12).alias("rsi_mid"),
-            _rsi(24).alias("rsi_slow"),
-        )
-
-    @indicator()
-    def boll(self) -> tuple[pl.Expr, ...]:
-        boll_window = 20
-        k = 2.0
-        mid = pl.col("close").rolling_mean(window_size=boll_window)
-        boll_std = pl.col("close").rolling_std(
-            window_size=boll_window, ddof=0
-        )  # population σ
-        upper = mid + k * boll_std
-        lower = mid - k * boll_std
-        return (
-            mid.alias("boll_mid"),
-            upper.alias("boll_upper"),
-            lower.alias("boll_lower"),
-        )
-
     def apply_slippage(
         self,
         price: float,
@@ -235,8 +106,10 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
 
         raise ValueError(f"无效的滑点配置: {self.config.slippage}")
 
-    def infer_required_indicators(self) -> list[str]:
-        required: set[str] = set()
+    def _strategy_parameters(
+        self,
+    ) -> tuple[inspect.Parameter, ...]:
+        params: list[inspect.Parameter] = []
         for method_name in ("buy", "sell"):
             method = getattr(self.__class__, method_name)
             for name, param in inspect.signature(method).parameters.items():
@@ -247,56 +120,53 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                     inspect.Parameter.VAR_KEYWORD,
                 ):
                     continue
-                required.add(name)
+                params.append(param)
+        return tuple(params)
+
+    def infer_required_indicators(self) -> list[str]:
+        required: set[str] = set(
+            param.name for param in self._strategy_parameters()
+        )
         return list(required)
 
     def collect_indicator_expressions(self) -> tuple[IndicatorExpression, ...]:
-        exprs: list[IndicatorExpression] = list()
+        exprs: dict[str, IndicatorExpression] = {}
+        indicators: dict[str, Indicator] = {}
 
-        for cls in self.__class__.__mro__:
-            if not getattr(cls, "_tradepy_strategy", False):
+        for param in self._strategy_parameters():
+            name, default = param.name, param.default
+            if not isinstance(default, Indicator):
                 continue
 
-            for name, attr in cls.__dict__.items():
-                if not getattr(attr, "_tradepy_indicator_compute", False):
-                    continue
-
-                # Get the actual polars expression
-                results = attr(self)
-                if not isinstance(results, tuple):
-                    results = (results,)
-
-                _expr: pl.Expr
-                for _expr in results:
-                    output_name = _expr.meta.output_name()
-                    if (
-                        output_name in _expr.meta.root_names()
-                        or output_name == "literal"
-                    ):
-                        # Column-rooted or anonymous polars names → method name
-                        _expr = _expr.alias(name)
-
-                    exprs.append(
-                        IndicatorExpression(
-                            name=_expr.meta.output_name(),
-                            expr=_expr,
-                            not_na=getattr(
-                                attr, "_tradepy_indicator_not_na", True
-                            ),
-                        )
+            existing = indicators.get(name)
+            if existing is not None:
+                if existing != default:
+                    raise ValueError(
+                        f"Conflicting indicator defaults for parameter {name!r}"
                     )
+                continue
 
-        return tuple(exprs)
+            result = default.resolve()
+            if isinstance(result, dict):
+                outputs = ", ".join(sorted(result))
+                raise ValueError(
+                    f"Indicator parameter {name!r} resolves to multiple "
+                    f"outputs ({outputs}); pipe Take(...) before using it"
+                )
+
+            indicators[name] = default
+            exprs[name] = IndicatorExpression(
+                name=name,
+                expr=result.alias(name),
+                not_na=default.not_na,
+            )
+
+        return tuple(exprs.values())
 
     def compute_indicators(
         self, df: StockDailyMetricsDataFrame | LazyStockDailyMetricsDataFrame
     ) -> DataFrame:
-        required_indicators = self.infer_required_indicators()
-        indicator_expressions = tuple(
-            expr
-            for expr in self.collect_indicator_expressions()
-            if expr.name in required_indicators
-        )
+        indicator_expressions = self.collect_indicator_expressions()
 
         _df = df.with_columns(
             *(expr.expr.over("code") for expr in indicator_expressions)
