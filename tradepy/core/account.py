@@ -1,5 +1,4 @@
 import dataclasses
-from collections.abc import Iterable
 from typing import Callable
 
 from tradepy.core.holdings import Holdings
@@ -53,11 +52,11 @@ class BacktestAccount:
         self.frozen_cash_amount -= amount
         self.free_cash_amount += amount
 
-    def buy(self, positions: Iterable[Position]):
+    def buy(self, *positions: Position):
         if cost_total := self.holdings.buy(positions):
             self.free_cash_amount -= self.add_buy_commissions(cost_total)
 
-    def sell(self, positions: Iterable[Position]):
+    def sell(self, *positions: Position):
         if close_total := self.holdings.sell(positions):
             self.frozen_cash_amount += self.take_sell_commissions(close_total)
 

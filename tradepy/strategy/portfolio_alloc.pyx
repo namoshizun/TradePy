@@ -4,8 +4,9 @@
 from libc.math cimport ceil, floor
 from libc.stdlib cimport free, malloc
 from random import randrange, sample
+from collections import namedtuple
 
-from tradepy.core.position import Position
+BudgetAllocation = namedtuple("BudgetAllocation", ["code", "price", "vol"])
 
 
 cdef Py_ssize_t TRADE_LOT_VOL = 100
@@ -52,7 +53,7 @@ def portfolio_alloc(
     cdef double price, remaining
     cdef Candidate* c
     cdef object code
-    cdef list positions = []
+    cdef list allocations = []
 
     try:
         # Keep names whose minimum buy satisfies the position bounds and budget
@@ -102,8 +103,10 @@ def portfolio_alloc(
             code = codes[c.idx]
             price = buy_prices[c.idx]
             vol = c.lots * TRADE_LOT_VOL
-            positions.append(Position(code, "", code, price, vol, price, vol))
+            allocations.append(BudgetAllocation(
+                code, price, vol
+            ))
 
-        return positions
+        return allocations
     finally:
         free(cands)

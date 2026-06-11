@@ -22,7 +22,7 @@
     "tests",
     "docs",
     "examples",
-    "v1"
+    "**/*.ipynb"
   ],
   "pythonPlatform": "Linux"
 }

@@ -24,7 +24,7 @@ from tradepy.core.types import (
     StockDailyMetricsDataFrame,
 )
 from tradepy.strategy.indicators import Indicator
-from tradepy.strategy.portfolio_alloc import portfolio_alloc
+from tradepy.strategy.portfolio_alloc import BudgetAllocation, portfolio_alloc
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 from tradepy.utils import calc_pct_chg, ensure_laziness
 
@@ -37,6 +37,8 @@ class IndicatorExpression:
 
 
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
+
+Portfolio = list[BudgetAllocation]
 
 
 class StrategyBase(abc.ABC, Generic[ConfigT]):
@@ -90,13 +92,13 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
     ) -> float | None:
         raise NotImplementedError
 
-    def plan_positions(
+    def optimize_portfolio(
         self,
         options_df: pl.DataFrame,
         budget: float,
         total_capital: float,
         max_opens_count: int | None = None,
-    ) -> list[Position]:
+    ) -> Portfolio:
         if max_opens_count is None:
             max_opens_count = self.config.max_position_opens
 
@@ -208,14 +210,14 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         return _df  # pyright: ignore[reportReturnType]
 
     def build_buy_expr(self) -> pl.Expr:
-        return PolarsExprTranspiler(self).transpile("buy") / pl.col(
-            "adj_factor"
-        )
+        return (
+            PolarsExprTranspiler(self).transpile("buy") / pl.col("adj_factor")
+        ).cast(pl.Float64)
 
     def build_sell_expr(self) -> pl.Expr:
         return PolarsExprTranspiler(self).transpile("sell") / pl.col(
             "adj_factor"
-        )
+        ).cast(pl.Float64)
 
 
 class BacktestStrategyBase(StrategyBase[ConfigT]):

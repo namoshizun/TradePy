@@ -1,28 +1,27 @@
 import random
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pyximport
 
 pyximport.install(language_level=3)
 
-from tradepy.strategy.portfolio_alloc import portfolio_alloc  # noqa: E402
-
-if TYPE_CHECKING:
-    from tradepy.core.position import Position
+from tradepy.strategy.portfolio_alloc import (  # noqa: E402
+    BudgetAllocation,
+    portfolio_alloc,
+)
 
 
 def _prices(values: list[float]) -> np.ndarray:
     return np.array(values, dtype=np.float64)
 
 
-def _position_values(positions: Iterable["Position"]) -> list[float]:
-    return [position.price * position.vol for position in positions]
+def _allocation_values(allocations: Iterable[BudgetAllocation]) -> list[float]:
+    return [alloc.price * alloc.vol for alloc in allocations]
 
 
 def test_portfolio_alloc_respects_lot_budget_and_position_bounds() -> None:
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         ["A", "B", "C"],
         _prices([10, 20, 25]),
         budget=18_000,
@@ -31,11 +30,12 @@ def test_portfolio_alloc_respects_lot_budget_and_position_bounds() -> None:
         position_min_value=3_000,
     )
 
-    values = _position_values(positions)
+    values = _allocation_values(allocations)
 
-    assert len(positions) == 3
+    assert len(allocations) == 3
+    assert all(isinstance(alloc, BudgetAllocation) for alloc in allocations)
     assert sum(values) <= 18_000
-    assert all(position.vol % 100 == 0 for position in positions)
+    assert all(alloc.vol % 100 == 0 for alloc in allocations)
     assert all(3_000 <= value <= 7_000 for value in values)
     assert max(values) - min(values) <= 2_000
 
@@ -44,7 +44,7 @@ def test_portfolio_alloc_randomly_caps_to_max_opens_count() -> None:
     random.seed(1)
     codes = [f"S{i}" for i in range(10)]
 
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         codes,
         _prices([10] * 10),
         budget=100_000,
@@ -53,16 +53,16 @@ def test_portfolio_alloc_randomly_caps_to_max_opens_count() -> None:
         position_min_value=1_000,
     )
 
-    allocated_codes = {position.code for position in positions}
+    allocated_codes = {alloc.code for alloc in allocations}
 
-    assert len(positions) == 4
+    assert len(allocations) == 4
     assert allocated_codes < set(codes)
 
 
 def test_portfolio_alloc_randomly_drops_options_until_minimums_fit() -> None:
     random.seed(2)
 
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         ["A", "B", "C", "D"],
         _prices([10, 10, 10, 10]),
         budget=2_500,
@@ -71,15 +71,15 @@ def test_portfolio_alloc_randomly_drops_options_until_minimums_fit() -> None:
         position_min_value=1_000,
     )
 
-    values = _position_values(positions)
+    values = _allocation_values(allocations)
 
-    assert len(positions) == 2
+    assert len(allocations) == 2
     assert sum(values) <= 2_500
     assert all(value >= 1_000 for value in values)
 
 
 def test_portfolio_alloc_skips_options_that_cannot_fit_bounds() -> None:
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         ["TOO_EXPENSIVE", "BUYABLE"],
         _prices([100, 10]),
         budget=10_000,
@@ -88,13 +88,13 @@ def test_portfolio_alloc_skips_options_that_cannot_fit_bounds() -> None:
         position_min_value=500,
     )
 
-    assert [position.code for position in positions] == ["BUYABLE"]
-    assert positions[0].vol == 500
-    assert positions[0].price * positions[0].vol == 5_000
+    assert [alloc.code for alloc in allocations] == ["BUYABLE"]
+    assert allocations[0].vol == 500
+    assert allocations[0].price * allocations[0].vol == 5_000
 
 
 def test_portfolio_alloc_accepts_numpy_code_arrays_from_strategy_path() -> None:
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         np.array(["A", "B"]),
         _prices([10, 10]),
         budget=2_000,
@@ -103,11 +103,11 @@ def test_portfolio_alloc_accepts_numpy_code_arrays_from_strategy_path() -> None:
         position_min_value=1_000,
     )
 
-    assert [position.code for position in positions] == ["A", "B"]
+    assert [alloc.code for alloc in allocations] == ["A", "B"]
 
 
 def test_portfolio_alloc_evens_out_values_across_different_lot_costs() -> None:
-    positions = portfolio_alloc(
+    allocations = portfolio_alloc(
         ["CHEAP", "PRICEY"],
         _prices([10, 50]),
         budget=20_000,
@@ -116,7 +116,7 @@ def test_portfolio_alloc_evens_out_values_across_different_lot_costs() -> None:
         position_min_value=1_000,
     )
 
-    assert _position_values(positions) == [10_000, 10_000]
+    assert _allocation_values(allocations) == [10_000, 10_000]
 
 
 def test_portfolio_alloc_returns_empty_on_degenerate_inputs() -> None:
@@ -161,7 +161,7 @@ def test_portfolio_alloc_invariants_hold_for_random_inputs() -> None:
         position_min_value = random.uniform(500, 20_000)
         position_max_value = position_min_value * random.uniform(1, 10)
 
-        positions = portfolio_alloc(
+        allocations = portfolio_alloc(
             [f"S{i}" for i in range(n)],
             _prices(prices),
             budget=budget,
@@ -170,11 +170,13 @@ def test_portfolio_alloc_invariants_hold_for_random_inputs() -> None:
             position_min_value=position_min_value,
         )
 
-        values = _position_values(positions)
+        values = _allocation_values(allocations)
 
-        assert len(positions) <= max_opens_count
+        assert len(allocations) <= max_opens_count
         assert sum(values) <= budget + 1e-6
-        assert all(position.vol > 0 and position.vol % 100 == 0 for position in positions)
+        assert all(
+            alloc.vol > 0 and alloc.vol % 100 == 0 for alloc in allocations
+        )
         assert all(
             position_min_value - 1e-6 <= value <= position_max_value + 1e-6
             for value in values

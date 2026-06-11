@@ -20,7 +20,7 @@ exclude = [
     "dist",
     "site-packages",
     "venv",
-    "v1",
+    "*.ipynb",
 ]
 
 line-length = 80

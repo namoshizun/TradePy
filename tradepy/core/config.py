@@ -97,18 +97,17 @@ class StrategyConf(ConfBase):
     stop_loss: Annotated[
         float,
         Field(
-            default=0,
             description="静态止损百分比， 如果不需要静态止盈止损， 可设置为一个任意大数",
         ),
-    ]
+    ] = 0
     take_profit: Annotated[
         float,
-        Field(default=0, description="静态止盈百分比"),
-    ]
-    slippage: Annotated[
-        SlippageConf,
-        Field(default_factory=_default_slippage_conf, description="卖出滑点"),
-    ]
+        Field(description="静态止盈百分比"),
+    ] = 0
+
+    slippage: SlippageConf = Field(
+        default_factory=_default_slippage_conf, description="卖出滑点"
+    )
     max_position_size: Annotated[
         float,
         Field(
@@ -147,23 +146,22 @@ class BacktestConf(ConfBase):
     ]
     stamp_duty_rate: Annotated[
         float,
-        Field(default=0.1, description="印花税率%, 千分之一是0.1"),
-    ]
+        Field(description="印花税率%, 千分之一是0.1"),
+    ] = 0.1
     broker_commission_rate: Annotated[
         float,
-        Field(default=0.05, description="佣金费率%, 万五是0.05"),
-    ]
+        Field(description="佣金费率%, 万五是0.05"),
+    ] = 0.05
     min_broker_commission_fee: Annotated[
         float,
-        Field(default=5, description="佣金最低收取金额"),
-    ]
+        Field(description="佣金最低收取金额"),
+    ] = 5
     sl_tf_order: Annotated[
         SL_TP_Order,
         Field(
-            default="stop loss first",
             description="日K线同时满足止盈和止损条件时, 止盈止损单的触发顺序, random 表示随机选择",
         ),
-    ]
+    ] = "stop loss first"
 
 
 # ------

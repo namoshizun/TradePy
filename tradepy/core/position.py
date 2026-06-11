@@ -81,6 +81,11 @@ class Position:
         return self.vol == 0 and self.avail_vol == 0
 
     @property
+    def pct_chg(self) -> float:
+        chg = self.pct_chg_at(self.latest_price)
+        return round(chg, 2)
+
+    @property
     def is_new(self) -> bool:
         return self.yesterday_vol == 0
 
@@ -89,7 +94,7 @@ class Position:
 
     def __str__(self):
         pct_chg = self.pct_chg_at(self.latest_price)
-        msg = f"[{self.timestamp}] {self.code}: {self.price} ({pct_chg}%) * {self.vol} ({self.avail_vol}可用, {self.yesterday_vol}隔夜)"
+        msg = f"[{self.timestamp}] {self.code}: {self.price:.2f} ({pct_chg:.2f}%) * {self.vol} ({self.avail_vol}可用, {self.yesterday_vol}隔夜)"
         return msg
 
     def __repr__(self):

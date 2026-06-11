@@ -48,3 +48,14 @@ class Holdings:
 
     def __getitem__(self, code: str):
         return self.positions[code]
+
+    def __str__(self):
+        return "; ".join(
+            f"[{code}]: {pos.pct_chg}%" for code, pos in self.positions.items()
+        )
+
+    def __len__(self):
+        return len(self.positions)
+
+    def __repr__(self):
+        return str(self)
