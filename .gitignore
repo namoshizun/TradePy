@@ -175,3 +175,6 @@ cython_debug/
 
 notes.txt
 .cursor/plans
+
+# Profiling artifacts
+profiles/

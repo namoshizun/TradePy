@@ -94,7 +94,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
 
     def optimize_portfolio(
         self,
-        options_df: pl.DataFrame,
+        options: list[tuple[str, float]],  # code -> buy price
         budget: float,
         total_capital: float,
         max_opens_count: int | None = None,
@@ -105,11 +105,8 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         position_max_value = total_capital * self.config.max_position_size
         position_min_value = self.config.min_trade_amount
 
-        codes = options_df["code"].to_numpy()
-        buy_prices = options_df["buy_price"].to_numpy()
         return portfolio_alloc(
-            codes,
-            buy_prices,
+            options,
             budget,
             max_opens_count,
             position_max_value,

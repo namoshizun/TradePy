@@ -20,8 +20,7 @@ cdef struct Candidate:
 
 
 def portfolio_alloc(
-    object codes,
-    const double[:] buy_prices,
+    list[tuple[str, float]] options,
     double budget,
     int max_opens_count,
     double position_max_value,
@@ -32,9 +31,7 @@ def portfolio_alloc(
     position_max_value]`` and the total within ``budget``, spreading the budget
     as evenly across names as the lot sizes permit.
     """
-    assert buy_prices.shape[0] == len(codes)
-
-    cdef Py_ssize_t n_codes = len(codes)
+    cdef Py_ssize_t n_codes = len(options)
     if n_codes == 0 or max_opens_count <= 0:
         return []
 
@@ -58,7 +55,7 @@ def portfolio_alloc(
     try:
         # Keep names whose minimum buy satisfies the position bounds and budget
         for idx in picked:
-            lot_cost = buy_prices[idx] * TRADE_LOT_VOL
+            lot_cost = options[idx][1] * TRADE_LOT_VOL
             min_lots = max(<Py_ssize_t>ceil(position_min_value / lot_cost), 1)
             max_lots = <Py_ssize_t>floor(position_max_value / lot_cost)
             if min_lots > max_lots or min_lots * lot_cost > budget:
@@ -100,8 +97,7 @@ def portfolio_alloc(
 
         for i in range(count):
             c = &cands[i]
-            code = codes[c.idx]
-            price = buy_prices[c.idx]
+            code, price = options[c.idx]
             vol = c.lots * TRADE_LOT_VOL
             allocations.append(BudgetAllocation(
                 code, price, vol

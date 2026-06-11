@@ -196,6 +196,7 @@ class BarData:
     pct_chg: float
     adj_factor: float
     sell_price: float | None
+    buy_price: float | None = None
 
     @property
     def orig_open(self) -> float:
