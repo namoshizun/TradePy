@@ -2,7 +2,6 @@ import contextlib
 import random
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass
-from typing import Literal
 
 import polars as pl
 from loguru import logger
@@ -11,8 +10,9 @@ from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn
 from tradepy.core.account import BacktestAccount
 from tradepy.core.config import BacktestConf, StrategyConf
 from tradepy.core.position import Position
-from tradepy.core.types import BarData
+from tradepy.core.types import BarData, TradeActionType
 from tradepy.strategy import BacktestStrategyBase
+from tradepy.trade_book.trade_book import TradeBook
 from tradepy.utils import Timer
 
 
@@ -27,21 +27,10 @@ class TradingContext:
 
 @dataclass(frozen=True, slots=True)
 class TradeAction:
+    type: TradeActionType
     code: str
     price: float
     vol: int
-    direction: Literal["buy", "sell"]
-
-
-@dataclass(frozen=True, slots=True)
-class SellAction(TradeAction):
-    direction: Literal["sell"] = "sell"
-    reason: Literal["stop loss", "take profit", "strategy"] = "strategy"
-
-
-@dataclass(frozen=True, slots=True)
-class BuyAction(TradeAction):
-    direction: Literal["buy"] = "buy"
 
 
 class IndayTrader:
@@ -64,7 +53,7 @@ class IndayTrader:
     def strategy_conf(self) -> StrategyConf:
         return self.ctx.strategy_conf
 
-    def process_sells(self) -> Generator[SellAction, None, None]:
+    def process_sells(self) -> Generator[TradeAction, None, None]:
         for code in list(self.account.holdings.positions):
             if code not in self.ctx.tradable_bars:
                 continue
@@ -92,7 +81,7 @@ class IndayTrader:
                         self.strategy.apply_slippage(
                             take_profit_price, ref_price=bar.orig_open
                         ),
-                        "take profit",
+                        "止盈",
                     )
                 else:
                     assert stop_loss_price
@@ -100,20 +89,20 @@ class IndayTrader:
                         self.strategy.apply_slippage(
                             stop_loss_price, ref_price=bar.orig_open
                         ),
-                        "stop loss",
+                        "止损",
                     )
 
             else:
-                sell_price, reason = bar.sell_price, "strategy"
+                sell_price, reason = bar.sell_price, "平仓"
 
             if sell_price and reason:
-                yield SellAction(
-                    reason=reason, code=code, price=sell_price, vol=pos.vol
+                yield TradeAction(
+                    type=reason, code=code, price=sell_price, vol=pos.vol
                 )
 
-    def process_buys(self) -> Generator[BuyAction, None, None]:
+    def process_buys(self) -> Generator[TradeAction, None, None]:
         held_codes = self.account.holdings.positions.keys()
-        init_capital: float = self.account.total_asset_value
+        init_capital: float = self.account.get_total_capital()
 
         buy_options: list[tuple[str, float]] = [
             (code, bar.buy_price)
@@ -129,7 +118,9 @@ class IndayTrader:
         for alloc in self.strategy.optimize_portfolio(
             buy_options, budget, init_capital
         ):
-            yield BuyAction(code=alloc.code, price=alloc.price, vol=alloc.vol)
+            yield TradeAction(
+                type="开仓", code=alloc.code, price=alloc.price, vol=alloc.vol
+            )
 
     def trade(self) -> Generator[TradeAction, None, None]:
         yield from self.process_buys()
@@ -195,9 +186,11 @@ class Backtester:
             tradable_bars={},
         )
         trader = IndayTrader(ctx)
+        trade_book = TradeBook.backtest()
 
         with Progress(*progress_columns) as progress:
             task_id = progress.add_task("回测交易日", total=n_days)
+            pos_id = 1
 
             for (_day,), date_df in df.group_by("date", maintain_order=True):
                 holdings = self.account.holdings.positions.keys()
@@ -205,11 +198,12 @@ class Backtester:
                     date_df, holdings
                 )
 
-                self.account.unfreeze_cash(self.account.frozen_cash_amount)
-                pos_id = 1
+                self.account.freeze_cash(self.account.frozen_cash_amount)
                 timestamp = _day.isoformat()
+
+                # Buy / Sell
                 for action in trader.trade():
-                    if action.direction == "buy":
+                    if action.type == "开仓":
                         pos_id += 1
                         pos = Position(
                             id=str(id),
@@ -222,18 +216,26 @@ class Backtester:
                             yesterday_vol=action.vol,
                         )
                         self.account.buy(pos)
+                        trade_book.buy(timestamp, pos)
                     else:
                         pos = self.account.holdings[action.code]
                         pos.update_price(action.price)
                         self.account.sell(pos)
+                        trade_book.sell(timestamp, pos, action.type)
 
-                    for code, pos in list(self.account.holdings):
-                        with contextlib.suppress(KeyError):
-                            pos.update_price(_bars[code].orig_close)
+                # End of day
+                for code, pos in list(self.account.holdings):
+                    with contextlib.suppress(KeyError):
+                        pos.update_price(_bars[code].orig_close)
 
+                trade_book.log_closing_capitals(timestamp, self.account)
                 progress.advance(task_id)
 
-    def run(self, df: pl.DataFrame | pl.LazyFrame):
+        return trade_book
+
+    def run(
+        self, df: pl.DataFrame | pl.LazyFrame
+    ) -> tuple[pl.DataFrame, TradeBook]:
         logger.info("🤗 加载策略...")
         strategy = self.strategy_conf.load_strategy()
         logger.opt(colors=True).info("<g>OK!</g>")
@@ -268,8 +270,8 @@ class Backtester:
 
         logger.info("📈 开始回测交易...")
         with Timer("s") as timer:
-            self.backtest(strategy, df)
+            trade_book = self.backtest(strategy, df)
 
         logger.opt(colors=True).info(f"<g>OK! ({timer.duration:.1f}s)</g>")
 
-        return df
+        return df, trade_book

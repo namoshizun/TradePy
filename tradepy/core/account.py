@@ -1,3 +1,4 @@
+import abc
 import dataclasses
 from typing import Callable
 
@@ -7,10 +8,9 @@ from tradepy.decors import round_val
 
 
 @dataclasses.dataclass
-class Account:
+class Account(abc.ABC):
     free_cash_amount: float
     frozen_cash_amount: float
-    market_value: float
 
     def free_cash(self, amount: float):
         self.free_cash_amount += amount
@@ -20,10 +20,15 @@ class Account:
         self.free_cash_amount -= amount
         self.frozen_cash_amount += amount
 
-    @property
-    def total_asset_value(self) -> float:
+    @abc.abstractmethod
+    def get_market_value(self) -> float:
+        raise NotImplementedError
+
+    def get_total_capital(self) -> float:
         return (
-            self.market_value + self.free_cash_amount + self.frozen_cash_amount
+            self.get_market_value()
+            + self.free_cash_amount
+            + self.frozen_cash_amount
         )
 
 
@@ -31,26 +36,17 @@ PriceLookupFun = Callable[[str], float]
 
 
 @dataclasses.dataclass
-class BacktestAccount:
-    free_cash_amount: float
-    frozen_cash_amount: float
+class BacktestAccount(Account):
     broker_commission_rate: float
     min_broker_commission_fee: float
     stamp_duty_rate: float
 
     holdings: Holdings = dataclasses.field(default_factory=Holdings)
 
-    def update_holdings(self, price_lookup: PriceLookupFun):
-        if not any(self.holdings):
-            return
-
-        for code, pos in self.holdings:
-            price = price_lookup(code)
-            pos.update_price(price)
-
-    def unfreeze_cash(self, amount: float):
-        self.frozen_cash_amount -= amount
-        self.free_cash_amount += amount
+    def get_market_value(self) -> float:
+        return sum(
+            pos.total_value_at(pos.latest_price) for _, pos in self.holdings
+        )
 
     def buy(self, *positions: Position):
         if cost_total := self.holdings.buy(positions):
@@ -62,7 +58,7 @@ class BacktestAccount:
 
     def clear(self):
         all_positions = [pos for _, pos in self.holdings]
-        self.sell(all_positions)
+        self.sell(*all_positions)
 
     @round_val
     def get_broker_commission_fee(self, amount: float) -> float:
@@ -98,15 +94,3 @@ class BacktestAccount:
             - stamp_duty_fee
         )
         return net_return / position.cost
-
-    @property
-    def total_asset_value(self) -> float:
-        return (
-            self.market_value + self.free_cash_amount + self.frozen_cash_amount
-        )
-
-    @property
-    def market_value(self) -> float:
-        return sum(
-            pos.total_value_at(pos.latest_price) for _, pos in self.holdings
-        )

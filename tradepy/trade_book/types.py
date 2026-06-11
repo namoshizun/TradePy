@@ -1,8 +1,6 @@
-from typing import TypedDict, Union
+from typing import TypedDict
 
 from typing_extensions import NotRequired
-
-from tradepy.core.account import Account, BacktestAccount
 
 
 class TradeLog(TypedDict):
@@ -24,6 +22,3 @@ class CapitalsLog(TypedDict):
     market_value: float
     free_cash_amount: float
     frozen_cash_amount: float
-
-
-AnyAccount = Union[Account, BacktestAccount]  # FIXME: not so cool ...

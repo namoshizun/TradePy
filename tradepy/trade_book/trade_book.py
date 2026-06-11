@@ -1,4 +1,5 @@
 from functools import cached_property
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ from tradepy.trade_book.storage import (
     SQLiteTradeBookStorage,
     TradeBookStorage,
 )
-from tradepy.trade_book.types import AnyAccount, CapitalsLog, TradeLog
+from tradepy.trade_book.types import CapitalsLog, TradeLog
 
 
 class TradeBook:
@@ -82,11 +83,11 @@ class TradeBook:
             "total_return": (pos.price * pct_chg * 1e-2) * sold_vol,
         }
 
-    def make_capital_log(self, timestamp, account: AnyAccount) -> CapitalsLog:
+    def make_capital_log(self, timestamp: str, account: Account) -> CapitalsLog:
         return {
             "frozen_cash_amount": account.frozen_cash_amount,
             "timestamp": timestamp,
-            "market_value": account.market_value,
+            "market_value": account.get_market_value(),
             "free_cash_amount": account.free_cash_amount,
         }
 
@@ -106,18 +107,6 @@ class TradeBook:
             logger.error(f"导出开仓日志错误, {log}")
             raise exc
 
-    def close(self, *args, **kwargs):
-        kwargs["action"] = "平仓"
-        self.sell(*args, **kwargs)
-
-    def stop_loss(self, *args, **kwargs):
-        kwargs["action"] = "止损"
-        self.sell(*args, **kwargs)
-
-    def take_profit(self, *args, **kwargs):
-        kwargs["action"] = "止盈"
-        self.sell(*args, **kwargs)
-
     def log_opening_capitals(self, date: str, account: Account):
         log = self.make_capital_log(date, account)
         self.storage.log_opening_capitals(log)
@@ -130,9 +119,9 @@ class TradeBook:
         return self.storage.get_opening(date)
 
     @classmethod
-    def backtest(cls, *storage_args) -> "TradeBook":
+    def backtest(cls, *storage_args: Any) -> "TradeBook":
         return cls(InMemoryTradeBookStorage(*storage_args))
 
     @classmethod
-    def live_trading(cls, *storage_args) -> "TradeBook":
+    def live_trading(cls, *storage_args: Any) -> "TradeBook":
         return cls(SQLiteTradeBookStorage(*storage_args))
