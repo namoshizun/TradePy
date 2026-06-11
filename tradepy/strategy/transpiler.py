@@ -1,20 +1,92 @@
 import ast
 import inspect
+import operator
 import textwrap
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import reduce
 from typing import Any, Callable
 
 import polars as pl
 
+_UNKNOWN = object()
+
+_BinaryOp = Callable[[pl.Expr, pl.Expr], pl.Expr]
+
+_BIN_OPS: dict[type[ast.operator], _BinaryOp] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+}
+
+_CMP_OPS: dict[type[ast.cmpop], _BinaryOp] = {
+    ast.Lt: operator.lt,
+    ast.LtE: operator.le,
+    ast.Gt: operator.gt,
+    ast.GtE: operator.ge,
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+}
+
+_BOOL_OPS: dict[type[ast.boolop], _BinaryOp] = {
+    ast.And: operator.and_,
+    ast.Or: operator.or_,
+}
+
 
 @dataclass(frozen=True)
-class _PathState:
-    guards: list[pl.Expr]
-    locals: dict[str, pl.Expr]
+class _Scope:
+    """Name resolution context: locals shadow dataframe columns."""
+
+    columns: frozenset[str]
+    string_columns: frozenset[str] = frozenset()
+    locals: dict[str, pl.Expr] = field(default_factory=dict)
+
+    def resolve(self, name: str) -> pl.Expr:
+        if name in self.locals:
+            return self.locals[name]
+        if name in self.columns:
+            col = pl.col(name)
+            return (
+                col.cast(pl.String) if name in self.string_columns else col
+            )
+        raise NameError(
+            f"Unknown name '{name}' — not a function parameter or local."
+        )
+
+    def assign(self, name: str, value: pl.Expr) -> "_Scope":
+        return _Scope(
+            columns=self.columns,
+            string_columns=self.string_columns,
+            locals={**self.locals, name: value},
+        )
 
 
 @dataclass(frozen=True)
-class _ValueReturn:
+class _Path:
+    """One control-flow path: the conditions to reach it, plus its scope."""
+
+    scope: _Scope
+    guards: tuple[pl.Expr, ...] = ()
+
+    @property
+    def guard(self) -> pl.Expr:
+        return (
+            reduce(operator.and_, self.guards) if self.guards else pl.lit(True)
+        )
+
+    def narrowed(self, condition: pl.Expr) -> "_Path":
+        return _Path(scope=self.scope, guards=(*self.guards, condition))
+
+    def with_scope(self, scope: _Scope) -> "_Path":
+        return _Path(scope=scope, guards=self.guards)
+
+
+@dataclass(frozen=True)
+class _Branch:
+    """A `return` reached under `guard`, yielding `value`."""
+
     guard: pl.Expr
     value: pl.Expr
 
@@ -26,500 +98,289 @@ class PolarsExprTranspiler:
     handles the conversion to Rust-speed execution.
 
     Supported constructs:
-      - Comparisons:       <, <=, >, >=, ==, !=
+      - Comparisons:       <, <=, >, >=, ==, !=, in, not in (incl. chained)
       - Boolean ops:       and, or, not
       - Arithmetic:        +, -, *, /, **
       - Truthy checks:     if col_name:
+      - Local variables:   x = ...; later conditions/returns may use x
       - self.attr:         self.conf.x  →  resolved to a Python literal
-      - self.method(col):  inlined by recursively parsing the method's AST
+      - self.method(col):  inlined by recursively transpiling the method
       - Built-in round():  round(expr, n)  →  expr.round(n)
+
+    The method body is flattened into a set of (guard, value) branches —
+    one per reachable `return` — and combined into a single
+    when/then/otherwise chain.
     """
 
     def __init__(self, instance: Any):
         self._instance = instance
-        self._param_names: set[str] = set()
 
     def transpile(self, method_name: str, alias: str | None = None) -> pl.Expr:
-        method = getattr(self._instance, method_name)
-        func_def = self._parse_func(method)
+        func_def = self._parse_func(getattr(self._instance, method_name))
+        scope = self._param_scope(func_def)
+        branches, _ = self._walk_block(func_def.body, [_Path(scope=scope)])
 
-        self._param_names = self._collect_param_names(func_def)
-
-        returns, _ = self._eval_optional_value_stmts(
-            func_def.body,
-            [_PathState(guards=[], locals={})],
-        )
-
-        if not returns:
+        if not branches:
             expr = pl.lit(None)
         else:
-            expr = pl.when(returns[0].guard).then(returns[0].value)
-            for branch in returns[1:]:
-                expr = expr.when(branch.guard).then(branch.value)
-            expr = expr.otherwise(None)
+            chain = pl.when(branches[0].guard).then(branches[0].value)
+            for branch in branches[1:]:
+                chain = chain.when(branch.guard).then(branch.value)
+            expr = chain.otherwise(None)
 
         return expr.alias(alias or method_name)
 
     # ------------------------------------------------------------------ #
-    #  AST traversal                                                       #
+    #  Statement walking                                                   #
     # ------------------------------------------------------------------ #
 
-    def _eval_bool_stmts(
-        self, stmts: list[ast.stmt], states: list[_PathState]
-    ) -> tuple[list[pl.Expr], list[_PathState]]:
-        branches: list[pl.Expr] = []
-        live_states = states
-
+    def _walk_block(
+        self, stmts: list[ast.stmt], paths: list[_Path]
+    ) -> tuple[list[_Branch], list[_Path]]:
+        """
+        Walk statements along every live path. Returns the branches produced
+        by `return` statements, and the paths that fell through the block.
+        """
+        branches: list[_Branch] = []
         for stmt in stmts:
-            next_states: list[_PathState] = []
-            for state in live_states:
-                stmt_branches, stmt_states = self._eval_bool_stmt(stmt, state)
+            if not paths:
+                break
+            next_paths: list[_Path] = []
+            for path in paths:
+                stmt_branches, live = self._walk_stmt(stmt, path)
                 branches.extend(stmt_branches)
-                next_states.extend(stmt_states)
-            live_states = next_states
-            if not live_states:
-                break
+                next_paths.extend(live)
+            paths = next_paths
+        return branches, paths
 
-        return branches, live_states
-
-    def _eval_bool_stmt(
-        self, stmt: ast.stmt, state: _PathState
-    ) -> tuple[list[pl.Expr], list[_PathState]]:
-        if isinstance(stmt, ast.Return):
-            return self._eval_bool_return(stmt, state), []
-
-        if isinstance(stmt, ast.If):
-            test = self._to_bool_expr(stmt.test, state.locals)
-            body_state = _PathState(
-                guards=state.guards + [test],
-                locals=dict(state.locals),
-            )
-            else_state = _PathState(
-                guards=state.guards + [~test],
-                locals=dict(state.locals),
-            )
-
-            body_branches, body_live = self._eval_bool_stmts(
-                stmt.body, [body_state]
-            )
-            if stmt.orelse:
-                else_branches, else_live = self._eval_bool_stmts(
-                    stmt.orelse, [else_state]
+    def _walk_stmt(
+        self, stmt: ast.stmt, path: _Path
+    ) -> tuple[list[_Branch], list[_Path]]:
+        match stmt:
+            case ast.Return(value=value):
+                expr = (
+                    pl.lit(None)
+                    if value is None
+                    else self._expr(value, path.scope)
                 )
-            else:
-                else_branches, else_live = [], [else_state]
+                return [_Branch(guard=path.guard, value=expr)], []
 
-            return body_branches + else_branches, body_live + else_live
-
-        if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
-            return [], [self._assign_local(stmt, state)]
-
-        if isinstance(stmt, ast.Pass):
-            return [], [state]
-
-        if self._is_docstring_expr(stmt):
-            return [], [state]
-
-        raise NotImplementedError(
-            f"Unsupported statement: {ast.unparse(stmt)!r}"
-        )
-
-    def _eval_bool_return(
-        self, stmt: ast.Return, state: _PathState
-    ) -> list[pl.Expr]:
-        value = stmt.value
-        if value is None:
-            return []
-        if isinstance(value, ast.Constant):
-            if value.value is True:
-                return [self._guard_expr(state.guards)]
-            if value.value in (False, None):
-                return []
-            raise NotImplementedError(
-                f"Unsupported bool return: {ast.unparse(value)!r}"
-            )
-
-        expr = self._to_bool_expr(value, state.locals)
-        if state.guards:
-            expr = self._and_all(state.guards) & expr
-        return [expr]
-
-    def _eval_value_stmts(
-        self, stmts: list[ast.stmt], states: list[_PathState]
-    ) -> tuple[list[_ValueReturn], list[_PathState]]:
-        returns: list[_ValueReturn] = []
-        live_states = states
-
-        for stmt in stmts:
-            next_states: list[_PathState] = []
-            for state in live_states:
-                stmt_returns, stmt_states = self._eval_value_stmt(stmt, state)
-                returns.extend(stmt_returns)
-                next_states.extend(stmt_states)
-            live_states = next_states
-            if not live_states:
-                break
-
-        return returns, live_states
-
-    def _eval_value_stmt(
-        self, stmt: ast.stmt, state: _PathState
-    ) -> tuple[list[_ValueReturn], list[_PathState]]:
-        if isinstance(stmt, ast.Return):
-            if stmt.value is None:
-                raise ValueError("Helper methods must return a value")
-            return [
-                _ValueReturn(
-                    guard=self._guard_expr(state.guards),
-                    value=self._to_value_expr(stmt.value, state.locals),
+            case ast.If(test=test, body=body, orelse=orelse):
+                condition = self._condition(test, path.scope)
+                then_branches, then_live = self._walk_block(
+                    body, [path.narrowed(condition)]
                 )
-            ], []
-
-        if isinstance(stmt, ast.If):
-            test = self._to_bool_expr(stmt.test, state.locals)
-            body_state = _PathState(
-                guards=state.guards + [test],
-                locals=dict(state.locals),
-            )
-            else_state = _PathState(
-                guards=state.guards + [~test],
-                locals=dict(state.locals),
-            )
-
-            body_returns, body_live = self._eval_value_stmts(
-                stmt.body, [body_state]
-            )
-            if stmt.orelse:
-                else_returns, else_live = self._eval_value_stmts(
-                    stmt.orelse, [else_state]
+                else_branches, else_live = self._walk_block(
+                    orelse, [path.narrowed(~condition)]
                 )
-            else:
-                else_returns, else_live = [], [else_state]
+                return then_branches + else_branches, then_live + else_live
 
-            return body_returns + else_returns, body_live + else_live
+            case ast.Assign() | ast.AnnAssign():
+                name, value_node = self._assign_target(stmt)
+                value = self._expr(value_node, path.scope)
+                return [], [path.with_scope(path.scope.assign(name, value))]
 
-        if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
-            return [], [self._assign_local(stmt, state)]
+            case ast.Pass():
+                return [], [path]
 
-        if isinstance(stmt, ast.Pass):
-            return [], [state]
+            case ast.Expr(value=ast.Constant(value=str())):  # docstring
+                return [], [path]
 
-        if self._is_docstring_expr(stmt):
-            return [], [state]
-
-        raise NotImplementedError(
-            f"Unsupported statement: {ast.unparse(stmt)!r}"
-        )
-
-    def _eval_optional_value_stmts(
-        self, stmts: list[ast.stmt], states: list[_PathState]
-    ) -> tuple[list[_ValueReturn], list[_PathState]]:
-        returns: list[_ValueReturn] = []
-        live_states = states
-
-        for stmt in stmts:
-            next_states: list[_PathState] = []
-            for state in live_states:
-                stmt_returns, stmt_states = self._eval_optional_value_stmt(
-                    stmt, state
-                )
-                returns.extend(stmt_returns)
-                next_states.extend(stmt_states)
-            live_states = next_states
-            if not live_states:
-                break
-
-        return returns, live_states
-
-    def _eval_optional_value_stmt(
-        self, stmt: ast.stmt, state: _PathState
-    ) -> tuple[list[_ValueReturn], list[_PathState]]:
-        if isinstance(stmt, ast.Return):
-            value = (
-                pl.lit(None)
-                if stmt.value is None
-                else self._to_value_expr(stmt.value, state.locals)
-            )
-            return [
-                _ValueReturn(
-                    guard=self._guard_expr(state.guards),
-                    value=value,
-                )
-            ], []
-
-        if isinstance(stmt, ast.If):
-            test = self._to_bool_expr(stmt.test, state.locals)
-            body_state = _PathState(
-                guards=state.guards + [test],
-                locals=dict(state.locals),
-            )
-            else_state = _PathState(
-                guards=state.guards + [~test],
-                locals=dict(state.locals),
-            )
-
-            body_returns, body_live = self._eval_optional_value_stmts(
-                stmt.body, [body_state]
-            )
-            if stmt.orelse:
-                else_returns, else_live = self._eval_optional_value_stmts(
-                    stmt.orelse, [else_state]
-                )
-            else:
-                else_returns, else_live = [], [else_state]
-
-            return body_returns + else_returns, body_live + else_live
-
-        if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
-            return [], [self._assign_local(stmt, state)]
-
-        if isinstance(stmt, ast.Pass):
-            return [], [state]
-
-        if self._is_docstring_expr(stmt):
-            return [], [state]
-
-        raise NotImplementedError(
-            f"Unsupported statement: {ast.unparse(stmt)!r}"
-        )
-
-    # ------------------------------------------------------------------ #
-    #  Boolean expression conversion                                       #
-    # ------------------------------------------------------------------ #
-
-    def _to_bool_expr(
-        self, node: ast.expr, local_map: dict[str, pl.Expr] | None = None
-    ) -> pl.Expr:
-        local_map = local_map or {}
-        if isinstance(node, ast.Compare):
-            return self._compare(node, local_map)
-        if isinstance(node, ast.BoolOp):
-            return self._boolop(node, local_map)
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            return ~self._to_bool_expr(node.operand, local_map)
-        if isinstance(node, ast.Name) and node.id in local_map:
-            return local_map[node.id].cast(pl.Boolean)
-        if isinstance(node, ast.Name) and node.id in self._param_names:
-            # bare `if col_name:` truthy check
-            return pl.col(node.id).cast(pl.Boolean)
-        if isinstance(node, ast.Call):
-            return self._call(node, local_map).cast(pl.Boolean)
-        if isinstance(node, ast.Constant):
-            return pl.lit(bool(node.value))
-        raise NotImplementedError(
-            f"Unsupported condition: {ast.unparse(node)!r}\n"
-            "Consider extracting this into a helper method."
-        )
-
-    def _compare(
-        self, node: ast.Compare, local_map: dict[str, pl.Expr] | None = None
-    ) -> pl.Expr:
-        left = self._to_value_expr(node.left, local_map)
-        result: pl.Expr | None = None
-        _ops = {
-            ast.Lt: lambda left_expr, right_expr: left_expr < right_expr,
-            ast.LtE: lambda left_expr, right_expr: left_expr <= right_expr,
-            ast.Gt: lambda left_expr, right_expr: left_expr > right_expr,
-            ast.GtE: lambda left_expr, right_expr: left_expr >= right_expr,
-            ast.Eq: lambda left_expr, right_expr: left_expr == right_expr,
-            ast.NotEq: lambda left_expr, right_expr: left_expr != right_expr,
-        }
-        for op, comp in zip(node.ops, node.comparators):
-            if type(op) not in _ops:
+            case _:
                 raise NotImplementedError(
-                    f"Unsupported comparison operator: {type(op).__name__}"
+                    f"Unsupported statement: {ast.unparse(stmt)!r}"
                 )
-            right = self._to_value_expr(comp, local_map)
-            cmp = _ops[type(op)](left, right)
-            result = cmp if result is None else result & cmp
-            left = right
-        if result is None:
-            raise NotImplementedError(
-                f"Empty comparison: {ast.unparse(node)!r}"
-            )
-        return result
 
-    def _boolop(
-        self, node: ast.BoolOp, local_map: dict[str, pl.Expr] | None = None
-    ) -> pl.Expr:
-        exprs = [self._to_bool_expr(v, local_map) for v in node.values]
-        result = exprs[0]
-        for e in exprs[1:]:
-            result = (
-                (result & e) if isinstance(node.op, ast.And) else (result | e)
-            )
-        return result
-
-    # ------------------------------------------------------------------ #
-    #  Value expression conversion (operands, arithmetic, calls)          #
-    # ------------------------------------------------------------------ #
-
-    def _to_value_expr(
-        self, node: ast.expr, local_map: dict[str, pl.Expr] | None = None
-    ) -> pl.Expr:
-        local_map = local_map or {}
-
-        if isinstance(node, ast.Name):
-            if node.id in local_map:
-                return local_map[node.id]
-            if node.id in self._param_names:
-                return pl.col(node.id)
-            raise NameError(
-                f"Unknown name '{node.id}' — not a function parameter."
-            )
-
-        if isinstance(node, ast.Constant):
-            return pl.lit(node.value)
-
-        if isinstance(node, ast.Attribute):
-            # self.conf.threshold → evaluate on live instance → Python literal
-            return pl.lit(self._resolve_attr(node))
-
-        if isinstance(node, ast.BinOp):
-            return self._binop(node, local_map)
-
-        if isinstance(node, ast.UnaryOp):
-            return self._unaryop(node, local_map)
-
-        if isinstance(node, ast.Call):
-            return self._call(node, local_map)
-
-        if isinstance(node, (ast.Compare, ast.BoolOp)):
-            return self._to_bool_expr(node, local_map)
-
+    @staticmethod
+    def _assign_target(
+        stmt: ast.Assign | ast.AnnAssign,
+    ) -> tuple[str, ast.expr]:
+        match stmt:
+            case ast.Assign(targets=[ast.Name(id=name)], value=value):
+                return name, value
+            case ast.AnnAssign(
+                target=ast.Name(id=name), value=value
+            ) if value is not None:
+                return name, value
         raise NotImplementedError(
-            f"Unsupported value expression: {ast.unparse(node)!r}"
+            f"Only single-name assignments are supported: {ast.unparse(stmt)!r}"
         )
 
-    def _binop(self, node: ast.BinOp, local_map: dict[str, pl.Expr]) -> pl.Expr:
-        left = self._to_value_expr(node.left, local_map)
-        right = self._to_value_expr(node.right, local_map)
-        _ops = {
-            ast.Add: lambda a, b: a + b,
-            ast.Sub: lambda a, b: a - b,
-            ast.Mult: lambda a, b: a * b,
-            ast.Div: lambda a, b: a / b,
-            ast.Pow: lambda a, b: a**b,
-        }
-        if type(node.op) not in _ops:
-            raise NotImplementedError(
-                f"Unsupported operator: {type(node.op).__name__}"
-            )
-        return _ops[type(node.op)](left, right)
+    # ------------------------------------------------------------------ #
+    #  Expression conversion                                              #
+    # ------------------------------------------------------------------ #
 
-    def _unaryop(
-        self, node: ast.UnaryOp, local_map: dict[str, pl.Expr]
-    ) -> pl.Expr:
-        value = self._to_value_expr(node.operand, local_map)
-        if isinstance(node.op, ast.USub):
-            return -value
-        if isinstance(node.op, ast.UAdd):
-            return value
-        if isinstance(node.op, ast.Not):
-            return ~value.cast(pl.Boolean)
-        raise NotImplementedError(
-            f"Unsupported unary operator: {type(node.op).__name__}"
-        )
+    def _expr(self, node: ast.expr, scope: _Scope) -> pl.Expr:
+        match node:
+            case ast.Name(id=name):
+                return scope.resolve(name)
 
-    def _call(self, node: ast.Call, local_map: dict[str, pl.Expr]) -> pl.Expr:
-        # round(expr, ndigits)
-        if isinstance(node.func, ast.Name) and node.func.id == "round":
-            inner = self._to_value_expr(node.args[0], local_map)
-            if len(node.args) > 1:
-                ndigits_node = node.args[1]
-                if not isinstance(ndigits_node, ast.Constant):
-                    raise NotImplementedError(
-                        "round() ndigits must be a Python literal"
-                    )
-                ndigits = ndigits_node.value
-                if not isinstance(ndigits, int):
-                    raise TypeError("round() ndigits must be an int")
+            case ast.Constant(value=value):
+                return pl.lit(value)
+
+            case ast.Attribute():
+                # self.conf.threshold → evaluated on the live instance
+                return pl.lit(self._self_attr(node))
+
+            case ast.BinOp(left=left, op=op, right=right):
+                apply = self._op(_BIN_OPS, op)
+                return apply(self._expr(left, scope), self._expr(right, scope))
+
+            case ast.UnaryOp(op=ast.USub(), operand=operand):
+                return -self._expr(operand, scope)
+
+            case ast.UnaryOp(op=ast.UAdd(), operand=operand):
+                return self._expr(operand, scope)
+
+            case ast.UnaryOp(op=ast.Not(), operand=operand):
+                return ~self._condition(operand, scope)
+
+            case ast.Call():
+                return self._call(node, scope)
+
+            case ast.Compare() | ast.BoolOp():
+                return self._condition(node, scope)
+
+            case _:
+                raise NotImplementedError(
+                    f"Unsupported value expression: {ast.unparse(node)!r}"
+                )
+
+    def _condition(self, node: ast.expr, scope: _Scope) -> pl.Expr:
+        match node:
+            case ast.Compare():
+                return self._compare(node, scope)
+
+            case ast.BoolOp(op=op, values=values):
+                apply = self._op(_BOOL_OPS, op)
+                return reduce(
+                    apply, (self._condition(v, scope) for v in values)
+                )
+
+            case ast.UnaryOp(op=ast.Not(), operand=operand):
+                return ~self._condition(operand, scope)
+
+            case ast.Constant(value=value):
+                return pl.lit(bool(value))
+
+            case ast.Name() | ast.Call():  # truthy check, e.g. `if flag:`
+                return self._expr(node, scope).cast(pl.Boolean)
+
+            case _:
+                raise NotImplementedError(
+                    f"Unsupported condition: {ast.unparse(node)!r}\n"
+                    "Consider extracting this into a helper method."
+                )
+
+    def _compare(self, node: ast.Compare, scope: _Scope) -> pl.Expr:
+        # `a < b < c` desugars to pairwise comparisons ANDed together
+        operands = [node.left, *node.comparators]
+        comparisons: list[pl.Expr] = []
+        for op, left, right in zip(node.ops, operands, operands[1:]):
+            if isinstance(op, (ast.In, ast.NotIn)):
+                cmp = self._membership(left, right, scope)
+                if isinstance(op, ast.NotIn):
+                    cmp = ~cmp
             else:
-                ndigits = 0
-            return inner.round(ndigits)
+                apply = self._op(_CMP_OPS, op)
+                cmp = apply(self._expr(left, scope), self._expr(right, scope))
+            comparisons.append(cmp)
+        return reduce(operator.and_, comparisons)
 
-        # self.method(args...)  →  inline the method
-        if (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "self"
-        ):
-            return self._inline_method(node.func.attr, node.args, local_map)
+    def _membership(
+        self, left_node: ast.expr, container_node: ast.expr, scope: _Scope
+    ) -> pl.Expr:
+        container = self._static_value(container_node)
 
+        if isinstance(container, str):
+            # "needle" in "literal string" → substring check
+            return pl.lit(container).str.contains(
+                self._expr(left_node, scope), literal=True
+            )
+        if isinstance(container, (list, tuple, set, frozenset, dict)):
+            return self._expr(left_node, scope).is_in(list(container))
+        if container is not _UNKNOWN:
+            raise NotImplementedError(
+                f"Unsupported membership container: {ast.unparse(container_node)!r}"
+            )
+
+        # Dynamic container, e.g. "ST" in name → substring check on a column
+        return self._expr(container_node, scope).str.contains(
+            self._expr(left_node, scope), literal=True
+        )
+
+    def _call(self, node: ast.Call, scope: _Scope) -> pl.Expr:
+        match node.func:
+            case ast.Name(id="round"):
+                return self._round(node, scope)
+            case ast.Attribute(value=ast.Name(id="self"), attr=method_name):
+                return self._inline_method(method_name, node.args, scope)
         raise NotImplementedError(f"Unsupported call: {ast.unparse(node)!r}")
 
+    def _round(self, node: ast.Call, scope: _Scope) -> pl.Expr:
+        value = self._expr(node.args[0], scope)
+        ndigits = 0
+        if len(node.args) > 1:
+            match node.args[1]:
+                case ast.Constant(value=int() as ndigits):
+                    pass
+                case _:
+                    raise NotImplementedError(
+                        "round() ndigits must be an int literal"
+                    )
+        return value.round(ndigits)
+
     # ------------------------------------------------------------------ #
-    #  Helper method inlining (handles name-mangled private methods too)  #
+    #  Helper method inlining                                             #
     # ------------------------------------------------------------------ #
 
     def _inline_method(
         self,
         name: str,
         arg_nodes: list[ast.expr],
-        caller_locals: dict[str, pl.Expr],
+        caller_scope: _Scope,
     ) -> pl.Expr:
         """
-        Parse a self.method() call, map its parameters to the caller's
-        Polars expressions, and return the formula as a Polars Expr.
+        Transpile a self.method() call by binding its parameters to the
+        caller's argument expressions and flattening its body.
         """
-        method = self._resolve_method(name)
-        func_def = self._parse_func(method)
-
-        param_args = self._collect_param_args(func_def)
-        param_names = {arg.arg for arg in param_args}
-        if len(arg_nodes) != len(param_args):
+        func_def = self._parse_func(self._resolve_method(name))
+        params = self._params(func_def)
+        if len(arg_nodes) != len(params):
             raise TypeError(
-                f"Method '{name}' expects {len(param_args)} args, got {len(arg_nodes)}"
+                f"Method '{name}' expects {len(params)} args, got {len(arg_nodes)}"
             )
-        local_map = {
-            param.arg: self._to_value_expr(arg_node, caller_locals)
-            for param, arg_node in zip(param_args, arg_nodes)
-        }
 
-        outer_param_names = self._param_names
-        try:
-            self._param_names = param_names
-            returns, live_states = self._eval_value_stmts(
-                func_def.body,
-                [_PathState(guards=[], locals=local_map)],
-            )
-        finally:
-            self._param_names = outer_param_names
+        # The helper sees only its own parameters — caller names don't leak
+        scope = _Scope(
+            columns=frozenset(),
+            locals={
+                param.arg: self._expr(arg_node, caller_scope)
+                for param, arg_node in zip(params, arg_nodes)
+            },
+        )
+        branches, live_paths = self._walk_block(
+            func_def.body, [_Path(scope=scope)]
+        )
 
-        if live_states:
+        if live_paths:
             raise ValueError(
                 f"Method '{name}' has a path that does not return a value"
             )
-        if not returns:
+        if not branches:
             raise ValueError(f"No return statement found in method '{name}'")
-        if len(returns) == 1:
-            return returns[0].value
+        if len(branches) == 1:
+            return branches[0].value
 
-        expr = pl.when(returns[0].guard).then(returns[0].value)
-        for branch in returns[1:-1]:
-            expr = expr.when(branch.guard).then(branch.value)
-        return expr.otherwise(returns[-1].value)
+        chain = pl.when(branches[0].guard).then(branches[0].value)
+        for branch in branches[1:-1]:
+            chain = chain.when(branch.guard).then(branch.value)
+        return chain.otherwise(branches[-1].value)
 
-    def _resolve_attr(self, node: ast.Attribute) -> Any:
-        parts: list[str] = []
-        current: ast.expr = node
-        while isinstance(current, ast.Attribute):
-            parts.append(current.attr)
-            current = current.value
-        if not isinstance(current, ast.Name) or current.id != "self":
-            raise NotImplementedError(
-                f"Only self.<attr> chains are supported: {ast.unparse(node)!r}"
-            )
-        obj: Any = self._instance
-        for attr in reversed(parts):
-            obj = getattr(obj, attr)
-        return obj
-
-    def _resolve_method(self, name: str):
+    def _resolve_method(self, name: str) -> Callable:
         """Handles Python name mangling: __method → _ClassName__method."""
         if hasattr(self._instance, name):
             return getattr(self._instance, name)
-        # '__foo' in class Strategy → '_Strategy__foo'; same for '_Strategy' classes
         cls_name = type(self._instance).__name__.lstrip("_")
         mangled = f"_{cls_name}__{name.removeprefix('__')}"
         if hasattr(self._instance, mangled):
@@ -529,46 +390,68 @@ class PolarsExprTranspiler:
         )
 
     # ------------------------------------------------------------------ #
-    #  Utilities                                                           #
+    #  Static value resolution (self attributes, literals)                #
+    # ------------------------------------------------------------------ #
+
+    def _self_attr(self, node: ast.Attribute) -> Any:
+        parts: list[str] = []
+        current: ast.expr = node
+        while isinstance(current, ast.Attribute):
+            parts.append(current.attr)
+            current = current.value
+        if not isinstance(current, ast.Name) or current.id != "self":
+            raise NotImplementedError(
+                f"Only self.<attr> chains are supported: {ast.unparse(node)!r}"
+            )
+        return reduce(getattr, reversed(parts), self._instance)
+
+    def _static_value(self, node: ast.expr) -> Any:
+        """Resolve a node to a Python value at transpile time, if possible."""
+        if isinstance(node, ast.Attribute):
+            return self._self_attr(node)
+        try:
+            return ast.literal_eval(node)
+        except (ValueError, TypeError, SyntaxError, MemoryError):
+            return _UNKNOWN
+
+    # ------------------------------------------------------------------ #
+    #  Function parsing                                                    #
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _parse_func(method: Callable) -> ast.FunctionDef:
         source = textwrap.dedent(inspect.getsource(method))
-        node = ast.parse(source).body[0]
-        if isinstance(node, ast.FunctionDef):
-            return node
-
-        lambda_node: ast.Lambda | None = None
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
-            lambda_node = node.value
-        if (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.value, ast.Lambda)
-        ):
-            lambda_node = node.value
-
-        if lambda_node is not None:
-            return ast.FunctionDef(
-                name=getattr(method, "__name__", "<lambda>"),
-                args=lambda_node.args,
-                body=[ast.Return(value=lambda_node.body)],
-                decorator_list=[],
-                returns=None,
-                type_comment=None,
-            )
-
+        match ast.parse(source).body[0]:
+            case ast.FunctionDef() as func_def:
+                return func_def
+            case (
+                ast.Assign(value=ast.Lambda() as lam)
+                | ast.AnnAssign(value=ast.Lambda() as lam)
+            ):
+                return ast.FunctionDef(
+                    name=getattr(method, "__name__", "<lambda>"),
+                    args=lam.args,
+                    body=[ast.Return(value=lam.body)],
+                    decorator_list=[],
+                    returns=None,
+                    type_comment=None,
+                )
         raise TypeError("Expected a function definition or lambda assignment")
 
-    @staticmethod
-    def _collect_param_names(func_def: ast.FunctionDef) -> set[str]:
-        return {
-            arg.arg
-            for arg in PolarsExprTranspiler._collect_param_args(func_def)
-        }
+    @classmethod
+    def _param_scope(cls, func_def: ast.FunctionDef) -> _Scope:
+        params = cls._params(func_def)
+        return _Scope(
+            columns=frozenset(param.arg for param in params),
+            string_columns=frozenset(
+                param.arg
+                for param in params
+                if cls._is_str_annotation(param.annotation)
+            ),
+        )
 
     @staticmethod
-    def _collect_param_args(func_def: ast.FunctionDef) -> tuple[ast.arg, ...]:
+    def _params(func_def: ast.FunctionDef) -> tuple[ast.arg, ...]:
         args = (
             *func_def.args.posonlyargs,
             *func_def.args.args,
@@ -576,44 +459,17 @@ class PolarsExprTranspiler:
         )
         return tuple(arg for arg in args if arg.arg != "self")
 
-    def _assign_local(
-        self, stmt: ast.Assign | ast.AnnAssign, state: _PathState
-    ) -> _PathState:
-        if isinstance(stmt, ast.Assign):
-            if len(stmt.targets) != 1 or not isinstance(
-                stmt.targets[0], ast.Name
-            ):
-                raise NotImplementedError(
-                    f"Only single-name assignments are supported: {ast.unparse(stmt)!r}"
-                )
-            name = stmt.targets[0].id
-            value_node = stmt.value
-        else:
-            if not isinstance(stmt.target, ast.Name) or stmt.value is None:
-                raise NotImplementedError(
-                    f"Only initialized name annotations are supported: {ast.unparse(stmt)!r}"
-                )
-            name = stmt.target.id
-            value_node = stmt.value
-
-        local_map = dict(state.locals)
-        local_map[name] = self._to_value_expr(value_node, state.locals)
-        return _PathState(guards=state.guards, locals=local_map)
+    @staticmethod
+    def _is_str_annotation(annotation: ast.expr | None) -> bool:
+        match annotation:
+            case ast.Name(id="str") | ast.Constant(value="str"):
+                return True
+        return False
 
     @staticmethod
-    def _is_docstring_expr(stmt: ast.stmt) -> bool:
-        return (
-            isinstance(stmt, ast.Expr)
-            and isinstance(stmt.value, ast.Constant)
-            and isinstance(stmt.value.value, str)
-        )
-
-    def _guard_expr(self, guards: list[pl.Expr]) -> pl.Expr:
-        return self._and_all(guards) if guards else pl.lit(True)
-
-    @staticmethod
-    def _and_all(exprs: list[pl.Expr]) -> pl.Expr:
-        result = exprs[0]
-        for e in exprs[1:]:
-            result = result & e
-        return result
+    def _op(table: dict[type, _BinaryOp], op: ast.AST) -> _BinaryOp:
+        if (fn := table.get(type(op))) is None:
+            raise NotImplementedError(
+                f"Unsupported operator: {type(op).__name__}"
+            )
+        return fn

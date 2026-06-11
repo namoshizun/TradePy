@@ -8,6 +8,7 @@ from tradepy.core.types import (
     LazyStockDailyMetricsDataFrame,
     LazyStockPriceAdjustFactorsDataFrame,
     LazyStocksBasicDataFrame,
+    LazyStocksListDataFrame,
     LazySWStockIndustryDataFrame,
 )
 from tradepy.depot import (
@@ -15,6 +16,7 @@ from tradepy.depot import (
     StocksDayBasicsDepository,
     StocksDayKlinesDepository,
     StocksIndustryClassListingDepository,
+    StocksListingDepository,
 )
 from tradepy.pipelines import Pipeline
 
@@ -30,6 +32,7 @@ class AssembleDatasetPipeline(Pipeline):
         basics_df: LazyStocksBasicDataFrame,
         adj_df: LazyStockPriceAdjustFactorsDataFrame,
         ind_class_df: LazySWStockIndustryDataFrame,
+        listing_df: LazyStocksListDataFrame,
     ) -> LazyStockDailyMetricsDataFrame:
         return (  # pyright: ignore[reportReturnType]
             klines_df.join(adj_df, on=["code", "date"], how="inner")
@@ -50,6 +53,7 @@ class AssembleDatasetPipeline(Pipeline):
             )
             .drop("since")
             .drop_nulls(subset=["industry_code"])
+            .join(listing_df.select("code", "name"), on=["code"], how="inner")
             .sort("code", "date")
         )
 
@@ -67,10 +71,14 @@ class AssembleDatasetPipeline(Pipeline):
         adjust_factors_depot = StocksAdjustFactorsDepository(
             config.common.get_adjust_factors_path()
         )
+        listing_depot = StocksListingDepository(
+            config.common.get_stock_listing_path()
+        )
 
         return self._build_stocks_df(
             klines_df=day_klines_depot.load(lazy=True),
             basics_df=day_basics_depot.load(lazy=True),
             adj_df=adjust_factors_depot.load(lazy=True),
             ind_class_df=indu_class_depot.load(lazy=True),
+            listing_df=listing_depot.load(lazy=True),
         )

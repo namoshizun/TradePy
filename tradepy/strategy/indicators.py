@@ -33,6 +33,9 @@ class Indicator(float, abc.ABC):
     def __new__(cls, *_args: object, **_kwargs: object) -> Self:
         return float.__new__(cls, float("nan"))
 
+    def __ne__(self, other: object) -> bool:
+        return not self == other
+
     @property
     def not_na(self) -> bool:
         return True

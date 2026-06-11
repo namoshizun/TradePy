@@ -88,6 +88,33 @@ def test_infer_required_indicators_unions_buy_and_sell_params() -> None:
     }
 
 
+def test_collect_indicator_expressions_reuses_same_buy_sell_indicator() -> None:
+    class SharedIndicatorStrategy(_RisklessStrategy):
+        MA10 = SMA(10)
+
+        def buy(self, ma10: float = MA10) -> float | None:
+            return ma10
+
+        def sell(self, ma10: float = MA10) -> float | None:
+            return ma10
+
+    exprs = SharedIndicatorStrategy(_config()).collect_indicator_expressions()
+
+    assert [expr.name for expr in exprs] == ["ma10"]
+
+
+def test_collect_indicator_expressions_rejects_conflicting_defaults() -> None:
+    class ConflictingIndicatorStrategy(_RisklessStrategy):
+        def buy(self, ma10: float = SMA(10)) -> float | None:
+            return ma10
+
+        def sell(self, ma10: float = SMA(20)) -> float | None:
+            return ma10
+
+    with pytest.raises(ValueError, match="Conflicting indicator defaults"):
+        ConflictingIndicatorStrategy(_config()).collect_indicator_expressions()
+
+
 def test_infer_required_indicators_ignores_var_positional() -> None:
     class VarArgStrategy(_RisklessStrategy):
         def buy(self, sma5: float = SMA(5), *args: Any) -> float | None:

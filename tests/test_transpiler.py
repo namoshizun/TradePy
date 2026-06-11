@@ -33,7 +33,8 @@ class _Ma60SupportStrategy:
         if rsi_fast < 15:
             return close
 
-        if sma20 > sma60:
+        temp = (sma20 + 1) > sma60
+        if temp:
             return close
 
         if close > self.__ma60_support_level(sma60):
@@ -464,6 +465,39 @@ def test_or_inside_if_condition() -> None:
     )
 
 
+class _MembershipStrategy:
+    def signal(
+        self, name: str, code: str, bucket: float, price: float
+    ) -> float | None:
+        if "ST" not in name and code in ("AAA", "BBB"):
+            return price
+        if "ETF" in name and bucket not in {3.0, 4.0}:
+            return price
+        return None
+
+
+def test_membership_conditions() -> None:
+    df = pl.DataFrame(
+        {
+            "name": ["Good Co", "ST Bad", "ETF Fund", "ETF Halted"],
+            "code": ["AAA", "AAA", "CCC", "BBB"],
+            "bucket": [1.0, 1.0, 3.0, 2.0],
+            "price": [10.0, 20.0, 30.0, 40.0],
+        }
+    ).with_columns(pl.col("name", "code").cast(pl.Categorical))
+    _assert_matches_reference(
+        _MembershipStrategy(),
+        "signal",
+        df,
+        lambda row: (
+            row["price"]
+            if ("ST" not in row["name"] and row["code"] in ("AAA", "BBB"))
+            or ("ETF" in row["name"] and row["bucket"] not in {3.0, 4.0})
+            else None
+        ),
+    )
+
+
 class _RoundStrategy:
     def scaled(self, v: float) -> float:
         return round(v * 1.3333, 2)
@@ -604,9 +638,7 @@ def test_elif_collects_or_branches() -> None:
 
 
 class _PowerStrategy:
-    def signal(
-        self, base: float, exp: float, limit: float
-    ) -> float | None:
+    def signal(self, base: float, exp: float, limit: float) -> float | None:
         if base**exp > limit:
             return base
         return None

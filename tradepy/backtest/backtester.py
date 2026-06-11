@@ -2,6 +2,7 @@ import random
 
 import polars as pl
 from loguru import logger
+from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn
 
 from tradepy.core.account import BacktestAccount
 from tradepy.core.config import BacktestConf, StrategyConf
@@ -27,7 +28,7 @@ class Backtester:
     def _inday_trade(self, df: pl.DataFrame, tradable_bars: dict[str, BarData]):
         # Initials
         self.account.unfreeze_cash(self.account.frozen_cash_amount)
-        init_positions: set[str] = self.account.holdings.position_codes
+        init_codes: set[str] = self.account.holdings.position_codes
         init_capital: float = self.account.total_asset_value
 
         # Sell ---------------------------------------------------------------
@@ -81,37 +82,59 @@ class Backtester:
             self.account.sell(sell_positions)
 
         # Buy
-        buys_df = df.filter(pl.col("buy_price").is_not_null())
+        buys_df = df.filter(
+            pl.col("buy_price").is_not_null()
+            & ~pl.col("code").is_in(init_codes)
+        )
         if buys_df.is_empty():
             return
 
         free_cash = self.account.free_cash_amount
         budget = free_cash - self.account.get_broker_commission_fee(free_cash)
-        positions = self.strategy.plan_positions(
+        if positions := self.strategy.plan_positions(
             buys_df,
             budget,
             init_capital,
             max_opens_count=self.strategy.config.max_position_opens,
-        )
-
-        # if positions:
-        #     # TODO: yield trade log
-        #     self.account.buy(positions)
+        ):
+            self.account.buy(positions)
+        # TODO: yield trade log
 
     def _trade(self, df: pl.DataFrame):
         random.seed()
 
-        for date, date_df in df.group_by("date"):
-            tradable_bars: dict[str, BarData] = {
-                _row[0]: BarData(*_row)
-                for _row in date_df.filter(
-                    pl.col("code").is_in(self.account.holdings.position_codes)
-                    | pl.col("buy_price").is_not_null()
-                )
-                .select(BarData.__annotations__.keys())
-                .iter_rows(named=False)
-            }
-            self._inday_trade(date_df, tradable_bars)
+        progress_columns = (
+            TextColumn("[{task.description}]", markup=False),
+            BarColumn(),
+            TaskProgressColumn(),
+        )
+        n_days = df.select(pl.col("date").n_unique()).item()
+
+        with Progress(*progress_columns) as progress:
+            task_id = progress.add_task("回测交易日", total=n_days)
+
+            for _, date_df in df.group_by("date", maintain_order=True):
+                # Build the tradable stocks' price lookup table
+                tradable_bars: dict[str, BarData] = {
+                    _row[0]: BarData(*_row)
+                    for _row in date_df.filter(
+                        pl.col("code").is_in(
+                            self.account.holdings.position_codes
+                        )
+                        | pl.col("buy_price").is_not_null()
+                    )
+                    .select(BarData.__annotations__.keys())
+                    .iter_rows(named=False)
+                }
+
+                # Trade
+                self._inday_trade(date_df, tradable_bars)
+
+                # Update holdings latest prices
+                for code, pos in self.account.holdings:
+                    pos.update_price(tradable_bars[code].close)
+
+                progress.advance(task_id)
 
     def run(self, df: pl.DataFrame | pl.LazyFrame):
         # Sanity check

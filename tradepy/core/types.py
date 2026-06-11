@@ -120,6 +120,7 @@ class StocksListModel(BaseFrameModel):
 
 
 StocksListDataFrame = DataFrame[StocksListModel]
+LazyStocksListDataFrame = LazyFrame[StocksListModel]
 
 
 class ETFBasicModel(InstrumentInfoModel):
@@ -174,6 +175,7 @@ LazySWStockIndustryDataFrame = LazyFrame[SWStockIndustryModel]
 
 # -- Assembled snapshots dataframes -----------------------
 class StockDailyMetricsModel(DayKlinesModel, StocksBasicModel):
+    name: pl.Categorical
     industry_code: pl.Categorical
     adj_factor: pl.Float32
 

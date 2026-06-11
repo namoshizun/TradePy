@@ -2,14 +2,11 @@ import threading
 import time
 from collections import deque
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeAlias, TypeVar
+from typing import Any, Callable, TypeAlias, TypeVar
 
 from polars.expr import Expr as PolarsExpr
 
-if TYPE_CHECKING:
-    from tradepy.strategy import StrategyBase
-
-_StrategyT = TypeVar("_StrategyT", bound="StrategyBase")
+_StrategyT = TypeVar("_StrategyT")
 
 
 def _parse_throttle_rate(rate: str) -> tuple[int, float]:
