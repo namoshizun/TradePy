@@ -1,4 +1,4 @@
 from .backtester import Backtester
-from .evaluation import BasicEvaluator
+from .evaluation import PerformanceEvaluator, StrategyPlotter
 
-__all__ = ["Backtester", "BasicEvaluator"]
+__all__ = ["Backtester", "PerformanceEvaluator", "StrategyPlotter"]

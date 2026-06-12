@@ -1,13 +1,16 @@
+from pathlib import Path
 from typing import Any
 
+import plotly.graph_objects as go
 import polars as pl
 from financetoolkit.performance import performance_model
 from financetoolkit.risk import risk_model
+from plotly.subplots import make_subplots
 
 from tradepy.trade_book import TradeBook
 
 
-class BasicEvaluator:
+class PerformanceEvaluator:
     def __init__(self, trade_book: TradeBook):
         self.trade_book = trade_book
 
@@ -104,3 +107,80 @@ class BasicEvaluator:
 夏普比率: {metrics["sharpe_ratio"]}
 ==========="""
         )
+
+
+class StrategyPlotter:
+    def __init__(self, trade_book: TradeBook):
+        self.trade_book = trade_book
+        self.evaluator = PerformanceEvaluator(trade_book)
+
+    def _build_figure(self) -> go.Figure:
+        cap_df = self.trade_book.cap_logs_df
+        timestamps = cap_df["timestamp"].to_list()
+        capitals = cap_df["capital"].to_list()
+
+        # Drawdown series: running (cum / cummax - 1), same formula as risk_model.get_max_drawdown
+        returns = cap_df["pct_chg"]
+        cum = (1 + returns).cum_prod()
+        drawdown = ((cum / cum.cum_max() - 1) * 100).to_list()
+
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            row_heights=[0.7, 0.3],
+            vertical_spacing=0.04,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=capitals,
+                mode="lines",
+                name="Capital",
+                line=dict(color="#2196F3", width=1.5),
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=drawdown,
+                mode="lines",
+                fill="tozeroy",
+                name="Drawdown",
+                line=dict(color="#EF5350", width=1),
+                fillcolor="rgba(239, 83, 80, 0.25)",
+            ),
+            row=2,
+            col=1,
+        )
+
+        metrics = self.evaluator.evaluate_trades()
+        fig.update_layout(
+            title=dict(
+                text=(
+                    f"Total return: {metrics['total_returns']}%  |  "
+                    f"Max drawdown: {metrics['max_drawdown']}%  |  "
+                    f"Sharpe: {metrics['sharpe_ratio']}  |  "
+                    f"Win rate: {metrics['win_rate']}%"
+                ),
+                font=dict(size=13),
+            ),
+            hovermode="x unified",
+            showlegend=False,
+            template="plotly_white",
+            margin=dict(t=60, b=40),
+        )
+        fig.update_yaxes(title_text="Capital", row=1, col=1)
+        fig.update_yaxes(title_text="Drawdown (%)", row=2, col=1)
+
+        return fig
+
+    def plot_inline(self):
+        self._build_figure().show()
+
+    def plot_html(self, path: str | Path):
+        self._build_figure().write_html(str(path))
