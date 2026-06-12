@@ -1,6 +1,0 @@
-common:
-  # mode: "paper-trading"
-  mode: "backtest"
-  trade_lot_vol: 100
-  database_dir: /Users/dilu/Desktop/Software/Stock/database
-  tushare_token: __token__

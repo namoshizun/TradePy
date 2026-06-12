@@ -1,0 +1,6 @@
+common:
+  # mode: "paper-trading"
+  mode: "backtest"
+  trade_lot_vol: 100
+  database_dir: ./database
+  tushare_token: __ts_token__
