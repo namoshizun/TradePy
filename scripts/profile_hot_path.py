@@ -27,6 +27,11 @@ import polars as pl
 import typer
 from pyinstrument import Profiler
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from examples.ma_cross import MACrossConf
 from tradepy.backtest.backtester import Backtester
 from tradepy.core.account import BacktestAccount
 from tradepy.core.config import BacktestConf, StrategyConf
@@ -34,9 +39,6 @@ from tradepy.pipelines.assemble_dataset import AssembleDatasetPipeline
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 PROFILE_DIR = ROOT / "profiles"
 CACHE_DF = PROFILE_DIR / "hot_path_df.parquet"
@@ -44,14 +46,7 @@ CACHE_DF = PROFILE_DIR / "hot_path_df.parquet"
 DEFAULT_SINCE = date(2013, 1, 1)
 DEFAULT_UNTIL = date(2026, 6, 1)
 
-STRATEGY_CONF = StrategyConf(
-    strategy_class="playground.test.MovingAverageCrossoverStrategy",
-    stop_loss=4.5,
-    take_profit=3,
-    max_position_size=0.3,
-    max_position_opens=10,
-    min_trade_amount=5000,
-)
+STRATEGY_CONF = MACrossConf(strategy_class="examples.ma_cross.MACrossStrategy")
 
 
 def _strategy_conf() -> StrategyConf:
@@ -81,7 +76,7 @@ def prepare_dataframe(
 
 
 def run_hot_path(df: pl.DataFrame) -> None:
-    bt_conf = BacktestConf(initial_capital=5e6, broker_commission_rate=0.01)
+    bt_conf = BacktestConf(initial_capital=1e7, broker_commission_rate=0.01)
     bt = Backtester(bt_conf, _strategy_conf())
     bt.run(df)
 

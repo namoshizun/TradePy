@@ -176,7 +176,8 @@ class Backtester:
             BarColumn(),
             TaskProgressColumn(),
         )
-        n_days = df.select(pl.col("date").n_unique()).item()
+        day_frames = df.partition_by("date", maintain_order=True)
+        n_days = len(day_frames)
 
         ctx = TradingContext(
             backtest_conf=self.config,
@@ -192,9 +193,9 @@ class Backtester:
             task_id = progress.add_task("回测交易日", total=n_days)
             pos_id = 1
 
-            for (_day,), date_df in df.group_by("date", maintain_order=True):
+            for date_df in day_frames:
                 # Pre-open
-                timestamp = _day.isoformat()
+                timestamp = date_df["date"][0].isoformat()
                 self.account.pre_open()
                 ctx.tradable_bars = _bars = self._build_tradable_bars(date_df)
 

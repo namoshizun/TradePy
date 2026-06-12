@@ -162,10 +162,11 @@ class StrategyPlotter:
         fig.update_layout(
             title=dict(
                 text=(
-                    f"Total return: {metrics['total_returns']}%  |  "
-                    f"Max drawdown: {metrics['max_drawdown']}%  |  "
-                    f"Sharpe: {metrics['sharpe_ratio']}  |  "
-                    f"Win rate: {metrics['win_rate']}%"
+                    f"总收益: {metrics['total_returns']}%  |  "
+                    f"最大回撤: {metrics['max_drawdown']}%  |  "
+                    f"夏普比率: {metrics['sharpe_ratio']}  |  "
+                    f"胜率: {metrics['win_rate']}% | "
+                    f"盈亏比: {metrics['profit_factor']}"
                 ),
                 font=dict(size=13),
             ),
