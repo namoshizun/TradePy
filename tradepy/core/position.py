@@ -2,7 +2,6 @@ import dataclasses
 
 from tradepy.core.order import Order
 from tradepy.core.types import TradeActionType
-from tradepy.decors import round_val
 from tradepy.utils import calc_pct_chg
 
 
@@ -37,39 +36,31 @@ class Position:
         return order
 
     @property
-    @round_val
     def cost(self):
         return self.total_value_at(self.price)
 
     @property
-    @round_val
     def total_value(self) -> float:
         return self.total_value_at(self.latest_price)
 
     @property
-    @round_val
     def yesterday_total_value(self) -> float:
         return self.total_value_at(self.price)
 
-    @round_val
     def total_value_at(self, price: float) -> float:
         return price * self.vol
 
-    @round_val
     def profit_or_loss_at(self, price: float) -> float:
         return self.total_value_at(price) - self.cost
 
-    @round_val
     def chg_at(self, price: float) -> float:
         return price - self.price
 
-    @round_val
     def pct_chg_at(self, price: float) -> float:
         if self.chg_at(price) == 0:
             return 0
         return calc_pct_chg(self.price, price)
 
-    @round_val
     def price_at_pct_change(self, pct: float):
         return self.price * (1 + pct * 1e-2)
 

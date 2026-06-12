@@ -4,7 +4,6 @@ from typing import Callable
 
 from tradepy.core.holdings import Holdings
 from tradepy.core.position import Position
-from tradepy.decors import round_val
 
 
 @dataclasses.dataclass
@@ -66,21 +65,17 @@ class BacktestAccount(Account):
         all_positions = [pos for _, pos in self.holdings]
         self.sell(*all_positions)
 
-    @round_val
     def get_broker_commission_fee(self, amount: float) -> float:
         fee = amount * (self.broker_commission_rate * 1e-2)
         return max(fee, self.min_broker_commission_fee)
 
-    @round_val
     def get_stamp_duty_fee(self, amount: float) -> float:
         return amount * (self.stamp_duty_rate * 1e-2)
 
-    @round_val
     def add_buy_commissions(self, amount: float) -> float:
         fee = self.get_broker_commission_fee(amount)
         return amount + fee
 
-    @round_val
     def take_sell_commissions(self, amount: float) -> float:
         broker_commission_fee = self.get_broker_commission_fee(amount)
         stamp_duty_fee = self.get_stamp_duty_fee(amount)
