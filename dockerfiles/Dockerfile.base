@@ -1,16 +1,13 @@
 FROM python:3.11
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 COPY . /code
 WORKDIR /code
 
-# RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple/ && \
-#     pip config set global.trusted-host mirrors.aliyun.com && \
-RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
-    tar -xzf ta-lib-0.4.0-src.tar.gz && \
-    cd ta-lib && \
-    ./configure && \
+RUN wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
+    tar -xzf ta-lib-0.6.4-src.tar.gz && \
+    cd ta-lib-0.6.4/ && \
+    ./configure --prefix=/usr && \
     make && \
-    make install && \
-    cd .. && \
-    pip install poetry && \
-    poetry install --only main
+    make install

@@ -2,19 +2,46 @@ name: Run tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ "*" ]
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   run-tests:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/namoshizun/tradepy:test
+      image: ghcr.io/namoshizun/tradepy:base
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      UV_LINK_MODE: copy
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Run Pytest
-      run: |
-        poetry install --with=main,test
-        poetry run pytest --cov
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore uv cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/.cache/uv
+            .venv
+          key: uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-
+
+      - name: Install dependencies
+        run: uv sync --all-groups --frozen
+
+      - name: Run pytest
+        run: uv run pytest --cov-report=xml
+
+      - name: Upload coverage report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
