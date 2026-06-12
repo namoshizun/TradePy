@@ -2,7 +2,9 @@ import contextlib
 import random
 from collections.abc import Generator
 from dataclasses import dataclass
+from datetime import date
 
+import numpy as np
 import polars as pl
 from loguru import logger
 from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn
@@ -129,6 +131,77 @@ class IndayTrader:
         yield from self.process_sells()
 
 
+def _price_or_none(value: float) -> float | None:
+    """Null prices surface as NaN in numpy float columns; map them back to None."""
+    return None if np.isnan(value) else float(value)
+
+
+class DayBars:
+    """The backtest dataframe as numpy columns, indexed by trading day.
+
+    The daily loop needs the bars that either have a buy signal or belong to a
+    held position. Selecting them from precomputed numpy columns avoids running
+    a polars filter query for every day, which costs ~0.5ms per query.
+    """
+
+    BAR_COLUMNS = ("open", "close", "high", "low", "vol", "pct_chg", "buy_price", "sell_price")
+
+    def __init__(self, df: pl.DataFrame):
+        # df is date-sorted, so each day is a contiguous row range
+        day_lengths = df["date"].rle().struct.field("len").to_numpy()
+        self.day_starts: np.ndarray = np.concatenate(
+            ([0], np.cumsum(day_lengths, dtype=np.int64))
+        )
+        self.dates: list[date] = df["date"].unique(maintain_order=True).to_list()
+
+        # Codes are stored as categorical ids; code_names[id] recovers the string
+        codes = df["code"].cast(pl.Categorical)
+        self.code_ids: np.ndarray = codes.to_physical().to_numpy()
+        self.code_names: list[str] = codes.cat.get_categories().to_list()
+        self.code_id_lookup: dict[str, int] = {
+            code: i for i, code in enumerate(self.code_names)
+        }
+
+        self.values: dict[str, np.ndarray] = {
+            col: df[col].to_numpy() for col in self.BAR_COLUMNS
+        }
+        self.has_buy_signal: np.ndarray = ~np.isnan(self.values["buy_price"])
+
+    def __len__(self) -> int:
+        return len(self.dates)
+
+    def build_tradable_bars(
+        self, day: int, held_codes: set[str]
+    ) -> dict[str, BarData]:
+        start, end = self.day_starts[day], self.day_starts[day + 1]
+
+        tradable = self.has_buy_signal[start:end]
+        if held_codes:
+            held_ids = [self.code_id_lookup[code] for code in held_codes]
+            tradable = tradable | np.isin(self.code_ids[start:end], held_ids)
+
+        bars: dict[str, BarData] = {}
+        for row in np.flatnonzero(tradable) + start:
+            code = self.code_names[self.code_ids[row]]
+            bars[code] = self._bar(row, code, is_held=code in held_codes)
+        return bars
+
+    def _bar(self, row: int, code: str, is_held: bool) -> BarData:
+        v = self.values
+        return BarData(
+            code=code,
+            open=float(v["open"][row]),
+            close=float(v["close"][row]),
+            high=float(v["high"][row]),
+            low=float(v["low"][row]),
+            vol=int(v["vol"][row]),
+            pct_chg=float(v["pct_chg"][row]),
+            buy_price=_price_or_none(v["buy_price"][row]),
+            sell_price=_price_or_none(v["sell_price"][row]),
+            is_held=is_held,
+        )
+
+
 class Backtester:
     def __init__(
         self, config: BacktestConf, strategy_conf: StrategyConf
@@ -146,27 +219,6 @@ class Backtester:
             stamp_duty_rate=self.config.stamp_duty_rate,
         )
 
-    def _build_tradable_bars(self, date_df: pl.DataFrame) -> dict[str, BarData]:
-        held_codes = self.account.holdings.avail_codes
-        filtered = date_df.filter(
-            pl.col("code").is_in(held_codes) | pl.col("buy_price").is_not_null()
-        )
-        return {
-            _r["code"]: BarData(
-                code=_r["code"],
-                open=_r["open"],
-                close=_r["close"],
-                high=_r["high"],
-                low=_r["low"],
-                vol=_r["vol"],
-                pct_chg=_r["pct_chg"],
-                sell_price=_r["sell_price"],
-                buy_price=_r["buy_price"],
-                is_held=_r["code"] in held_codes,
-            )
-            for _r in filtered.iter_rows(named=True)
-        }
-
     def backtest(self, strategy: BacktestStrategyBase, df: pl.DataFrame):
         random.seed()
         self.account = self.create_account()
@@ -176,8 +228,8 @@ class Backtester:
             BarColumn(),
             TaskProgressColumn(),
         )
-        day_frames = df.partition_by("date", maintain_order=True)
-        n_days = len(day_frames)
+        day_bars = DayBars(df)
+        n_days = len(day_bars)
 
         ctx = TradingContext(
             backtest_conf=self.config,
@@ -193,11 +245,13 @@ class Backtester:
             task_id = progress.add_task("回测交易日", total=n_days)
             pos_id = 1
 
-            for date_df in day_frames:
+            for day in range(n_days):
                 # Pre-open
-                timestamp = date_df["date"][0].isoformat()
+                timestamp = day_bars.dates[day].isoformat()
                 self.account.pre_open()
-                ctx.tradable_bars = _bars = self._build_tradable_bars(date_df)
+                ctx.tradable_bars = _bars = day_bars.build_tradable_bars(
+                    day, self.account.holdings.avail_codes
+                )
 
                 # Buy / Sell
                 for action in trader.trade():
