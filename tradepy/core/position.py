@@ -14,7 +14,7 @@ class Position:
     price: float
     vol: int
     latest_price: float
-    avail_vol: int
+    avail_vol: int = 0
     yesterday_vol: int = 0
 
     def to_sell_order(self, timestamp: str, action: TradeActionType) -> Order:

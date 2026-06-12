@@ -1,6 +1,6 @@
 import contextlib
 import random
-from collections.abc import Generator, Iterable
+from collections.abc import Generator
 from dataclasses import dataclass
 
 import polars as pl
@@ -54,7 +54,7 @@ class IndayTrader:
         return self.ctx.strategy_conf
 
     def process_sells(self) -> Generator[TradeAction, None, None]:
-        for code in list(self.account.holdings.positions):
+        for code in list(self.account.holdings.avail_codes):
             if code not in self.ctx.tradable_bars:
                 continue
 
@@ -79,7 +79,7 @@ class IndayTrader:
                 if take_profit_price:
                     sell_price, reason = (
                         self.strategy.apply_slippage(
-                            take_profit_price, ref_price=bar.orig_open
+                            take_profit_price, ref_price=bar.open
                         ),
                         "止盈",
                     )
@@ -87,7 +87,7 @@ class IndayTrader:
                     assert stop_loss_price
                     sell_price, reason = (
                         self.strategy.apply_slippage(
-                            stop_loss_price, ref_price=bar.orig_open
+                            stop_loss_price, ref_price=bar.open
                         ),
                         "止损",
                     )
@@ -101,13 +101,15 @@ class IndayTrader:
                 )
 
     def process_buys(self) -> Generator[TradeAction, None, None]:
-        held_codes = self.account.holdings.positions.keys()
+        if self.account.free_cash_amount < self.strategy_conf.min_trade_amount:
+            return
+
         init_capital: float = self.account.get_total_capital()
 
         buy_options: list[tuple[str, float]] = [
             (code, bar.buy_price)
             for code, bar in self.ctx.tradable_bars.items()
-            if bar.buy_price and code not in held_codes
+            if bar.buy_price and not bar.is_held
         ]
 
         if not buy_options:
@@ -144,12 +146,10 @@ class Backtester:
             stamp_duty_rate=self.config.stamp_duty_rate,
         )
 
-    def _build_tradable_bars(
-        self, date_df: pl.DataFrame, holdings: Iterable[str]
-    ) -> dict[str, BarData]:
+    def _build_tradable_bars(self, date_df: pl.DataFrame) -> dict[str, BarData]:
+        held_codes = self.account.holdings.avail_codes
         filtered = date_df.filter(
-            pl.col("code").is_in(set(holdings))
-            | pl.col("buy_price").is_not_null()
+            pl.col("code").is_in(held_codes) | pl.col("buy_price").is_not_null()
         )
         return {
             _r["code"]: BarData(
@@ -160,9 +160,9 @@ class Backtester:
                 low=_r["low"],
                 vol=_r["vol"],
                 pct_chg=_r["pct_chg"],
-                adj_factor=_r["adj_factor"],
                 sell_price=_r["sell_price"],
                 buy_price=_r["buy_price"],
+                is_held=_r["code"] in held_codes,
             )
             for _r in filtered.iter_rows(named=True)
         }
@@ -193,32 +193,28 @@ class Backtester:
             pos_id = 1
 
             for (_day,), date_df in df.group_by("date", maintain_order=True):
-                holdings = self.account.holdings.positions.keys()
-                ctx.tradable_bars = _bars = self._build_tradable_bars(
-                    date_df, holdings
-                )
-
-                self.account.freeze_cash(self.account.frozen_cash_amount)
+                # Pre-open
                 timestamp = _day.isoformat()
+                self.account.pre_open()
+                ctx.tradable_bars = _bars = self._build_tradable_bars(date_df)
 
                 # Buy / Sell
                 for action in trader.trade():
                     if action.type == "开仓":
                         pos_id += 1
                         pos = Position(
-                            id=str(id),
+                            id=str(pos_id),
                             timestamp=timestamp,
                             code=action.code,
                             price=action.price,
                             latest_price=action.price,
-                            avail_vol=action.vol,
                             vol=action.vol,
-                            yesterday_vol=action.vol,
                         )
                         self.account.buy(pos)
                         trade_book.buy(timestamp, pos)
                     else:
                         pos = self.account.holdings[action.code]
+                        assert pos.avail_vol >= action.vol
                         pos.update_price(action.price)
                         self.account.sell(pos)
                         trade_book.sell(timestamp, pos, action.type)
@@ -226,7 +222,7 @@ class Backtester:
                 # End of day
                 for code, pos in list(self.account.holdings):
                     with contextlib.suppress(KeyError):
-                        pos.update_price(_bars[code].orig_close)
+                        pos.update_price(_bars[code].close)
 
                 trade_book.log_closing_capitals(timestamp, self.account)
                 progress.advance(task_id)
@@ -236,10 +232,12 @@ class Backtester:
     def run(
         self, df: pl.DataFrame | pl.LazyFrame
     ) -> tuple[pl.DataFrame, TradeBook]:
+        # [1] --
         logger.info("🤗 加载策略...")
         strategy = self.strategy_conf.load_strategy()
         logger.opt(colors=True).info("<g>OK!</g>")
 
+        # [2] --
         logger.info("🧐 检查回测数据...")
         with Timer("s") as timer:
             if isinstance(df, pl.LazyFrame):
@@ -260,14 +258,24 @@ class Backtester:
 
         logger.opt(colors=True).info(f"<g>OK! ({timer.duration:.1f}s)</g>")
 
+        # [3] --
+        # Only if buy_price and sell_price columns are not available
+        if "buy_price" not in df.columns or "sell_price" not in df.columns:
+            with Timer("s") as timer:
+                logger.info("🚀 计算买卖点位...")
+                df = df.with_columns(
+                    strategy.build_buy_expr().alias("buy_price"),
+                    strategy.build_sell_expr().alias("sell_price"),
+                )
+            logger.opt(colors=True).info(f"<g>OK! ({timer.duration:.1f}s)</g>")
+
+        # [4] --
         with Timer("s") as timer:
-            logger.info("🚀 计算买卖点位...")
-            df = df.with_columns(
-                strategy.build_buy_expr().alias("buy_price"),
-                strategy.build_sell_expr().alias("sell_price"),
-            )
+            logger.info("♻️ 预处理数据...")
+            df = strategy.pre_process(df)
         logger.opt(colors=True).info(f"<g>OK! ({timer.duration:.1f}s)</g>")
 
+        # [5] --
         logger.info("📈 开始回测交易...")
         with Timer("s") as timer:
             trade_book = self.backtest(strategy, df)

@@ -92,6 +92,9 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
     ) -> float | None:
         raise NotImplementedError
 
+    def pre_process(self, df: pl.DataFrame) -> pl.DataFrame:
+        return df
+
     def optimize_portfolio(
         self,
         options: list[tuple[str, float]],  # code -> buy price
@@ -207,14 +210,10 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         return _df  # pyright: ignore[reportReturnType]
 
     def build_buy_expr(self) -> pl.Expr:
-        return (
-            PolarsExprTranspiler(self).transpile("buy") / pl.col("adj_factor")
-        ).cast(pl.Float64)
+        return PolarsExprTranspiler(self).transpile("buy").cast(pl.Float64)
 
     def build_sell_expr(self) -> pl.Expr:
-        return PolarsExprTranspiler(self).transpile("sell") / pl.col(
-            "adj_factor"
-        ).cast(pl.Float64)
+        return PolarsExprTranspiler(self).transpile("sell").cast(pl.Float64)
 
 
 class BacktestStrategyBase(StrategyBase[ConfigT]):
@@ -222,12 +221,12 @@ class BacktestStrategyBase(StrategyBase[ConfigT]):
         self, bar: BarData, position: Position
     ) -> float | None:
         # During opening
-        open_pct_chg = calc_pct_chg(position.price, bar.orig_open)
+        open_pct_chg = calc_pct_chg(position.price, bar.open)
         if open_pct_chg <= -self.config.stop_loss:
-            return bar.orig_open
+            return bar.open
 
         # During exchange
-        low_pct_chg = calc_pct_chg(position.price, bar.orig_low)
+        low_pct_chg = calc_pct_chg(position.price, bar.low)
         if low_pct_chg <= -self.config.stop_loss:
             return position.price_at_pct_change(-self.config.stop_loss)
 
@@ -235,11 +234,11 @@ class BacktestStrategyBase(StrategyBase[ConfigT]):
         self, bar: BarData, position: Position
     ) -> float | None:
         # During opening
-        open_pct_chg = calc_pct_chg(position.price, bar.orig_open)
+        open_pct_chg = calc_pct_chg(position.price, bar.open)
         if open_pct_chg >= self.config.take_profit:
-            return bar.orig_open
+            return bar.open
 
         # During exchange
-        high_pct_chg = calc_pct_chg(position.price, bar.orig_high)
+        high_pct_chg = calc_pct_chg(position.price, bar.high)
         if high_pct_chg >= self.config.take_profit:
             return position.price_at_pct_change(self.config.take_profit)

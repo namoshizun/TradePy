@@ -26,6 +26,7 @@ def build_fake_klines(
             "vol": np.full(n, 1_000, dtype=np.int32),
             "amount": np.full(n, 100, dtype=np.int32),
             "pct_chg": np.zeros(n, dtype=np.float32),
+            "adj_factor": np.full(n, 1.0, dtype=np.float32),
         }
     )
 

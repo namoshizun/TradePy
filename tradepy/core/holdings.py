@@ -12,7 +12,11 @@ class Holdings:
 
     @property
     def position_codes(self) -> set[str]:
-        return set(code for code, _ in self)
+        return {code for code, _ in self}
+
+    @property
+    def avail_codes(self) -> set[str]:
+        return {code for code, pos in self if pos.avail_vol > 0}
 
     def buy(self, positions: Iterable[Position]) -> float:
         total = 0

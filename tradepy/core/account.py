@@ -12,7 +12,7 @@ class Account(abc.ABC):
     free_cash_amount: float
     frozen_cash_amount: float
 
-    def free_cash(self, amount: float):
+    def unfreeze_cash(self, amount: float):
         self.free_cash_amount += amount
         self.frozen_cash_amount -= amount
 
@@ -47,6 +47,12 @@ class BacktestAccount(Account):
         return sum(
             pos.total_value_at(pos.latest_price) for _, pos in self.holdings
         )
+
+    def pre_open(self):
+        self.unfreeze_cash(self.frozen_cash_amount)
+        for _, pos in self.holdings:
+            pos.avail_vol = pos.vol
+            pos.yesterday_vol = pos.vol
 
     def buy(self, *positions: Position):
         if cost_total := self.holdings.buy(positions):

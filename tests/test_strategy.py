@@ -149,6 +149,7 @@ def test_compute_indicators_partitions_by_code() -> None:
             "code": ["A"] * 5 + ["B"] * 5,
             "date": dates + dates,
             "close": [1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0],
+            "adj_factor": [1.0] * 10,
         }
     )
 
@@ -191,6 +192,7 @@ def test_indicator_composition_with_ref() -> None:
             "code": ["A"] * 6,
             "date": dates,
             "close": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "adj_factor": [1.0] * 6,
         }
     )
 
@@ -213,6 +215,7 @@ def test_indicator_composition_with_custom_rsi_period() -> None:
             "code": ["A"] * 30,
             "date": dates,
             "close": [float(i) for i in range(1, 31)],
+            "adj_factor": [1.0] * 30,
         }
     )
 

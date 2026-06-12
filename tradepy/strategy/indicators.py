@@ -1,6 +1,7 @@
 import abc
-from dataclasses import dataclass
-from typing import Self, TypeAlias
+import math
+from dataclasses import dataclass, field
+from typing import ClassVar, Literal, Self, TypeAlias
 
 import polars as pl
 
@@ -21,37 +22,45 @@ def _fast_ewm(value: pl.Expr, *, alpha: float, warmup: int) -> pl.Expr:
     return _mask_warmup(ewm, warmup)
 
 
-WARMUP_FACTORS = {
-    "macd": 3,
-    "atr": 2,
-    "rsi": 2,
-    "kdj": 4,
-}
-
-
+@dataclass(frozen=True)
 class Indicator(float, abc.ABC):
+    """A composable indicator step.
+
+    Steps are chained with ``|`` into an :class:`IndicatorPipeline` and
+    evaluated by :meth:`resolve`. Each step receives the upstream value
+    (``None`` at the pipeline root) and produces either a single series
+    or a named multi-output mapping, which must be narrowed with
+    :class:`Take` before feeding a single-input step.
+
+    Subclasses ``float`` so instances can serve as typed default values
+    of strategy ``buy``/``sell`` parameters.
+    """
+
+    column: str = field(default="close", kw_only=True)
+    not_na: bool = field(default=True, kw_only=True)
+
     def __new__(cls, *_args: object, **_kwargs: object) -> Self:
         return float.__new__(cls, float("nan"))
 
     def __ne__(self, other: object) -> bool:
         return not self == other
 
-    @property
-    def not_na(self) -> bool:
-        return True
-
     def __or__(self, step: object) -> "IndicatorPipeline":
         if not isinstance(step, Indicator):
             raise TypeError(
                 f"Cannot compose Indicator with {type(step).__name__}"
             )
-        return IndicatorPipeline((self, step))
+        return IndicatorPipeline((*self._flatten(), *step._flatten()))
+
+    def _flatten(self) -> tuple["Indicator", ...]:
+        return (self,)
 
     def resolve(self) -> IndicatorValue:
-        return self._eval(None)
+        return self._pipe(None)
 
     @abc.abstractmethod
-    def _eval(self, value: IndicatorValue | None) -> IndicatorValue:
+    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
+        """Evaluate this step against the upstream value."""
         raise NotImplementedError
 
 
@@ -59,55 +68,59 @@ class Indicator(float, abc.ABC):
 class IndicatorPipeline(Indicator):
     steps: tuple[Indicator, ...]
 
-    @property
-    def not_na(self) -> bool:
-        return all(step.not_na for step in self.steps)
+    def __post_init__(self) -> None:
+        if not all(step.not_na == self.steps[0].not_na for step in self.steps):
+            raise ValueError("All steps must have the same not_na")
 
-    def __or__(self, step: object) -> "IndicatorPipeline":
-        if not isinstance(step, Indicator):
-            raise TypeError(
-                f"Cannot compose Indicator with {type(step).__name__}"
-            )
-        return IndicatorPipeline((*self.steps, step))
+    def _flatten(self) -> tuple[Indicator, ...]:
+        return self.steps
 
-    def _eval(self, value: IndicatorValue | None) -> IndicatorValue:
-        current: IndicatorValue | None = value
+    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
         for step in self.steps:
-            current = step._eval(current)
-        if current is None:
+            value = step._pipe(value)
+        if value is None:
             raise ValueError("Indicator pipeline requires at least one step")
-        return current
-
-
-def _single_input(
-    value: IndicatorValue | None,
-    *,
-    default_column: str | None,
-    operator: str,
-) -> pl.Expr:
-    if value is None:
-        if default_column is None:
-            raise ValueError(f"{operator} requires an upstream indicator")
-        return pl.col(default_column)
-
-    if isinstance(value, dict):
-        raise ValueError(
-            f"{operator} requires a single input; use Take(...) first"
-        )
-
-    return value
-
-
-def _root_only(value: IndicatorValue | None, operator: str) -> None:
-    if value is not None:
-        raise ValueError(f"{operator} cannot consume an upstream indicator")
+        return value
 
 
 @dataclass(frozen=True)
+class SeriesIndicator(Indicator):
+    """An indicator computed from a single input series.
+
+    At the pipeline root the input defaults to the adjusted ``column``
+    price. ``requires_upstream`` marks transforms that are meaningless
+    without a piped input (e.g. :class:`Lag`).
+    """
+
+    requires_upstream: ClassVar[bool] = False
+
+    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
+        if isinstance(value, dict):
+            raise ValueError(
+                f"{type(self).__name__} expects a single series; "
+                "pipe Take(...) first"
+            )
+        if value is None:
+            if self.requires_upstream:
+                raise ValueError(
+                    f"{type(self).__name__} requires an upstream indicator"
+                )
+            value = pl.col(self.column)
+        return self.compute(value)
+
+    @abc.abstractmethod
+    def compute(self, value: pl.Expr) -> IndicatorValue:
+        raise NotImplementedError
+
+
+# -- Composable indicators ---------------------------------------------------
+@dataclass(frozen=True)
 class Take(Indicator):
+    """Select one output of a multi-output indicator."""
+
     name: str
 
-    def _eval(self, value: IndicatorValue | None) -> pl.Expr:
+    def _pipe(self, value: IndicatorValue | None) -> pl.Expr:
         if value is None:
             raise ValueError("Take requires an upstream indicator")
         if not isinstance(value, dict):
@@ -118,69 +131,66 @@ class Take(Indicator):
 
 
 @dataclass(frozen=True)
-class Lag(Indicator):
+class Lag(SeriesIndicator):
     periods: int = 1
 
-    def _eval(self, value: IndicatorValue | None) -> pl.Expr:
-        expr = _single_input(
-            value,
-            default_column=None,
-            operator=type(self).__name__,
-        )
-        return expr.shift(self.periods)
+    requires_upstream: ClassVar[bool] = True
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return value.shift(self.periods)
+
+
+# -- Single series indicators ---------------------------------------------------
 
 
 @dataclass(frozen=True)
-class SMA(Indicator):
+class OriginalPrice(SeriesIndicator):
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return value / pl.col("adj_factor")
+
+
+@dataclass(frozen=True)
+class SMA(SeriesIndicator):
     period: int
-    column: str = "close"
 
-    def _eval(self, value: IndicatorValue | None) -> pl.Expr:
-        expr = _single_input(
-            value,
-            default_column=self.column,
-            operator=type(self).__name__,
-        )
-        return expr.rolling_mean(window_size=self.period)
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return value.rolling_mean(window_size=self.period)
 
 
 @dataclass(frozen=True)
-class MACD(Indicator):
+class MACD(SeriesIndicator):
     fast: int = 12
     slow: int = 26
     signal: int = 9
-    column: str = "close"
 
-    def _eval(self, value: IndicatorValue | None) -> dict[str, pl.Expr]:
-        _root_only(value, type(self).__name__)
+    WARMUP_FACTOR: ClassVar[int] = 3
 
-        warmup = WARMUP_FACTORS["macd"] * self.slow
-        close = pl.col(self.column)
-        fast_ema = close.ewm_mean(alpha=2 / (self.fast + 1), adjust=False)
-        slow_ema = close.ewm_mean(alpha=2 / (self.slow + 1), adjust=False)
-        macd_line = fast_ema - slow_ema
-        signal = macd_line.ewm_mean(alpha=2 / (self.signal + 1), adjust=False)
+    def compute(self, value: pl.Expr) -> dict[str, pl.Expr]:
+        def ema(expr: pl.Expr, period: int) -> pl.Expr:
+            return expr.ewm_mean(alpha=2 / (period + 1), adjust=False)
+
+        warmup = self.WARMUP_FACTOR * self.slow
+        dif = ema(value, self.fast) - ema(value, self.slow)
+        dea = ema(dif, self.signal)
         return {
-            "dif": _mask_warmup(macd_line, warmup),
-            "dea": _mask_warmup(signal, warmup),
-            "hist": _mask_warmup(macd_line - signal, warmup),
+            "dif": _mask_warmup(dif, warmup),
+            "dea": _mask_warmup(dea, warmup),
+            "hist": _mask_warmup(dif - dea, warmup),
         }
 
 
 @dataclass(frozen=True)
-class RSI(Indicator):
+class RSI(SeriesIndicator):
     fast: int = 6
     mid: int = 12
     slow: int = 24
-    column: str = "close"
 
-    def _eval(self, value: IndicatorValue | None) -> dict[str, pl.Expr]:
-        _root_only(value, type(self).__name__)
-        close = pl.col(self.column)
+    WARMUP_FACTOR: ClassVar[int] = 2
 
-        def rsi(period: int) -> pl.Expr:
-            warmup = WARMUP_FACTORS["rsi"] * period
-            delta = close.diff()
+    def compute(self, value: pl.Expr) -> dict[str, pl.Expr]:
+        def _rsi(period: int) -> pl.Expr:
+            warmup = self.WARMUP_FACTOR * period
+            delta = value.diff()
             gain = delta.clip(lower_bound=0.0)
             loss = (-delta).clip(lower_bound=0.0)
             avg_gain = _fast_ewm(gain, alpha=1 / period, warmup=warmup)
@@ -193,49 +203,38 @@ class RSI(Indicator):
             )
 
         return {
-            "fast": rsi(self.fast),
-            "mid": rsi(self.mid),
-            "slow": rsi(self.slow),
+            "fast": _rsi(self.fast),
+            "mid": _rsi(self.mid),
+            "slow": _rsi(self.slow),
         }
 
 
 @dataclass(frozen=True)
-class BIAS(Indicator):
+class BIAS(SeriesIndicator):
     fast: int = 6
     mid: int = 12
     slow: int = 24
-    column: str = "close"
 
-    def _eval(self, value: IndicatorValue | None) -> dict[str, pl.Expr]:
-        expr = _single_input(
-            value,
-            default_column=self.column,
-            operator=type(self).__name__,
-        )
-
-        def bias(period: int) -> pl.Expr:
-            ma = expr.rolling_mean(window_size=period)
-            return 100.0 * (expr - ma) / ma
+    def compute(self, value: pl.Expr) -> dict[str, pl.Expr]:
+        def _bias(period: int) -> pl.Expr:
+            ma = value.rolling_mean(window_size=period)
+            return 100.0 * (value - ma) / ma
 
         return {
-            "fast": bias(self.fast),
-            "mid": bias(self.mid),
-            "slow": bias(self.slow),
+            "fast": _bias(self.fast),
+            "mid": _bias(self.mid),
+            "slow": _bias(self.slow),
         }
 
 
 @dataclass(frozen=True)
-class BOLL(Indicator):
+class BOLL(SeriesIndicator):
     window: int = 20
     k: float = 2.0
-    column: str = "close"
 
-    def _eval(self, value: IndicatorValue | None) -> dict[str, pl.Expr]:
-        _root_only(value, type(self).__name__)
-
-        close = pl.col(self.column)
-        mid = close.rolling_mean(window_size=self.window)
-        std = close.rolling_std(window_size=self.window, ddof=0)
+    def compute(self, value: pl.Expr) -> dict[str, pl.Expr]:
+        mid = value.rolling_mean(window_size=self.window)
+        std = value.rolling_std(window_size=self.window, ddof=0)
         return {
             "mid": mid,
             "upper": mid + self.k * std,
@@ -244,23 +243,22 @@ class BOLL(Indicator):
 
 
 @dataclass(frozen=True)
-class KDJ(Indicator):
+class KDJ(SeriesIndicator):
     period: int = 9
     k_period: int = 3
     d_period: int = 3
 
-    def _eval(self, value: IndicatorValue | None) -> dict[str, pl.Expr]:
-        _root_only(value, type(self).__name__)
+    WARMUP_FACTOR: ClassVar[int] = 4
 
+    def compute(self, value: pl.Expr) -> dict[str, pl.Expr]:
         low = pl.col("low").rolling_min(window_size=self.period)
         high = pl.col("high").rolling_max(window_size=self.period)
-        rsv = 100.0 * (pl.col("close") - low) / (high - low)
-        warmup = self.period + WARMUP_FACTORS["kdj"] * max(
+        rsv = 100.0 * (value - low) / (high - low)
+        warmup = self.period + self.WARMUP_FACTOR * max(
             self.k_period, self.d_period
         )
         k = _fast_ewm(rsv, alpha=1 / self.k_period, warmup=warmup)
         d = _fast_ewm(k, alpha=1 / self.d_period, warmup=warmup)
-
         return {
             "k": k,
             "d": d,
@@ -269,13 +267,13 @@ class KDJ(Indicator):
 
 
 @dataclass(frozen=True)
-class ATR(Indicator):
+class ATR(SeriesIndicator):
     period: int = 14
 
-    def _eval(self, value: IndicatorValue | None) -> pl.Expr:
-        _root_only(value, type(self).__name__)
+    WARMUP_FACTOR: ClassVar[int] = 2
 
-        prev_close = pl.col("close").shift(1)
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        prev_close = value.shift(1)
         true_range = pl.max_horizontal(
             pl.col("high") - pl.col("low"),
             (pl.col("high") - prev_close).abs(),
@@ -284,5 +282,31 @@ class ATR(Indicator):
         return _fast_ewm(
             true_range,
             alpha=1 / self.period,
-            warmup=WARMUP_FACTORS["atr"] * self.period,
+            warmup=self.WARMUP_FACTOR * self.period,
         )
+
+
+@dataclass(frozen=True)
+class TypicalPrice(SeriesIndicator):
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return (pl.col("high") + pl.col("low") + pl.col("close")) / 3
+
+
+@dataclass(frozen=True)
+class Volatility(SeriesIndicator):
+    method: Literal["std", "atr"] = "atr"
+    atr_period: int = 14
+    std_period: int = 20
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        if self.method == "atr":
+            atr = ATR(period=self.atr_period).compute(value)
+            return 100.0 * atr / TypicalPrice().compute(value)
+
+        if self.method == "std":
+            log_ret = (value / value.shift(1)).log()
+            return log_ret.rolling_std(
+                window_size=self.std_period, ddof=0
+            ) * math.sqrt(252)
+
+        raise ValueError(f"Invalid volatility method: {self.method}")

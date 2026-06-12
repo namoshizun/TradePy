@@ -19,16 +19,14 @@ Core rules from the project:
 ## Implementation Workflow
 
 1. Read `tradepy/strategy/indicators.py`, `tradepy/strategy/__init__.py`, and relevant tests before editing.
-2. Add the indicator as a typed `@dataclass(frozen=True)` subclass of `Indicator`.
-3. Follow the existing input style:
-   - Use `_root_only(value, type(self).__name__)` for root-only indicators.
-   - Use `_single_input(...)` for indicators that can consume upstream pipeline values.
+2. Add the indicator as a typed `@dataclass(frozen=True)` subclass of `SeriesIndicator` and implement `compute(self, value: pl.Expr)`. The base class resolves the input: at the pipeline root, `value` is the adjusted `column` price; otherwise it is the upstream pipeline output.
+3. Follow the existing output style:
    - Return `pl.Expr` for single-output indicators.
    - Return `dict[str, pl.Expr]` for multi-output indicators that require `Take(...)`.
-4. For exponential weighted averages, use `_fast_ewm(...)` and set a warmup long enough for convergence against TA-Lib.
-5. Add or update `WARMUP_FACTORS` only when the indicator needs reusable warmup policy.
-6. Export the indicator from `tradepy/strategy/__init__.py`.
-7. Add focused pytest coverage in `tests/test_indicators.py`.
+   - Set `requires_upstream: ClassVar[bool] = True` for transforms that are meaningless without a piped input (e.g. `Lag`).
+4. For exponential weighted averages, use `_fast_ewm(...)` and set a warmup long enough for convergence against TA-Lib. Declare the warmup multiplier as a `WARMUP_FACTOR: ClassVar[int]` on the indicator class.
+5. Export the indicator from `tradepy/strategy/__init__.py`.
+6. Add focused pytest coverage in `tests/test_indicators.py`.
 
 ## TA-Lib Verification
 

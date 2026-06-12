@@ -194,22 +194,6 @@ class BarData:
     low: float
     vol: int
     pct_chg: float
-    adj_factor: float
     sell_price: float | None
     buy_price: float | None = None
-
-    @property
-    def orig_open(self) -> float:
-        return self.open / self.adj_factor
-
-    @property
-    def orig_high(self) -> float:
-        return self.high / self.adj_factor
-
-    @property
-    def orig_low(self) -> float:
-        return self.low / self.adj_factor
-
-    @property
-    def orig_close(self) -> float:
-        return self.close / self.adj_factor
+    is_held: bool = False

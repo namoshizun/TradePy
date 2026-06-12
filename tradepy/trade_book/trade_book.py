@@ -1,8 +1,7 @@
 from functools import cached_property
 from typing import Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 from loguru import logger
 
 from tradepy.core.account import Account
@@ -21,26 +20,44 @@ class TradeBook:
         self.storage = storage
 
     @cached_property
-    def trade_logs_df(self) -> pd.DataFrame:
-        df = pd.DataFrame(self.storage.fetch_trade_logs())
-        df.set_index("timestamp", inplace=True)
-        df.sort_index(inplace=True)
-        return df
+    def trade_logs_df(self) -> pl.DataFrame:
+        return (
+            pl.DataFrame(self.storage.fetch_trade_logs())
+            .sort("timestamp")
+            .with_columns(
+                pl.col(
+                    "price", "total_value", "chg", "pct_chg", "total_return"
+                ).round(2)
+            )
+        )
 
     @cached_property
-    def cap_logs_df(self) -> pd.DataFrame:
-        cap_df = pd.DataFrame(self.storage.fetch_capital_logs())
-        cap_df["timestamp"] = pd.to_datetime(cap_df["timestamp"])
-        cap_df["capital"] = (
-            cap_df["market_value"]
-            + cap_df["free_cash_amount"]
-            + cap_df["frozen_cash_amount"]
+    def cap_logs_df(self) -> pl.DataFrame:
+        return (
+            pl.DataFrame(self.storage.fetch_capital_logs())
+            .with_columns(pl.col("timestamp").str.to_datetime())
+            .with_columns(
+                (
+                    pl.col("market_value")
+                    + pl.col("free_cash_amount")
+                    + pl.col("frozen_cash_amount")
+                ).alias("capital")
+            )
+            .with_columns(
+                pl.col("capital").pct_change().fill_null(0).alias("pct_chg")
+            )
+            .drop_nulls()
+            .sort("timestamp")
+            .with_columns(
+                pl.col(
+                    "frozen_cash_amount",
+                    "market_value",
+                    "free_cash_amount",
+                    "capital",
+                    "pct_chg",
+                ).round(2)
+            )
         )
-        cap_df["pct_chg"] = cap_df["capital"].pct_change()
-        cap_df["pct_chg"].replace(np.nan, 0, inplace=True)
-        cap_df.dropna(inplace=True)
-        cap_df.set_index("timestamp", inplace=True)
-        return cap_df
 
     def clone(self) -> "TradeBook":
         storage = self.storage.clone()
@@ -52,7 +69,7 @@ class TradeBook:
 
         return {
             "timestamp": timestamp,
-            "action": TradeActions.OPEN,
+            "action": "开仓",
             "id": pos.id,
             "code": pos.code,
             "vol": pos.vol,

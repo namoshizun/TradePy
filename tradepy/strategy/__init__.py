@@ -9,7 +9,10 @@ from .indicators import (
     SMA,
     Indicator,
     Lag,
+    OriginalPrice,
     Take,
+    TypicalPrice,
+    Volatility,
 )
 
 __all__ = [
@@ -25,4 +28,7 @@ __all__ = [
     "ATR",
     "Lag",
     "Take",
+    "Volatility",
+    "TypicalPrice",
+    "OriginalPrice",
 ]
