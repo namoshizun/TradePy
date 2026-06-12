@@ -5,12 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "baostock>=0.9.1,<1.0.0",
     "cachetools>=7.1.4,<8.0.0",
     "dotenv>=0.9.9,<1.0.0",
     "fastexcel>=0.20.2,<1.0.0",
+    "financetoolkit>=2.1.0",
     "loguru>=0.7.3",
     "pandera[polars]>=0.31.1,<0.40.0",
+    "plotly>=6.8.0",
     "polars[pyarrow,pandas]>=1.41.1,<1.50.0",
     "pydantic>=2.13.4,<3.0.0",
     "pydash>=8.0.6",

@@ -1,7 +1,4 @@
 [run]
 omit = 
-    tradepy/cli/*,
-    tradepy/trade_cal.py
+    tradepy/cli/*
 source = tradepy
-# multiprocessing = True
-# parallel = true

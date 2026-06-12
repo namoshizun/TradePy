@@ -1,4 +1,6 @@
+import pickle
 from functools import cached_property
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -58,6 +60,15 @@ class TradeBook:
                 ).round(2)
             )
         )
+
+    def save(self, path: str | Path):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "TradeBook":
+        with open(path, "rb") as f:
+            return pickle.load(f)
 
     def clone(self) -> "TradeBook":
         storage = self.storage.clone()
