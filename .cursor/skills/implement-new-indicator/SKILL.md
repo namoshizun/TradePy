@@ -1,6 +1,6 @@
 ---
 name: implement-new-indicator
-description: Guides implementation of new TradePy strategy indicators. Use when adding, modifying, or testing indicators in tradepy/strategy/indicators.py, especially when comparing Polars calculations against TA-Lib.
+description: Guides implementation of new TradePy strategy indicators. Use when adding, modifying, or testing indicators in tradepy/strategy/indicators.py — series (time-series) or cross-sectional — especially when comparing Polars calculations against TA-Lib.
 disable-model-invocation: true
 ---
 
@@ -10,25 +10,47 @@ disable-model-invocation: true
 
 Use this skill when the user asks to implement a new strategy indicator in TradePy.
 
-Core rules from the project:
+Core rules:
 
 - Implementations go into `tradepy/strategy/indicators.py`
+- Choose the correct base class (see below)
 - Use `_fast_ewm` for exponential weighted averages. We deliberately avoid Wilder's Smoothing due to its complexity, and instead use Polars' built-in `ewm_mean` for best performance. As a result, more leading bars need to be discarded during warmup.
-- For each new indicator implemented, verify it against TA-Lib. The dev dependency already includes TA-Lib. You need to confirm that the calculated indicator values converge with TA-Lib's results.
+- Series indicators with a TA-Lib counterpart must be verified against TA-Lib (dev dependency already includes it)
+
+## Base classes
+
+| Base                    | Window                 | Use for                                   |
+| ----------------------- | ---------------------- | ----------------------------------------- |
+| `SeriesIndicator`       | `.over("code")`        | Time-series transforms (SMA, RSI, Lag, …) |
+| `CrossSectionIndicator` | `.over("date", *over)` | Cross-sectional transforms (Rank, …)      |
+
+`compute_indicators` applies each indicator's `partition_by` automatically. Do not call `.over(...)` inside `compute`.
+
+### Series indicators
+
+Composable with `|` (e.g. `SMA(20) | Lag(1)`, `RSI() | Take("fast") | SMA(5)`).
+
+### Cross-sectional indicators
+
+- Inherit `CrossSectionIndicator` and implement `compute(self, value: pl.Expr)`
+- Optional `over=` adds grouping on top of `date` (e.g. `Rank(column="pe", over="industry_code")`)
+- **Not composable** with `|` — `SMA(20) | Rank()` raises `TypeError`. Standalone only; read inputs via `column=`
 
 ## Implementation Workflow
 
 1. Read `tradepy/strategy/indicators.py`, `tradepy/strategy/__init__.py`, and relevant tests before editing.
-2. Add the indicator as a typed `@dataclass(frozen=True)` subclass of `SeriesIndicator` and implement `compute(self, value: pl.Expr)`. The base class resolves the input: at the pipeline root, `value` is the adjusted `column` price; otherwise it is the upstream pipeline output.
+2. Subclass `SeriesIndicator` or `CrossSectionIndicator` as a typed `@dataclass(frozen=True)` and implement `compute(self, value: pl.Expr)`.
+   - At the pipeline root (or for standalone cross-section), `value` is `pl.col(self.column)`.
+   - For series pipelines, `value` is the upstream output.
 3. Follow the existing output style:
    - Return `pl.Expr` for single-output indicators.
    - Return `dict[str, pl.Expr]` for multi-output indicators that require `Take(...)`.
-   - Set `requires_upstream: ClassVar[bool] = True` for transforms that are meaningless without a piped input (e.g. `Lag`).
+   - Set `requires_upstream: ClassVar[bool] = True` for series transforms that are meaningless without a piped input (e.g. `Lag`).
 4. For exponential weighted averages, use `_fast_ewm(...)` and set a warmup long enough for convergence against TA-Lib. Declare the warmup multiplier as a `WARMUP_FACTOR: ClassVar[int]` on the indicator class.
-5. Export the indicator from `tradepy/strategy/__init__.py`.
-6. Add focused pytest coverage in `tests/test_indicators.py`.
+5. Export the indicator (and `CrossSectionIndicator` if newly relevant) from `tradepy/strategy/__init__.py`.
+6. Add focused pytest coverage in `tests/test_indicators.py` (both series and cross-sectional).
 
-## TA-Lib Verification
+## TA-Lib Verification (series indicators)
 
 Tests must compare the new Polars indicator against the matching TA-Lib function and prove convergence after warmup.
 
@@ -48,9 +70,17 @@ def test_new_indicator_converges_with_talib() -> None:
 
 Prefer `pytest.approx(...)` or `numpy.testing.assert_allclose(...)` with tolerances that reflect floating-point convergence rather than exact equality.
 
-## Commands
+## Cross-section tests
 
-Use `uv` for verification:
+TA-Lib does not apply. Put these in `tests/test_indicators.py` alongside series tests. Cover:
+
+- Values are ranked/transformed **within each date** across codes (not within code over time)
+- `over="industry_code"` (or similar) partitions by `(date, …)`
+- Composition with series indicators raises `TypeError`
+
+Evaluate with `resolve()` then `.over(*indicator.partition_by)` on a small multi-code, multi-date frame — do **not** go through `StrategyBase.compute_indicators` for indicator unit tests.
+
+## Commands
 
 ```bash
 uv run pytest tests/test_indicators.py

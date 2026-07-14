@@ -5,7 +5,17 @@ import polars as pl
 import pytest
 
 from tradepy.core.config import SlippageConf, StrategyConf
-from tradepy.strategy import ATR, BOLL, MACD, RSI, SMA, Lag, StrategyBase, Take
+from tradepy.strategy import (
+    ATR,
+    BOLL,
+    MACD,
+    RSI,
+    SMA,
+    Lag,
+    Rank,
+    StrategyBase,
+    Take,
+)
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 
 
@@ -233,3 +243,16 @@ def test_multi_output_indicator_requires_take() -> None:
 
     with pytest.raises(ValueError, match=r"pipe Take\(\.\.\.\)"):
         BadStrategy(_config()).collect_indicator_expressions()
+
+
+def test_collect_cross_section_expression_uses_date_partition() -> None:
+    class PeRankStrategy(_RisklessStrategy):
+        def buy(
+            self,
+            pe_rank: float = Rank(column="pe", over="industry_code"),
+        ) -> float | None:
+            return pe_rank
+
+    exprs = PeRankStrategy(_config()).collect_indicator_expressions()
+    assert len(exprs) == 1
+    assert exprs[0].over == ("date", "industry_code")

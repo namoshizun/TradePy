@@ -50,10 +50,19 @@ class Indicator(float, abc.ABC):
             raise TypeError(
                 f"Cannot compose Indicator with {type(step).__name__}"
             )
+        if isinstance(step, CrossSectionIndicator) or any(
+            isinstance(s, CrossSectionIndicator) for s in step._flatten()
+        ):
+            raise TypeError("Cross-sectional indicators are not composable")
         return IndicatorPipeline((*self._flatten(), *step._flatten()))
 
     def _flatten(self) -> tuple["Indicator", ...]:
         return (self,)
+
+    @property
+    def partition_by(self) -> tuple[str, ...]:
+        """Window partition used when evaluating this indicator."""
+        return ("code",)
 
     def resolve(self) -> IndicatorValue:
         return self._pipe(None)
@@ -74,6 +83,10 @@ class IndicatorPipeline(Indicator):
 
     def _flatten(self) -> tuple[Indicator, ...]:
         return self.steps
+
+    @property
+    def partition_by(self) -> tuple[str, ...]:
+        return self.steps[-1].partition_by
 
     def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
         for step in self.steps:
@@ -113,6 +126,28 @@ class SeriesIndicator(Indicator):
         raise NotImplementedError
 
 
+@dataclass(frozen=True)
+class CrossSectionIndicator(SeriesIndicator):
+    """An indicator computed across stocks within each date.
+
+    Evaluated with ``.over("date", *over)``. Use ``over`` to add grouping
+    columns (e.g. ``over="industry_code"`` for within-industry ranks).
+
+    Not composable with ``|`` (series and cross-section windows cannot be
+    nested in a single Polars expression).
+    """
+
+    over: str | tuple[str, ...] = field(default=(), kw_only=True)
+
+    def __or__(self, step: object) -> "IndicatorPipeline":
+        raise TypeError("Cross-sectional indicators are not composable")
+
+    @property
+    def partition_by(self) -> tuple[str, ...]:
+        extra = (self.over,) if isinstance(self.over, str) else tuple(self.over)
+        return ("date", *extra)
+
+
 # -- Composable indicators ---------------------------------------------------
 @dataclass(frozen=True)
 class Take(Indicator):
@@ -138,6 +173,26 @@ class Lag(SeriesIndicator):
 
     def compute(self, value: pl.Expr) -> pl.Expr:
         return value.shift(self.periods)
+
+
+@dataclass(frozen=True)
+class Rank(CrossSectionIndicator):
+    method: Literal["average", "min", "max", "dense", "ordinal"] = "average"
+    descending: bool = False
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return value.rank(method=self.method, descending=self.descending)
+
+
+@dataclass(frozen=True)
+class Percentile(CrossSectionIndicator):
+    step: int = 1
+    descending: bool = False
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        rank = value.rank(method="ordinal", descending=self.descending)
+        bins = 100 // self.step
+        return ((rank * bins + pl.len() - 1) // pl.len()) * self.step
 
 
 # -- Single series indicators ---------------------------------------------------

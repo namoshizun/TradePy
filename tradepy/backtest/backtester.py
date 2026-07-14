@@ -131,11 +131,6 @@ class IndayTrader:
         yield from self.process_sells()
 
 
-def _price_or_none(value: float) -> float | None:
-    """Null prices surface as NaN in numpy float columns; map them back to None."""
-    return None if np.isnan(value) else float(value)
-
-
 class DayBars:
     """The backtest dataframe as numpy columns, indexed by trading day.
 
@@ -144,7 +139,16 @@ class DayBars:
     a polars filter query for every day, which costs ~0.5ms per query.
     """
 
-    BAR_COLUMNS = ("open", "close", "high", "low", "vol", "pct_chg", "buy_price", "sell_price")
+    BAR_COLUMNS = (
+        "open",
+        "close",
+        "high",
+        "low",
+        "vol",
+        "pct_chg",
+        "buy_price",
+        "sell_price",
+    )
 
     def __init__(self, df: pl.DataFrame):
         # df is date-sorted, so each day is a contiguous row range
@@ -152,7 +156,9 @@ class DayBars:
         self.day_starts: np.ndarray = np.concatenate(
             ([0], np.cumsum(day_lengths, dtype=np.int64))
         )
-        self.dates: list[date] = df["date"].unique(maintain_order=True).to_list()
+        self.dates: list[date] = (
+            df["date"].unique(maintain_order=True).to_list()
+        )
 
         # Codes are stored as categorical ids; code_names[id] recovers the string
         codes = df["code"].cast(pl.Categorical)
@@ -188,6 +194,8 @@ class DayBars:
 
     def _bar(self, row: int, code: str, is_held: bool) -> BarData:
         v = self.values
+        buy_price = v["buy_price"][row]
+        sell_price = v["sell_price"][row]
         return BarData(
             code=code,
             open=float(v["open"][row]),
@@ -196,8 +204,8 @@ class DayBars:
             low=float(v["low"][row]),
             vol=int(v["vol"][row]),
             pct_chg=float(v["pct_chg"][row]),
-            buy_price=_price_or_none(v["buy_price"][row]),
-            sell_price=_price_or_none(v["sell_price"][row]),
+            buy_price=None if np.isnan(buy_price) else float(buy_price),
+            sell_price=None if np.isnan(sell_price) else float(sell_price),
             is_held=is_held,
         )
 

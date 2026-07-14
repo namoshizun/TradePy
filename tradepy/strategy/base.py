@@ -34,7 +34,7 @@ class IndicatorExpression:
     name: str
     expr: pl.Expr
     not_na: bool = True
-
+    over: tuple[str, ...] = ("code",)
 
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
 
@@ -186,6 +186,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                 name=name,
                 expr=result.alias(name),
                 not_na=default.not_na,
+                over=default.partition_by,
             )
 
         return tuple(exprs.values())
@@ -196,7 +197,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         indicator_expressions = self.collect_indicator_expressions()
 
         _df = df.with_columns(
-            *(expr.expr.over("code") for expr in indicator_expressions)
+            *(e.expr.over(*e.over) for e in indicator_expressions)
         )
 
         not_null_columns = [

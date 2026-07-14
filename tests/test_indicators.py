@@ -1,3 +1,5 @@
+from datetime import date
+
 import numpy as np
 import polars as pl
 import pytest
@@ -8,8 +10,11 @@ from tradepy.strategy.indicators import (
     BIAS,
     KDJ,
     SMA,
+    CrossSectionIndicator,
     IndicatorValue,
     Lag,
+    Percentile,
+    Rank,
     Take,
 )
 
@@ -17,6 +22,14 @@ from tradepy.strategy.indicators import (
 def eval_indicator(value: IndicatorValue, df: pl.DataFrame) -> np.ndarray:
     assert isinstance(value, pl.Expr)
     return df.select(value.alias("_"))["_"].to_numpy().astype(np.float64)
+
+
+def eval_cross_section(
+    indicator: CrossSectionIndicator, df: pl.DataFrame
+) -> pl.DataFrame:
+    expr = indicator.resolve()
+    assert isinstance(expr, pl.Expr)
+    return df.with_columns(expr.over(*indicator.partition_by).alias("_out"))
 
 
 def talib_lag(values: np.ndarray, periods: int) -> np.ndarray:
@@ -172,3 +185,87 @@ def test_ref(fake_klines_convergence: pl.DataFrame, lag_period: int) -> None:
 def test_ref_requires_upstream() -> None:
     with pytest.raises(ValueError, match="requires an upstream indicator"):
         Lag().resolve()
+
+
+def test_cross_section_indicators_are_not_composable() -> None:
+    with pytest.raises(TypeError, match="not composable"):
+        _ = SMA(2) | Rank()
+
+    with pytest.raises(TypeError, match="not composable"):
+        _ = Rank() | Lag(1)
+
+    with pytest.raises(TypeError, match="not composable"):
+        _ = SMA(2) | Percentile()
+
+
+def test_rank_partitions_by_date() -> None:
+    df = pl.DataFrame(
+        {
+            "code": ["A", "B", "C", "A", "B", "C"],
+            "date": [date(2024, 1, 1)] * 3 + [date(2024, 1, 2)] * 3,
+            "pe": [30.0, 10.0, 20.0, 5.0, 15.0, 25.0],
+        }
+    )
+    out = eval_cross_section(Rank(column="pe"), df)
+    day1 = out.filter(pl.col("date") == date(2024, 1, 1)).sort("code")
+    day2 = out.filter(pl.col("date") == date(2024, 1, 2)).sort("code")
+
+    assert day1["_out"].to_list() == [3.0, 1.0, 2.0]
+    assert day2["_out"].to_list() == [1.0, 2.0, 3.0]
+
+
+def test_rank_partitions_by_date_and_industry() -> None:
+    df = pl.DataFrame(
+        {
+            "code": ["A", "B", "C", "D"],
+            "date": [date(2024, 1, 1)] * 4,
+            "industry_code": ["X", "X", "Y", "Y"],
+            "pe": [30.0, 10.0, 5.0, 50.0],
+        }
+    )
+    out = eval_cross_section(Rank(column="pe", over="industry_code"), df)
+    by_code = {row["code"]: row["_out"] for row in out.to_dicts()}
+
+    assert by_code == {"A": 2.0, "B": 1.0, "C": 1.0, "D": 2.0}
+
+
+def test_percentile_partitions_by_date() -> None:
+    codes = [f"{i:03d}" for i in range(100)]
+    df = pl.DataFrame(
+        {
+            "code": codes,
+            "date": [date(2024, 1, 1)] * 100,
+            "pe": [float(i) for i in range(1, 101)],
+        }
+    )
+    out = eval_cross_section(Percentile(column="pe"), df)
+    assert out.sort("pe")["_out"].to_list() == [float(i) for i in range(1, 101)]
+
+
+def test_percentile_step() -> None:
+    df = pl.DataFrame(
+        {
+            "code": ["A", "B", "C", "D"],
+            "date": [date(2024, 1, 1)] * 4,
+            "pe": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+    out = eval_cross_section(Percentile(column="pe", step=25), df)
+    by_code = {row["code"]: row["_out"] for row in out.to_dicts()}
+    assert by_code == {"A": 25.0, "B": 50.0, "C": 75.0, "D": 100.0}
+
+
+def test_percentile_partitions_by_date_and_industry() -> None:
+    df = pl.DataFrame(
+        {
+            "code": ["A", "B", "C", "D"],
+            "date": [date(2024, 1, 1)] * 4,
+            "industry_code": ["X", "X", "Y", "Y"],
+            "pe": [30.0, 10.0, 5.0, 50.0],
+        }
+    )
+    out = eval_cross_section(
+        Percentile(column="pe", step=50, over="industry_code"), df
+    )
+    by_code = {row["code"]: row["_out"] for row in out.to_dicts()}
+    assert by_code == {"A": 100.0, "B": 50.0, "C": 50.0, "D": 100.0}
