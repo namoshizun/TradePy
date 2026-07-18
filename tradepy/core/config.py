@@ -190,6 +190,9 @@ class CommonConf(ConfBase):
     def get_stock_listing_path(self) -> Path:
         return self._get_stocks_dir() / "listing.parquet"
 
+    def get_stock_name_changes_path(self) -> Path:
+        return self._get_stocks_dir() / "name_changes.parquet"
+
     def get_stock_industry_class_path(self) -> Path:
         return self._get_stocks_dir() / "industry_class.parquet"
 

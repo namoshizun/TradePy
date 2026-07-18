@@ -6,6 +6,7 @@ from pandera.typing.polars import DataFrame
 
 from tradepy.core.types import (
     BaseFrameModel,
+    StockNameChangesModel,
     StocksListModel,
     SWStockIndustryModel,
 )
@@ -38,4 +39,8 @@ class StocksListingDepository(GenericListingDepot[StocksListModel]):
 class StocksIndustryClassListingDepository(
     GenericListingDepot[SWStockIndustryModel]
 ):
+    pass
+
+
+class StockNameChangesDepository(GenericListingDepot[StockNameChangesModel]):
     pass

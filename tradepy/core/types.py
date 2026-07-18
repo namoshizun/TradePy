@@ -140,6 +140,7 @@ class StockNameChangesModel(BaseFrameModel):
 
 
 StockNameChangesDataFrame = DataFrame[StockNameChangesModel]
+LazyStockNameChangesDataFrame = LazyFrame[StockNameChangesModel]
 
 
 class StockPriceAdjustFactorsModel(BaseFrameModel):

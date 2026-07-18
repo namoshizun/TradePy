@@ -17,6 +17,7 @@ from tradepy.depot import (
     StocksIndustryClassListingDepository,
     StocksListingDepository,
 )
+from tradepy.depot.listings import StockNameChangesDepository
 from tradepy.pipelines import Pipeline
 from tradepy.pipelines.data_fetcher import DataFetcher, DataFetchJob
 from tradepy.vendors import (
@@ -139,6 +140,10 @@ class UpdateDatabasePipeline(Pipeline):
 
         depot.mark_updated()
 
+    def _refresh_stock_name_changes(self, depot: StockNameChangesDepository):
+        df = self.ts_client.get_name_changes()
+        depot.save(df)
+
     def execute(self):
         stocks_listing_depot = StocksListingDepository(
             config.common.get_stock_listing_path()
@@ -155,6 +160,10 @@ class UpdateDatabasePipeline(Pipeline):
 
         adjust_factors_depot = StocksAdjustFactorsDepository(
             config.common.get_adjust_factors_path()
+        )
+
+        name_changes_depot = StockNameChangesDepository(
+            config.common.get_stock_name_changes_path()
         )
 
         logger.info("🚀 开始更新本地数据...")
@@ -183,4 +192,9 @@ class UpdateDatabasePipeline(Pipeline):
         if indu_class_depot.is_outdated():
             logger.info("🔄 [股票行业分类] 更新中...")
             self._refresh_stocks_industry_class(indu_class_depot)
+            logger.info("ok")
+
+        if name_changes_depot.is_outdated():
+            logger.info("🔄 [股票名称变更] 更新中...")
+            self._refresh_stock_name_changes(name_changes_depot)
             logger.info("ok")

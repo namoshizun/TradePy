@@ -17,6 +17,7 @@ from tradepy.core.trade_cal import TradeCalendar
 from tradepy.core.types import (
     DayKlinesDataFrame,
     DayKlinesModel,
+    StockNameChangesDataFrame,
     StockNameChangesModel,
     StockPriceAdjustFactorsDataFrame,
     StockPriceAdjustFactorsModel,
@@ -149,7 +150,9 @@ class TushareClient:
 
         raise Exception("Should not reach here")
 
-    def get_name_changes(self, since: date = date(2008, 1, 1)):
+    def get_name_changes(
+        self, since: date = date(1990, 1, 1)
+    ) -> StockNameChangesDataFrame:
         dfs = []
 
         for year in range(since.year, date.today().year + 3):
@@ -170,8 +173,8 @@ class TushareClient:
                     dfs.append(df)
 
         df = pd.concat(dfs)
-        df.sort_values(by=["since"], inplace=True)
         df.drop_duplicates(subset=["code", "name"], inplace=True)
+        df.sort_values(by=["code", "since"], inplace=True)
 
         return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
             df[StockNameChangesModel.columns()],

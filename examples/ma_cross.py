@@ -63,5 +63,10 @@ class MACrossStrategy(BacktestStrategyBase[MACrossConf]):
             return close
 
     def pre_process(self, df: pl.DataFrame) -> pl.DataFrame:
-        # 过滤掉北交所个股
-        return df.filter(pl.col("exchange") != "BJ")
+        name_cats = df["name"].cat.get_categories()
+        st_names = name_cats.filter(name_cats.str.contains("ST"))
+
+        # 过滤掉北交所 / ST
+        return df.filter(
+            (pl.col("exchange") != "BJ") & ~(pl.col("name").is_in(st_names))
+        )
