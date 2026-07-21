@@ -92,9 +92,8 @@ class InstrumentInfoModel(BaseFrameModel):
 
 class StocksBasicModel(InstrumentInfoModel):
     date: pl.Date
-    total_shares: pl.Int32  # 单位: 万股
-    float_shares: pl.Int32
-    free_shares: pl.Int32
+    total_mv: pl.Int32  # 单位: 亿元
+    circ_mv: pl.Int32  # 单位: 亿元
     turnover_rate: pl.Float16
     pe: pl.Float32
     pe_ttm: pl.Float16

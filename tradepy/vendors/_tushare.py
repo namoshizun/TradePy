@@ -41,7 +41,6 @@ class TushareClient:
     ):
         self.api = ts.pro_api(token)
 
-    @retry(**RETRY_ARGS)
     @throttle("200/m")
     def get_stock_basic(
         self,
@@ -63,21 +62,21 @@ class TushareClient:
                 "trade_date": trade_date.strftime("%Y%m%d"),
             }
 
-        df = self.api.daily_basic(**args)
+        df = None
+        for attempt in Retrying(**RETRY_ARGS):
+            with attempt:
+                df = self.api.daily_basic(**args)
+
+        assert isinstance(df, pd.DataFrame)
         df.rename(
-            columns={
-                "ts_code": "code",
-                "trade_date": "date",
-                "dv_ratio": "dv",
-                "total_share": "total_shares",
-                "float_share": "float_shares",
-                "free_share": "free_shares",
-            },
+            columns={"ts_code": "code", "trade_date": "date", "dv_ratio": "dv"},
             inplace=True,
         )
         df["date"] = pd.to_datetime(df["date"])
         df["type"] = "stock"
         df["exchange"] = df["code"].map(convert_code_to_exchange)
+        df["total_mv"] = (df["total_mv"] / 1e4).astype(int)
+        df["circ_mv"] = (df["circ_mv"] / 1e4).astype(int)
 
         return pl.from_pandas(  # pyright: ignore[reportReturnType, reportUnknownVariableType]
             df[StocksBasicModel.columns()],
