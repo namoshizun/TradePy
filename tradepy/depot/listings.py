@@ -4,6 +4,7 @@ from typing import Any, TypeVar
 
 from pandera.typing.polars import DataFrame
 
+from tradepy import config
 from tradepy.core.types import (
     BaseFrameModel,
     StockNameChangesModel,
@@ -33,14 +34,14 @@ class GenericListingDepot(DataDepository[T]):
 
 
 class StocksListingDepository(GenericListingDepot[StocksListModel]):
-    pass
+    _default_path = config.common.get_stock_listing_path()
 
 
 class StocksIndustryClassListingDepository(
     GenericListingDepot[SWStockIndustryModel]
 ):
-    pass
+    _default_path = config.common.get_stock_industry_class_path()
 
 
 class StockNameChangesDepository(GenericListingDepot[StockNameChangesModel]):
-    pass
+    _default_path = config.common.get_stock_name_changes_path()

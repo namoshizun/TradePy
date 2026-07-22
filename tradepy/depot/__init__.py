@@ -14,10 +14,15 @@ T = TypeVar("T", bound=BaseFrameModel)
 
 class DataDepository(Generic[T]):
     _model: BaseFrameModel
+    _default_path: Path
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str | None = None):
         if isinstance(path, str):
             path = Path(path)
+
+        if path is None:
+            assert hasattr(self, "_default_path")
+            path = self._default_path
 
         self.path = path
 
@@ -97,7 +102,12 @@ class DataDepository(Generic[T]):
         if not (sources := self.sources()):
             df: Any = pl.DataFrame(schema=schema)
         else:
-            df = pl.scan_parquet(sources, schema=schema, extra_columns="ignore")
+            df = pl.scan_parquet(
+                sources,
+                schema=schema,
+                extra_columns="ignore",
+                missing_columns="insert",
+            )
 
         return ensure_laziness(df, lazy)
 

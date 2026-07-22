@@ -15,13 +15,11 @@ else:
     from typing_extensions import TypeVar  # pyright: ignore[reportUnreachable]
 
 import polars as pl
-from pandera.typing.polars import DataFrame
+from pandera.typing.polars import DataFrame, LazyFrame
 
 from tradepy.core.config import StrategyConf
 from tradepy.core.types import (
     BarData,
-    LazyStockDailyMetricsDataFrame,
-    StockDailyMetricsDataFrame,
 )
 from tradepy.strategy.indicators import Indicator
 from tradepy.strategy.portfolio_alloc import BudgetAllocation, portfolio_alloc
@@ -35,6 +33,7 @@ class IndicatorExpression:
     expr: pl.Expr
     not_na: bool = True
     over: tuple[str, ...] = ("code",)
+
 
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
 
@@ -191,9 +190,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
 
         return tuple(exprs.values())
 
-    def compute_indicators(
-        self, df: StockDailyMetricsDataFrame | LazyStockDailyMetricsDataFrame
-    ) -> DataFrame:
+    def compute_indicators(self, df: DataFrame | LazyFrame) -> DataFrame:
         indicator_expressions = self.collect_indicator_expressions()
 
         _df = df.with_columns(

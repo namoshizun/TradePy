@@ -41,7 +41,7 @@ class TushareClient:
     ):
         self.api = ts.pro_api(token)
 
-    @throttle("200/m")
+    @throttle("195/m")
     def get_stock_basic(
         self,
         *,
@@ -209,7 +209,7 @@ class TushareClient:
         )
 
     @retry(**RETRY_ARGS)
-    @throttle("200/m")
+    @throttle("195/m")
     def get_stock_price_adjust_factors(
         self, code: str
     ) -> StockPriceAdjustFactorsDataFrame:

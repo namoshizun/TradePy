@@ -1,6 +1,7 @@
 import json
 from datetime import date
 
+from tradepy import config
 from tradepy.core.types import StockPriceAdjustFactorsModel
 from tradepy.depot import DataDepository
 
@@ -8,6 +9,8 @@ from tradepy.depot import DataDepository
 class StocksAdjustFactorsDepository(
     DataDepository[StockPriceAdjustFactorsModel]
 ):
+    _default_path = config.common.get_adjust_factors_path()
+
     def is_outdated(self) -> bool:
         mark_file = self.path / "update-mark.json"
         if not mark_file.exists():

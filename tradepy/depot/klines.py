@@ -2,6 +2,7 @@ from datetime import date
 from pathlib import Path
 from typing import TypeVar
 
+from tradepy import config
 from tradepy.core.types import BaseFrameModel, DayKlinesModel, StocksBasicModel
 from tradepy.depot import DataDepository
 from tradepy.vendors._tushare import TushareClient
@@ -10,7 +11,9 @@ T = TypeVar("T", bound=BaseFrameModel)
 
 
 class GenericDailyDepository(DataDepository[T]):
-    def __init__(self, path: Path | str, since: date, until: date):
+    def __init__(
+        self, since: date, until: date, path: Path | str | None = None
+    ):
         super().__init__(path)
         self.since = since
         self.until = until
@@ -36,8 +39,8 @@ class GenericDailyDepository(DataDepository[T]):
 
 
 class StocksDayKlinesDepository(GenericDailyDepository[DayKlinesModel]):
-    pass
+    _default_path = config.common.get_stock_day_klines_path()
 
 
 class StocksDayBasicsDepository(GenericDailyDepository[StocksBasicModel]):
-    pass
+    _default_path = config.common.get_stock_day_basics_path()
