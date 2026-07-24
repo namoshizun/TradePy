@@ -177,7 +177,7 @@ class CommonConf(ConfBase):
         default=None, description="股票黑名单文件路径"
     )
     download_concurrency: Annotated[int, Field(gt=0)] = Field(
-        4, description="数据下载并发数"
+        8, description="数据下载并发数"
     )
 
     tushare_token: SecretStr = Field(..., description="Tushare API Token")

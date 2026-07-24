@@ -6,6 +6,7 @@ import polars as pl
 from pandera.typing.polars import LazyFrame
 
 from tradepy.core.types import (
+    FinancialIndicatorsModel,
     LazyDayKlinesDataFrame,
     LazyStockNameChangesDataFrame,
     LazyStockPriceAdjustFactorsDataFrame,
@@ -13,6 +14,7 @@ from tradepy.core.types import (
     SWStockIndustryModel,
 )
 from tradepy.depot import (
+    FinancialIndicatorsDepository,
     StockNameChangesDepository,
     StocksAdjustFactorsDepository,
     StocksDayBasicsDepository,
@@ -55,6 +57,26 @@ class StockDayBasicsData(IngredientData):
         self, main_df: LazyFrame[Any], df: LazyFrame[Any]
     ) -> LazyFrame[Any]:
         return main_df.join(df, on=["code", "date"], how="inner")  # pyright: ignore[reportReturnType]
+
+
+class StockFinancialIndicatorsData(IngredientData):
+    def load(self) -> LazyFrame[Any]:
+        depot = FinancialIndicatorsDepository()
+        cols = self.columns or FinancialIndicatorsModel.columns()
+        cols = list(set(cols) | {"code", "ann_date"})
+        return depot.load(lazy=True).select(*cols).sort("ann_date")  # pyright: ignore[reportReturnType]
+
+    def apply(
+        self, main_df: LazyFrame[Any], df: LazyFrame[Any]
+    ) -> LazyFrame[Any]:
+        return main_df.join_asof(  # pyright: ignore[reportReturnType]
+            df,
+            left_on="date",
+            right_on="ann_date",
+            by="code",
+            strategy="backward",
+            check_sortedness=False,
+        ).drop("ann_date")
 
 
 class StocksIndustryClassData(IngredientData):

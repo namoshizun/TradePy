@@ -6,6 +6,7 @@ from loguru import logger
 from tradepy.pipelines.assemble_dataset import (
     AssembleDatasetPipeline,
     StockDayBasicsData,
+    StockFinancialIndicatorsData,
     StocksIndustryClassData,
 )
 from tradepy.pipelines.update_database import UpdateDatabasePipeline
@@ -20,8 +21,9 @@ def assemble_data(since: date, until: date):
             StockDayBasicsData(
                 since,
                 until,
-                columns=["total_mv", "circ_mv", "pe_ttm", "ps_ttm"],
+                columns=["total_mv", "circ_mv", "pe_ttm", "ps_ttm", "pb"],
             ),
+            StockFinancialIndicatorsData(columns=["roic", "roa", "fcff_ps"]),
         ],
     )
     return pipe.execute().collect()

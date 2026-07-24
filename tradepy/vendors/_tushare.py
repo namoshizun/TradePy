@@ -236,6 +236,7 @@ class TushareClient:
         code: str,
         offset: int = 0,
         limit: int = 100,
+        since: date | None = None,
     ) -> StockFinancialIndicatorsDataFrame:
         df: pd.DataFrame | None = None
         args = {
@@ -245,6 +246,10 @@ class TushareClient:
             "fields": "*",
             "update_flag": "1",
         }
+
+        if since:
+            args["start_date"] = since.strftime("%Y%m%d")
+
         logger.debug(
             f"... [fin-ind] fetching {offset}-{offset + limit} rows for {code}"
         )
@@ -268,7 +273,7 @@ class TushareClient:
             df["period"].str[4:].map(lambda x: quarters.index(x) + 1)
         )
         df["ann_date"] = pd.to_datetime(df["ann_date"])
-        df["period"] = pd.to_datetime(df["period"])
+        df["period"] = df["period"].str[:4].astype(int)
         df.drop_duplicates(inplace=True)
 
         # Construct the polars dataframe

@@ -151,9 +151,9 @@ class UpdateDatabasePipeline(Pipeline):
         jobs: list[DataFetchJob[StockFinancialIndicatorsDataFrame]] = [
             DataFetchJob(
                 func=self.ts_client.get_stock_financial_indicator,
-                args={"code": code},
+                args={"code": row["code"], "since": row["list_date"]},
             )
-            for code in listing_df["code"]
+            for row in listing_df.iter_rows(named=True)
         ]
 
         fetcher = DataFetcher(title="[股票财务指标]")

@@ -177,8 +177,8 @@ LazySWStockIndustryDataFrame = LazyFrame[SWStockIndustryModel]
 class FinancialIndicatorsModel(BaseFrameModel):
     code: pl.Categorical
     ann_date: pl.Date
-    period: pl.Date
-    quarter: pl.Int8
+    period: pl.Int16  # 财年: 2010, 2011, ...
+    quarter: pl.Int8  # 季度: 1, 2, 3, 4
     eps: pl.Float64  # 基本每股收益
     dt_eps: pl.Float64  # 稀释每股收益
     total_revenue_ps: pl.Float64  # 每股营业总收入
