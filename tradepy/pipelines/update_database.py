@@ -6,18 +6,20 @@ from loguru import logger
 from tradepy import config
 from tradepy.core.types import (
     DayKlinesDataFrame,
+    StockFinancialIndicatorsDataFrame,
     StockPriceAdjustFactorsDataFrame,
     StocksBasicDataFrame,
     StocksListDataFrame,
 )
 from tradepy.depot import (
+    FinancialIndicatorsDepository,
+    StockNameChangesDepository,
     StocksAdjustFactorsDepository,
     StocksDayBasicsDepository,
     StocksDayKlinesDepository,
     StocksIndustryClassListingDepository,
     StocksListingDepository,
 )
-from tradepy.depot.listings import StockNameChangesDepository
 from tradepy.pipelines import Pipeline
 from tradepy.pipelines.data_fetcher import DataFetcher, DataFetchJob
 from tradepy.vendors import (
@@ -126,50 +128,58 @@ class UpdateDatabasePipeline(Pipeline):
             )
             for code in listing_df["code"]
         ]
-        logger.info(f"🔄 [股票复权因子] 待更新股票: {len(jobs)} 只")
 
         fetcher = DataFetcher(title="[股票复权因子]")
         for job in fetcher.submit(jobs):
             code = job.args["code"]
             if job.error_message:
-                logger.error("[股票复权因子] {} 下载失败!", code)
+                logger.error(f"[股票复权因子] {code} 下载失败!")
                 continue
 
             assert job.result is not None
             depot.save(job.result, key=f"{code}.parquet")  # pyright: ignore[reportArgumentType]
 
-        depot.mark_updated()
-
     def _refresh_stock_name_changes(self, depot: StockNameChangesDepository):
         df = self.ts_client.get_name_changes()
         depot.save(df)
 
+    def _refresh_financial_indicators(
+        self,
+        depot: FinancialIndicatorsDepository,
+        listing_df: StocksListDataFrame,
+    ):
+        jobs: list[DataFetchJob[StockFinancialIndicatorsDataFrame]] = [
+            DataFetchJob(
+                func=self.ts_client.get_stock_financial_indicator,
+                args={"code": code},
+            )
+            for code in listing_df["code"]
+        ]
+
+        fetcher = DataFetcher(title="[股票财务指标]")
+        for job in fetcher.submit(jobs):
+            code = job.args["code"]
+            if job.error_message:
+                logger.error(f"[股票财务指标] {code} 下载失败!")
+                continue
+
+            assert job.result is not None
+            depot.save(job.result, key=f"{code}.parquet")  # pyright: ignore[reportArgumentType]
+
     def execute(self):
-        stocks_listing_depot = StocksListingDepository(
-            config.common.get_stock_listing_path()
-        )
-        indu_class_depot = StocksIndustryClassListingDepository(
-            config.common.get_stock_industry_class_path()
-        )
-        day_klines_depot = StocksDayKlinesDepository(
-            config.common.get_stock_day_klines_path(), self._since, self._until
-        )
-        day_basics_depot = StocksDayBasicsDepository(
-            config.common.get_stock_day_basics_path(), self._since, self._until
-        )
-
-        adjust_factors_depot = StocksAdjustFactorsDepository(
-            config.common.get_adjust_factors_path()
-        )
-
-        name_changes_depot = StockNameChangesDepository(
-            config.common.get_stock_name_changes_path()
-        )
+        stocks_listing_depot = StocksListingDepository()
+        indu_class_depot = StocksIndustryClassListingDepository()
+        day_klines_depot = StocksDayKlinesDepository(self._since, self._until)
+        day_basics_depot = StocksDayBasicsDepository(self._since, self._until)
+        adjust_factors_depot = StocksAdjustFactorsDepository()
+        name_changes_depot = StockNameChangesDepository()
+        finind_depot = FinancialIndicatorsDepository()
 
         logger.info("🚀 开始更新本地数据...")
         if stocks_listing_depot.is_outdated():
             logger.info("🔄 [股票列表] 更新中...")
             self._refresh_stocks_listing(stocks_listing_depot)
+            stocks_listing_depot.mark_updated()
             logger.info("ok")
 
         listing_df = stocks_listing_depot.load()
@@ -177,24 +187,35 @@ class UpdateDatabasePipeline(Pipeline):
         if day_klines_depot.is_outdated():
             logger.info("🔄 [股票日线K线] 更新中...")
             self._refresh_day_klines(day_klines_depot, listing_df)
+            day_klines_depot.mark_updated()
             logger.info("ok")
 
         if day_basics_depot.is_outdated():
             logger.info("🔄 [股票日线基本面] 更新中...")
             self._refresh_stocks_basics(day_basics_depot, listing_df)
+            day_basics_depot.mark_updated()
             logger.info("ok")
 
         if adjust_factors_depot.is_outdated():
             logger.info("🔄 [股票复权因子] 更新中...")
             self._refresh_adjust_factors(adjust_factors_depot, listing_df)
+            adjust_factors_depot.mark_updated()
             logger.info("ok")
 
         if indu_class_depot.is_outdated():
             logger.info("🔄 [股票行业分类] 更新中...")
             self._refresh_stocks_industry_class(indu_class_depot)
+            indu_class_depot.mark_updated()
             logger.info("ok")
 
         if name_changes_depot.is_outdated():
             logger.info("🔄 [股票名称变更] 更新中...")
             self._refresh_stock_name_changes(name_changes_depot)
+            name_changes_depot.mark_updated()
+            logger.info("ok")
+
+        if finind_depot.is_outdated():
+            logger.info("🔄 [股票财务指标] 更新中...")
+            self._refresh_financial_indicators(finind_depot, listing_df)
+            finind_depot.mark_updated()
             logger.info("ok")

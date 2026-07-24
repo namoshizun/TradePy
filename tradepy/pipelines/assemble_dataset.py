@@ -13,12 +13,12 @@ from tradepy.core.types import (
     SWStockIndustryModel,
 )
 from tradepy.depot import (
+    StockNameChangesDepository,
     StocksAdjustFactorsDepository,
     StocksDayBasicsDepository,
     StocksDayKlinesDepository,
     StocksIndustryClassListingDepository,
 )
-from tradepy.depot.listings import StockNameChangesDepository
 from tradepy.pipelines import Pipeline
 
 

@@ -4,6 +4,7 @@ import pandas as pd
 import polars as pl
 import tushare as ts
 from cachetools import TTLCache, cachedmethod
+from loguru import logger
 from tenacity import (
     Retrying,
     retry,
@@ -17,6 +18,8 @@ from tradepy.core.trade_cal import TradeCalendar
 from tradepy.core.types import (
     DayKlinesDataFrame,
     DayKlinesModel,
+    FinancialIndicatorsModel,
+    StockFinancialIndicatorsDataFrame,
     StockNameChangesDataFrame,
     StockNameChangesModel,
     StockPriceAdjustFactorsDataFrame,
@@ -41,7 +44,7 @@ class TushareClient:
     ):
         self.api = ts.pro_api(token)
 
-    @throttle("195/m")
+    @throttle("150/m")
     def get_stock_basic(
         self,
         *,
@@ -127,7 +130,7 @@ class TushareClient:
 
     @cachedmethod(cache=lambda _: TTLCache(maxsize=10, ttl=60 * 60 * 24))
     def get_trade_calendar(
-        self, since: date = date(2008, 1, 1)
+        self, since: date = date(1990, 1, 1)
     ) -> TradeCalendar:
         eoy = date.today().replace(month=12, day=31)
         for attempt in Retrying(**RETRY_ARGS):
@@ -209,7 +212,7 @@ class TushareClient:
         )
 
     @retry(**RETRY_ARGS)
-    @throttle("195/m")
+    @throttle("150/m")
     def get_stock_price_adjust_factors(
         self, code: str
     ) -> StockPriceAdjustFactorsDataFrame:
@@ -226,3 +229,61 @@ class TushareClient:
             schema_overrides=StockPriceAdjustFactorsModel.schema(),
             nan_to_null=True,
         )
+
+    @throttle("150/m")
+    def get_stock_financial_indicator(
+        self,
+        code: str,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> StockFinancialIndicatorsDataFrame:
+        df: pd.DataFrame | None = None
+        args = {
+            "ts_code": code,
+            "offset": str(offset),
+            "limit": str(limit),
+            "fields": "*",
+            "update_flag": "1",
+        }
+        logger.debug(
+            f"... [fin-ind] fetching {offset}-{offset + limit} rows for {code}"
+        )
+        for attempt in Retrying(**RETRY_ARGS):
+            with attempt:
+                df = self.api.fina_indicator(**args)
+
+        assert df is not None
+        if df.empty:
+            return pl.DataFrame(schema=FinancialIndicatorsModel.schema())  # pyright: ignore[reportReturnType]
+
+        # Post-processing
+        quarters = ["0331", "0630", "0930", "1231"]
+        orig_size = len(df)
+        df.columns = list(map(str.lower, df.columns))
+        df.rename(
+            columns={"ts_code": "code", "end_date": "period"},
+            inplace=True,
+        )
+        df["quarter"] = (
+            df["period"].str[4:].map(lambda x: quarters.index(x) + 1)
+        )
+        df["ann_date"] = pd.to_datetime(df["ann_date"])
+        df["period"] = pd.to_datetime(df["period"])
+        df.drop_duplicates(inplace=True)
+
+        # Construct the polars dataframe
+        _df: StockFinancialIndicatorsDataFrame = pl.from_pandas(  # pyright: ignore[reportAssignmentType]
+            df[FinancialIndicatorsModel.columns()],
+            schema_overrides=FinancialIndicatorsModel.schema(),
+            nan_to_null=True,
+        )
+        if orig_size < limit:
+            # Fetched the last page
+            return _df
+
+        return pl.concat(  # pyright: ignore[reportReturnType]
+            [
+                _df,
+                self.get_stock_financial_indicator(code, offset + limit, limit),
+            ]
+        ).sort(by=["period"], descending=True)
