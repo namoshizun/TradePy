@@ -93,7 +93,7 @@ class StrategyConf(ConfBase):
         Field(
             description='策略类的module导入路径, 比如"my_strategy.SampleStrategy"',
         ),
-    ]
+    ] = ""
     stop_loss: Annotated[
         float,
         Field(

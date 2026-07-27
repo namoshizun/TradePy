@@ -15,7 +15,6 @@ else:
     from typing_extensions import TypeVar  # pyright: ignore[reportUnreachable]
 
 import polars as pl
-from pandera.typing.polars import DataFrame, LazyFrame
 
 from tradepy.core.config import StrategyConf
 from tradepy.core.types import (
@@ -91,7 +90,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
     ) -> float | None:
         raise NotImplementedError
 
-    def pre_process(self, df: pl.DataFrame) -> pl.DataFrame:
+    def pre_backtest(self, df: pl.DataFrame) -> pl.DataFrame:
         return df
 
     def optimize_portfolio(
@@ -190,7 +189,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
 
         return tuple(exprs.values())
 
-    def compute_indicators(self, df: DataFrame | LazyFrame) -> DataFrame:
+    def compute_indicators(self, df: pl.DataFrame) -> pl.DataFrame:
         indicator_expressions = self.collect_indicator_expressions()
 
         _df = df.with_columns(

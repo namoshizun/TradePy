@@ -195,6 +195,20 @@ class Percentile(CrossSectionIndicator):
         return ((rank * bins + pl.len() - 1) // pl.len()) * self.step
 
 
+@dataclass(frozen=True)
+class WeightedAverage(CrossSectionIndicator):
+    weights: str
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return pl.col(self.weights).dot(value) / pl.sum(self.weights)
+
+
+@dataclass(frozen=True)
+class Average(CrossSectionIndicator):
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return value.mean()
+
+
 # -- Single series indicators ---------------------------------------------------
 
 

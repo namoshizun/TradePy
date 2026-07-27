@@ -7,6 +7,7 @@ from .indicators import (
     MACD,
     RSI,
     SMA,
+    Average,
     CrossSectionIndicator,
     Indicator,
     Lag,
@@ -16,6 +17,7 @@ from .indicators import (
     Take,
     TypicalPrice,
     Volatility,
+    WeightedAverage,
 )
 
 __all__ = [
@@ -37,4 +39,6 @@ __all__ = [
     "Volatility",
     "TypicalPrice",
     "OriginalPrice",
+    "WeightedAverage",
+    "Average",
 ]

@@ -335,7 +335,7 @@ class Backtester:
         # [4] --
         with Timer("s") as timer:
             logger.info("♻️ 预处理数据...")
-            df = strategy.pre_process(df)
+            df = strategy.pre_backtest(df)
         logger.opt(colors=True).info(f"<g>OK! ({timer.duration:.1f}s)</g>")
 
         # [5] --
