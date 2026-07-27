@@ -3,6 +3,7 @@ from tradepy.core.types import (
     StockNameChangesModel,
     StockPriceAdjustFactorsModel,
     StocksListModel,
+    SWIndustryListModel,
     SWStockIndustryModel,
 )
 from tradepy.depot import DataDepository
@@ -13,9 +14,12 @@ class StocksListingDepository(DataDepository[StocksListModel]):
     _update_period = "weekly"
 
 
-class StocksIndustryClassListingDepository(
-    DataDepository[SWStockIndustryModel]
-):
+class StockIndustryListingDepository(DataDepository[SWIndustryListModel]):
+    _default_path = config.common.get_stock_industry_list_path()
+    _update_period = "never"
+
+
+class StocksIndustryClassDepository(DataDepository[SWStockIndustryModel]):
     _default_path = config.common.get_stock_industry_class_path()
     _update_period = "weekly"
 

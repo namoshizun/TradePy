@@ -17,7 +17,7 @@ from tradepy.depot import (
     StocksAdjustFactorsDepository,
     StocksDayBasicsDepository,
     StocksDayKlinesDepository,
-    StocksIndustryClassListingDepository,
+    StocksIndustryClassDepository,
     StocksListingDepository,
 )
 from tradepy.pipelines import Pipeline
@@ -45,7 +45,7 @@ class UpdateDatabasePipeline(Pipeline):
         depot.save(df)
 
     def _refresh_stocks_industry_class(
-        self, depot: StocksIndustryClassListingDepository
+        self, depot: StocksIndustryClassDepository
     ):
         df = fetch_stock_industry_classification_history()
         depot.save(df)
@@ -168,7 +168,7 @@ class UpdateDatabasePipeline(Pipeline):
 
     def execute(self):
         stocks_listing_depot = StocksListingDepository()
-        indu_class_depot = StocksIndustryClassListingDepository()
+        indu_class_depot = StocksIndustryClassDepository()
         day_klines_depot = StocksDayKlinesDepository(self._since, self._until)
         day_basics_depot = StocksDayBasicsDepository(self._since, self._until)
         adjust_factors_depot = StocksAdjustFactorsDepository()

@@ -155,10 +155,9 @@ LazyStockPriceAdjustFactorsDataFrame = LazyFrame[StockPriceAdjustFactorsModel]
 # -- Industry ------------------------
 class SWIndustryListModel(BaseFrameModel):
     code: pl.Categorical
-    name: pl.Categorical
-    sw_level_1: pl.Int8
-    sw_level_2: pl.Int8
-    sw_level_3: pl.Int8
+    level_1: pl.Categorical
+    level_2: pl.Categorical
+    level_3: pl.Categorical
     version_year: pl.Int16  # 2014 or 2021
 
 

@@ -19,7 +19,7 @@ from tradepy.depot import (
     StocksAdjustFactorsDepository,
     StocksDayBasicsDepository,
     StocksDayKlinesDepository,
-    StocksIndustryClassListingDepository,
+    StocksIndustryClassDepository,
 )
 from tradepy.pipelines import Pipeline
 
@@ -81,7 +81,7 @@ class StockFinancialIndicatorsData(IngredientData):
 
 class StocksIndustryClassData(IngredientData):
     def load(self) -> LazyFrame[Any]:
-        depot = StocksIndustryClassListingDepository()
+        depot = StocksIndustryClassDepository()
         cols = self.columns or SWStockIndustryModel.columns()
         cols = list(set(cols) | {"since", "code"})
         return depot.load(lazy=True).select(*cols).sort("since")  # pyright: ignore[reportReturnType]

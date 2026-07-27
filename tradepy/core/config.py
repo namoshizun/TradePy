@@ -24,6 +24,8 @@ load_dotenv()
 ModeType = Literal["backtest", "paper-trading", "live-trading"]
 SL_TP_Order = Literal["stop loss first", "take profit first", "random"]
 
+HERE = Path(__file__).parent
+
 
 def _existing_file(path: Path | None) -> Path | None:
     if path is None:
@@ -215,6 +217,9 @@ class CommonConf(ConfBase):
         p = self._get_stocks_dir() / "financial" / "indicators"
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    def get_stock_industry_list_path(self) -> Path:
+        return HERE / ".." / "depot" / "SWIndustries.parquet"
 
 
 # ----

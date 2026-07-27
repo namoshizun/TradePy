@@ -23,7 +23,7 @@ DEFAULT_UPDATE_MARK: UpdateMark = {"last_updated": "1970-01-01"}
 class DataDepository(Generic[T]):
     _model: BaseFrameModel
     _default_path: Path
-    _update_period: Literal["daily", "weekly", "monthly", "yearly"]
+    _update_period: Literal["daily", "weekly", "monthly", "yearly", "never"]
 
     def __init__(self, path: Path | str | None = None):
         if isinstance(path, str):
@@ -145,6 +145,9 @@ class DataDepository(Generic[T]):
         if last_updated == DEFAULT_UPDATE_MARK["last_updated"]:
             return True
 
+        if self._update_period == "never":
+            return False
+
         today = date.today()
         if self._update_period == "daily":
             return last_updated != today
@@ -172,16 +175,18 @@ class DataDepository(Generic[T]):
 from .financial import FinancialIndicatorsDepository
 from .klines import StocksDayBasicsDepository, StocksDayKlinesDepository
 from .misc import (
+    StockIndustryListingDepository,
     StockNameChangesDepository,
     StocksAdjustFactorsDepository,
-    StocksIndustryClassListingDepository,
+    StocksIndustryClassDepository,
     StocksListingDepository,
 )
 
 __all__ = [
     "StocksListingDepository",
+    "StockIndustryListingDepository",
     "StocksDayBasicsDepository",
-    "StocksIndustryClassListingDepository",
+    "StocksIndustryClassDepository",
     "StocksDayKlinesDepository",
     "StocksAdjustFactorsDepository",
     "StockNameChangesDepository",
