@@ -80,11 +80,25 @@ class StockFinancialIndicatorsData(IngredientData):
 
 
 class StocksIndustryClassData(IngredientData):
+    """Patches level-1/2/3 SW codes; for XXYYZZ, l2=XXYY00 and l1=XX0000."""
+
     def load(self) -> LazyFrame[Any]:
-        depot = StocksIndustryClassDepository()
+        df = StocksIndustryClassDepository().load(lazy=True)
         cols = self.columns or SWStockIndustryModel.columns()
-        cols = list(set(cols) | {"since", "code"})
-        return depot.load(lazy=True).select(*cols).sort("since")  # pyright: ignore[reportReturnType]
+        cols = list(set(cols) | {"since", "code", "industry_l3"})
+        l3_code = pl.col("industry_l3").cast(pl.String)
+        return (  # pyright: ignore[reportReturnType]
+            df.with_columns(
+                industry_l1=(l3_code.str.slice(0, 2) + "0000").cast(
+                    pl.Categorical
+                ),
+                industry_l2=(l3_code.str.slice(0, 4) + "00").cast(
+                    pl.Categorical
+                ),
+            )
+            .select(*cols)
+            .sort("since")
+        )
 
     def apply(
         self, main_df: LazyFrame[Any], df: LazyFrame[Any]
@@ -99,7 +113,7 @@ class StocksIndustryClassData(IngredientData):
                 check_sortedness=False,
             )
             .drop("since")
-            .drop_nulls(subset=["industry_code"])
+            .drop_nulls(subset=["industry_l3"])
         )
 
 

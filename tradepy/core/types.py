@@ -164,7 +164,7 @@ class SWIndustryListModel(BaseFrameModel):
 class SWStockIndustryModel(BaseFrameModel):
     code: pl.Categorical
     since: pl.Date
-    industry_code: pl.Categorical
+    industry_l3: pl.Categorical
 
 
 SWIndustryListDataFrame = DataFrame[SWIndustryListModel]

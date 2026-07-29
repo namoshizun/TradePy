@@ -17,7 +17,7 @@ def assemble_data(since: date, until: date):
         since,
         until,
         ingredients=[
-            StocksIndustryClassData(),
+            StocksIndustryClassData(columns=["industry_l1", "industry_l2"]),
             StockDayBasicsData(
                 since,
                 until,
@@ -27,8 +27,8 @@ def assemble_data(since: date, until: date):
                 columns=[
                     "period",
                     "quarter",
-                    "roic",
-                    "roa",
+                    "roic_yearly",
+                    "roa_yearly",
                     "fcff_ps",
                     "debt_to_eqt",
                 ]

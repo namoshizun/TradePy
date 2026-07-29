@@ -29,7 +29,7 @@ def fetch_stock_industry_classification_history() -> SWStockIndustryDataFrame:
             {
                 "股票代码": "code",
                 "计入日期": "since",
-                "行业代码": "industry_code",
+                "行业代码": "industry_l3",
             }
         )
         .drop("更新日期")

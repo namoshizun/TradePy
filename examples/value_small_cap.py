@@ -29,11 +29,12 @@ from tradepy.strategy import (
 
 class MultiFactorSmallCapStrategy(BacktestStrategyBase):
     def compute_indicators(self, df: pl.DataFrame) -> pl.DataFrame:
-        # Compute 5-year average ROA / ROIC from year-end (Q4) reports
         avg_5y = (
             df.filter(pl.col("quarter") == 4)
-            .unique(subset=["code", "period"])
             .sort("code", "period")
+            .unique(
+                subset=["code", "period"], keep="first", maintain_order=True
+            )
             .select(
                 "code",
                 "period",
@@ -42,11 +43,36 @@ class MultiFactorSmallCapStrategy(BacktestStrategyBase):
                     .rolling_mean(window_size=5, min_samples=5)
                     .over("code")
                     .alias(f"{col}_5y")
-                    for col in ("roa", "roic")
+                    for col in ("roa_yearly", "roic_yearly")
                 ),
             )
+            .drop_nulls()
+            .rename(
+                {
+                    "roa_yearly_5y": "roa_5y",
+                    "roic_yearly_5y": "roic_5y",
+                }
+            )
         )
-        df = df.join(avg_5y, on=["code", "period"], how="left").drop_nulls()
+        df = (
+            df.with_columns(
+                pl.when(pl.col("quarter") == 4)
+                .then(pl.col("period"))
+                .otherwise(pl.col("period") - 1)
+                .alias("_avg_year")
+            )
+            .sort("code", "_avg_year")
+            .join_asof(
+                avg_5y,
+                left_on="_avg_year",
+                right_on="period",
+                by="code",
+                strategy="backward",
+                check_sortedness=False,
+            )
+            .drop("_avg_year", "period_right")
+            .drop_nulls(["roa_5y", "roic_5y"])
+        )
         return super().compute_indicators(df)
 
     def buy(
@@ -61,32 +87,32 @@ class MultiFactorSmallCapStrategy(BacktestStrategyBase):
         roa_5y: float,
         roic_5y: float,
         base_avg_pe_ttm: float = WeightedAverage(
-            column="pe_ttm", weights="circ_mv", over="industry_code"
+            column="pe_ttm", weights="circ_mv", over="industry_l2"
         ),
         base_avg_pb: float = WeightedAverage(
-            column="pb", weights="circ_mv", over="industry_code"
+            column="pb", weights="circ_mv", over="industry_l2"
         ),
         base_avg_ps_ttm: float = WeightedAverage(
-            column="ps_ttm", weights="circ_mv", over="industry_code"
+            column="ps_ttm", weights="circ_mv", over="industry_l2"
         ),
         base_avg_fcff_ps: float = WeightedAverage(
-            column="fcff_ps", weights="circ_mv", over="industry_code"
+            column="fcff_ps", weights="circ_mv", over="industry_l2"
         ),
         base_avg_total_mv: float = Average(
-            column="total_mv", over="industry_code"
+            column="total_mv", over="industry_l2"
         ),
         base_avg_roa_5y: float = WeightedAverage(
-            column="roa_5y", weights="circ_mv", over="industry_code"
+            column="roa_5y", weights="circ_mv", over="industry_l2"
         ),
         base_avg_roic_5y: float = WeightedAverage(
-            column="roic_5y", weights="circ_mv", over="industry_code"
+            column="roic_5y", weights="circ_mv", over="industry_l2"
         ),
         orig_open: float = OriginalPrice(column="open"),
     ):
         if ps <= 0 or pb <= 0 or debt_to_eqt >= 1:
             return None
 
-        if (total_mv < 300e8) or (total_mv > base_avg_total_mv * 0.5):
+        if (total_mv >= 300) or (total_mv > base_avg_total_mv * 0.5):
             return None
 
         # By evaluation indicators
