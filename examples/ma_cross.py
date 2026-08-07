@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import polars as pl
 
 from tradepy.core.config import StrategyConf
@@ -21,23 +23,23 @@ class MACrossConf(StrategyConf):
 
 
 class MACrossStrategy(BacktestStrategyBase[MACrossConf]):
-    MA10 = SMA(10)
-    MA10_REF1 = MA10 | Lag(1)
-    MA30 = SMA(30)
-    MA30_REF1 = MA30 | Lag(1)
-    MA120 = SMA(120)
+    MA10 = Annotated[float, SMA(10)]
+    MA10_REF1 = Annotated[float, SMA(10) | Lag(1)]
+    MA30 = Annotated[float, SMA(30)]
+    MA30_REF1 = Annotated[float, SMA(30) | Lag(1)]
+    MA120 = Annotated[float, SMA(120)]
 
     def buy(
         self,
         name: str,
         close: float,
-        orig_open: float = OriginalPrice(column="open"),
-        volatility: float = Volatility("atr"),
-        ma10: float = MA10,
-        ma10_ref1: float = MA10_REF1,
-        ma30: float = MA30,
-        ma30_ref1: float = MA30_REF1,
-        ma120: float = MA120,
+        orig_open: Annotated[float, OriginalPrice(column="open")],
+        volatility: Annotated[float, Volatility("atr")],
+        ma10: MA10,
+        ma10_ref1: MA10_REF1,
+        ma30: MA30,
+        ma30_ref1: MA30_REF1,
+        ma120: MA120,
     ) -> float | None:
         if "ST" in name:
             return
@@ -54,10 +56,10 @@ class MACrossStrategy(BacktestStrategyBase[MACrossConf]):
     def sell(
         self,
         close: float,
-        ma10: float = MA10,
-        ma30: float = MA30,
-        ma10_ref1: float = MA10_REF1,
-        ma30_ref1: float = MA30_REF1,
+        ma10: MA10,
+        ma30: MA30,
+        ma10_ref1: MA10_REF1,
+        ma30_ref1: MA30_REF1,
     ) -> float | None:
         if (ma10_ref1 > ma30_ref1) and (ma10 < ma30):
             return close

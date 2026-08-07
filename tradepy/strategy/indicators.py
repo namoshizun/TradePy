@@ -1,9 +1,10 @@
 import abc
 import math
 from dataclasses import dataclass, field
-from typing import ClassVar, Literal, Self, TypeAlias
+from typing import ClassVar, Literal, TypeAlias
 
 import polars as pl
+from polars._typing import PolarsDataType
 
 IndicatorValue: TypeAlias = pl.Expr | dict[str, pl.Expr]
 
@@ -22,9 +23,16 @@ def _fast_ewm(value: pl.Expr, *, alpha: float, warmup: int) -> pl.Expr:
     return _mask_warmup(ewm, warmup)
 
 
+def _pipeline_dtype(steps: tuple["Indicator", ...]) -> PolarsDataType:
+    last = steps[-1]
+    if len(steps) >= 2 and isinstance(last, Take) and last.dtype == pl.Float64:
+        return steps[-2].dtype
+    return last.dtype
+
+
 @dataclass(frozen=True)
-class Indicator(float, abc.ABC):
-    """A composable indicator step.
+class Indicator(abc.ABC):
+    """A composable indicator computation specification.
 
     Steps are chained with ``|`` into an :class:`IndicatorPipeline` and
     evaluated by :meth:`resolve`. Each step receives the upstream value
@@ -32,18 +40,15 @@ class Indicator(float, abc.ABC):
     or a named multi-output mapping, which must be narrowed with
     :class:`Take` before feeding a single-input step.
 
-    Subclasses ``float`` so instances can serve as typed default values
-    of strategy ``buy``/``sell`` parameters.
+    Attach indicators to strategy ``buy``/``sell`` parameters via
+    ``Annotated`` metadata, e.g. ``sma5: Annotated[float, SMA(5)]``.
+    The leading type is the row value used inside the method body; the
+    indicator instance is the computation that materializes the column.
     """
 
     column: str = field(default="close", kw_only=True)
     not_na: bool = field(default=True, kw_only=True)
-
-    def __new__(cls, *_args: object, **_kwargs: object) -> Self:
-        return float.__new__(cls, float("nan"))
-
-    def __ne__(self, other: object) -> bool:
-        return not self == other
+    dtype: PolarsDataType = field(default=pl.Float64, kw_only=True)
 
     def __or__(self, step: object) -> "IndicatorPipeline":
         if not isinstance(step, Indicator):
@@ -54,7 +59,10 @@ class Indicator(float, abc.ABC):
             isinstance(s, CrossSectionIndicator) for s in step._flatten()
         ):
             raise TypeError("Cross-sectional indicators are not composable")
-        return IndicatorPipeline((*self._flatten(), *step._flatten()))
+        steps = (*self._flatten(), *step._flatten())
+        return IndicatorPipeline(
+            steps, dtype=_pipeline_dtype(steps), not_na=steps[0].not_na
+        )
 
     def _flatten(self) -> tuple["Indicator", ...]:
         return (self,)
@@ -63,6 +71,9 @@ class Indicator(float, abc.ABC):
     def partition_by(self) -> tuple[str, ...]:
         """Window partition used when evaluating this indicator."""
         return ("code",)
+
+    def get_dtype(self) -> PolarsDataType:
+        return self.dtype
 
     def resolve(self) -> IndicatorValue:
         return self._pipe(None)
@@ -179,6 +190,7 @@ class Lag(SeriesIndicator):
 class Rank(CrossSectionIndicator):
     method: Literal["average", "min", "max", "dense", "ordinal"] = "average"
     descending: bool = False
+    dtype: PolarsDataType = field(default=pl.Float32, kw_only=True)
 
     def compute(self, value: pl.Expr) -> pl.Expr:
         return value.rank(method=self.method, descending=self.descending)
@@ -188,6 +200,7 @@ class Rank(CrossSectionIndicator):
 class Percentile(CrossSectionIndicator):
     step: int = 1
     descending: bool = False
+    dtype: PolarsDataType = field(default=pl.UInt8, kw_only=True)
 
     def compute(self, value: pl.Expr) -> pl.Expr:
         rank = value.rank(method="ordinal", descending=self.descending)
@@ -253,6 +266,7 @@ class RSI(SeriesIndicator):
     fast: int = 6
     mid: int = 12
     slow: int = 24
+    dtype: PolarsDataType = field(default=pl.Float16, kw_only=True)
 
     WARMUP_FACTOR: ClassVar[int] = 2
 
@@ -316,6 +330,7 @@ class KDJ(SeriesIndicator):
     period: int = 9
     k_period: int = 3
     d_period: int = 3
+    dtype: PolarsDataType = field(default=pl.Float16, kw_only=True)
 
     WARMUP_FACTOR: ClassVar[int] = 4
 
@@ -379,3 +394,19 @@ class Volatility(SeriesIndicator):
             ) * math.sqrt(252)
 
         raise ValueError(f"Invalid volatility method: {self.method}")
+
+
+@dataclass(frozen=True)
+class DatePart(SeriesIndicator):
+    part: Literal["year", "month", "day", "weekday", "hour", "minute", "second"]
+    column: str = field(default="date", kw_only=True)
+    dtype: PolarsDataType = field(default=pl.UInt8, kw_only=True)
+
+    def get_dtype(self) -> PolarsDataType:
+        if self.part == "year":
+            return pl.UInt16
+
+        return self.dtype
+
+    def compute(self, value: pl.Expr) -> pl.Expr:
+        return getattr(value.dt, self.part)()

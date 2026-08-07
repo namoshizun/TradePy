@@ -48,9 +48,7 @@ class _Scope:
             return self.locals[name]
         if name in self.columns:
             col = pl.col(name)
-            return (
-                col.cast(pl.String) if name in self.string_columns else col
-            )
+            return col.cast(pl.String) if name in self.string_columns else col
         raise NameError(
             f"Unknown name '{name}' — not a function parameter or local."
         )
@@ -198,9 +196,9 @@ class PolarsExprTranspiler:
         match stmt:
             case ast.Assign(targets=[ast.Name(id=name)], value=value):
                 return name, value
-            case ast.AnnAssign(
-                target=ast.Name(id=name), value=value
-            ) if value is not None:
+            case ast.AnnAssign(target=ast.Name(id=name), value=value) if (
+                value is not None
+            ):
                 return name, value
         raise NotImplementedError(
             f"Only single-name assignments are supported: {ast.unparse(stmt)!r}"
@@ -459,10 +457,27 @@ class PolarsExprTranspiler:
         )
         return tuple(arg for arg in args if arg.arg != "self")
 
-    @staticmethod
-    def _is_str_annotation(annotation: ast.expr | None) -> bool:
+    @classmethod
+    def _is_str_annotation(cls, annotation: ast.expr | None) -> bool:
         match annotation:
             case ast.Name(id="str") | ast.Constant(value="str"):
+                return True
+            case ast.Subscript(value=value, slice=slice_):
+                if not cls._is_annotated_origin(value):
+                    return False
+                match slice_:
+                    case ast.Tuple(elts=[base, *_]):
+                        return cls._is_str_annotation(base)
+                    case base:
+                        return cls._is_str_annotation(base)
+        return False
+
+    @staticmethod
+    def _is_annotated_origin(node: ast.expr) -> bool:
+        match node:
+            case ast.Name(id="Annotated"):
+                return True
+            case ast.Attribute(attr="Annotated"):
                 return True
         return False
 

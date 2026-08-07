@@ -12,17 +12,19 @@
     - 近5年平均投入资本报酬率: > 行业加权均值
 
 
-调仓频率：一年三次，分别在4月、8月和10月底，若某一期没有满足条件的股票则保持上一期持仓；
+调仓频率：一年三次：5月、9月、11月的第一个交易日。若某一期没有满足条件的股票则保持上一期持仓；
 加权方式：流通市值加权；
 比较基准：中证500。
 """
+
+from typing import Annotated
 
 import polars as pl
 
 from tradepy.strategy import (
     Average,
     BacktestStrategyBase,
-    OriginalPrice,
+    DatePart,
     WeightedAverage,
 )
 
@@ -86,29 +88,50 @@ class MultiFactorSmallCapStrategy(BacktestStrategyBase):
         fcff_ps: float,
         roa_5y: float,
         roic_5y: float,
-        base_avg_pe_ttm: float = WeightedAverage(
-            column="pe_ttm", weights="circ_mv", over="industry_l2"
-        ),
-        base_avg_pb: float = WeightedAverage(
-            column="pb", weights="circ_mv", over="industry_l2"
-        ),
-        base_avg_ps_ttm: float = WeightedAverage(
-            column="ps_ttm", weights="circ_mv", over="industry_l2"
-        ),
-        base_avg_fcff_ps: float = WeightedAverage(
-            column="fcff_ps", weights="circ_mv", over="industry_l2"
-        ),
-        base_avg_total_mv: float = Average(
-            column="total_mv", over="industry_l2"
-        ),
-        base_avg_roa_5y: float = WeightedAverage(
-            column="roa_5y", weights="circ_mv", over="industry_l2"
-        ),
-        base_avg_roic_5y: float = WeightedAverage(
-            column="roic_5y", weights="circ_mv", over="industry_l2"
-        ),
-        orig_open: float = OriginalPrice(column="open"),
+        open: float,
+        month: Annotated[int, DatePart(part="month")],
+        day: Annotated[int, DatePart(part="day")],
+        base_avg_pb: Annotated[
+            float,
+            WeightedAverage(column="pb", weights="circ_mv", over="industry_l2"),
+        ],
+        base_avg_ps_ttm: Annotated[
+            float,
+            WeightedAverage(
+                column="ps_ttm", weights="circ_mv", over="industry_l2"
+            ),
+        ],
+        base_avg_fcff_ps: Annotated[
+            float,
+            WeightedAverage(
+                column="fcff_ps", weights="circ_mv", over="industry_l2"
+            ),
+        ],
+        base_avg_total_mv: Annotated[
+            float, Average(column="total_mv", over="industry_l2")
+        ],
+        base_avg_roa_5y: Annotated[
+            float,
+            WeightedAverage(
+                column="roa_5y", weights="circ_mv", over="industry_l2"
+            ),
+        ],
+        base_avg_roic_5y: Annotated[
+            float,
+            WeightedAverage(
+                column="roic_5y", weights="circ_mv", over="industry_l2"
+            ),
+        ],
+        base_avg_pe_ttm: Annotated[
+            float,
+            WeightedAverage(
+                column="pe_ttm", weights="circ_mv", over="industry_l2"
+            ),
+        ],
     ):
+        if (month, day) not in [(4, 30), (8, 31), (10, 31)]:
+            return None
+
         if ps <= 0 or pb <= 0 or debt_to_eqt >= 1:
             return None
 
@@ -131,7 +154,7 @@ class MultiFactorSmallCapStrategy(BacktestStrategyBase):
         ):
             return None
 
-        return orig_open
+        return open
 
 
 if __name__ == "__main__":

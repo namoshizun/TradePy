@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Any
+from typing import Annotated, Any
 
 import polars as pl
 import pytest
@@ -8,14 +8,18 @@ from tradepy.core.config import SlippageConf, StrategyConf
 from tradepy.strategy import (
     ATR,
     BOLL,
+    KDJ,
     MACD,
     RSI,
     SMA,
+    DatePart,
     Lag,
+    Percentile,
     Rank,
     StrategyBase,
     Take,
 )
+from tradepy.strategy.indicators import Indicator
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 
 
@@ -52,7 +56,7 @@ def test_subclass_without_buy_raises() -> None:
 
 def test_subclass_may_inherit_buy_from_parent() -> None:
     class ParentStrategy(_RisklessStrategy):
-        def buy(self, sma5: float = SMA(5)) -> float | None:
+        def buy(self, sma5: Annotated[float, SMA(5)]) -> float | None:
             return sma5
 
     class ChildStrategy(ParentStrategy):
@@ -63,7 +67,7 @@ def test_subclass_may_inherit_buy_from_parent() -> None:
 
 def test_collect_indicator_expressions_names_atr_not_literal() -> None:
     class AtrStrategy(_RisklessStrategy):
-        def buy(self, atr: float = ATR()) -> float | None:
+        def buy(self, atr: Annotated[float, ATR()]) -> float | None:
             return atr
 
     names = {
@@ -78,16 +82,16 @@ def test_infer_required_indicators_unions_buy_and_sell_params() -> None:
     class ExampleStrategy(_RisklessStrategy):
         def buy(
             self,
-            sma20: float = SMA(20),
-            macd_hist: float = MACD() | Take("hist"),
+            sma20: Annotated[float, SMA(20)],
+            macd_hist: Annotated[float, MACD() | Take("hist")],
         ) -> float | None:
             return sma20 if macd_hist > 0 else None
 
         def sell(
             self,
-            sma20: float = SMA(20),
-            macd_hist: float = MACD() | Take("hist"),
-            atr: float = ATR(),
+            sma20: Annotated[float, SMA(20)],
+            macd_hist: Annotated[float, MACD() | Take("hist")],
+            atr: Annotated[float, ATR()],
         ) -> float | None:
             return sma20 + atr if macd_hist < 0 else None
 
@@ -102,10 +106,10 @@ def test_collect_indicator_expressions_reuses_same_buy_sell_indicator() -> None:
     class SharedIndicatorStrategy(_RisklessStrategy):
         MA10 = SMA(10)
 
-        def buy(self, ma10: float = MA10) -> float | None:
+        def buy(self, ma10: Annotated[float, MA10]) -> float | None:
             return ma10
 
-        def sell(self, ma10: float = MA10) -> float | None:
+        def sell(self, ma10: Annotated[float, MA10]) -> float | None:
             return ma10
 
     exprs = SharedIndicatorStrategy(_config()).collect_indicator_expressions()
@@ -115,10 +119,10 @@ def test_collect_indicator_expressions_reuses_same_buy_sell_indicator() -> None:
 
 def test_collect_indicator_expressions_rejects_conflicting_defaults() -> None:
     class ConflictingIndicatorStrategy(_RisklessStrategy):
-        def buy(self, ma10: float = SMA(10)) -> float | None:
+        def buy(self, ma10: Annotated[float, SMA(10)]) -> float | None:
             return ma10
 
-        def sell(self, ma10: float = SMA(20)) -> float | None:
+        def sell(self, ma10: Annotated[float, SMA(20)]) -> float | None:
             return ma10
 
     with pytest.raises(ValueError, match="Conflicting indicator defaults"):
@@ -127,7 +131,9 @@ def test_collect_indicator_expressions_rejects_conflicting_defaults() -> None:
 
 def test_infer_required_indicators_ignores_var_positional() -> None:
     class VarArgStrategy(_RisklessStrategy):
-        def buy(self, sma5: float = SMA(5), *args: Any) -> float | None:
+        def buy(
+            self, sma5: Annotated[float, SMA(5)], *args: Any
+        ) -> float | None:
             return sma5
 
     assert VarArgStrategy(_config()).infer_required_indicators() == ["sma5"]
@@ -150,7 +156,7 @@ def test_default_sell_transpiles_to_null_price() -> None:
 
 def test_compute_indicators_partitions_by_code() -> None:
     class Sma5Strategy(_RisklessStrategy):
-        def buy(self, sma5: float = SMA(5)) -> float | None:
+        def buy(self, sma5: Annotated[float, SMA(5)]) -> float | None:
             return sma5
 
     dates = [date(2024, 1, day) for day in range(1, 6)]
@@ -175,9 +181,9 @@ def test_multi_output_indicators_are_selected_by_take() -> None:
     class MultiOutputStrategy(_RisklessStrategy):
         def buy(
             self,
-            macd_hist: float = MACD() | Take("hist"),
-            rsi_fast: float = RSI() | Take("fast"),
-            boll_upper: float = BOLL() | Take("upper"),
+            macd_hist: Annotated[float, MACD() | Take("hist")],
+            rsi_fast: Annotated[float, RSI() | Take("fast")],
+            boll_upper: Annotated[float, BOLL() | Take("upper")],
         ) -> float | None:
             return macd_hist + rsi_fast + boll_upper
 
@@ -193,7 +199,9 @@ def test_multi_output_indicators_are_selected_by_take() -> None:
 
 def test_indicator_composition_with_ref() -> None:
     class SmaLagStrategy(_RisklessStrategy):
-        def buy(self, sma5_ref1: float = SMA(5) | Lag(1)) -> float | None:
+        def buy(
+            self, sma5_ref1: Annotated[float, SMA(5) | Lag(1)]
+        ) -> float | None:
             return sma5_ref1
 
     dates = [date(2024, 1, day) for day in range(1, 7)]
@@ -215,7 +223,7 @@ def test_indicator_composition_with_custom_rsi_period() -> None:
     class SmoothedRsiStrategy(_RisklessStrategy):
         def buy(
             self,
-            smoothed_rsi: float = RSI(fast=7) | Take("fast") | SMA(5),
+            smoothed_rsi: Annotated[float, RSI(fast=7) | Take("fast") | SMA(5)],
         ) -> float | None:
             return smoothed_rsi
 
@@ -238,7 +246,7 @@ def test_indicator_composition_with_custom_rsi_period() -> None:
 
 def test_multi_output_indicator_requires_take() -> None:
     class BadStrategy(_RisklessStrategy):
-        def buy(self, macd: float = MACD()) -> float | None:
+        def buy(self, macd: Annotated[float, MACD()]) -> float | None:
             return macd
 
     with pytest.raises(ValueError, match=r"pipe Take\(\.\.\.\)"):
@@ -249,10 +257,127 @@ def test_collect_cross_section_expression_uses_date_partition() -> None:
     class PeRankStrategy(_RisklessStrategy):
         def buy(
             self,
-            pe_rank: float = Rank(column="pe", over="industry_code"),
+            pe_rank: Annotated[float, Rank(column="pe", over="industry_code")],
         ) -> float | None:
             return pe_rank
 
     exprs = PeRankStrategy(_config()).collect_indicator_expressions()
     assert len(exprs) == 1
     assert exprs[0].over == ("date", "industry_code")
+
+
+def test_compute_indicators_respects_dtype() -> None:
+    class DtypeStrategy(_RisklessStrategy):
+        def buy(
+            self,
+            sma5: Annotated[float, SMA(5)],
+            pe_rank: Annotated[
+                float,
+                Rank(column="pe", method="ordinal", dtype=pl.UInt32),
+            ],
+            hist: Annotated[float, MACD() | Take("hist", dtype=pl.Float32)],
+        ) -> float | None:
+            return sma5
+
+    dates = [date(2024, 1, day) for day in range(1, 31)]
+    df = pl.DataFrame(
+        {
+            "code": ["A"] * 30 + ["B"] * 30,
+            "date": dates + dates,
+            "close": [float(i) for i in range(1, 61)],
+            "pe": [float(i) for i in range(1, 61)],
+            "high": [float(i) + 1 for i in range(1, 61)],
+            "low": [float(i) - 1 for i in range(1, 61)],
+            "adj_factor": [1.0] * 60,
+        }
+    )
+
+    out = DtypeStrategy(_config()).compute_indicators(df)  # pyright: ignore[reportArgumentType]
+
+    assert out["sma5"].dtype == pl.Float64
+    assert out["pe_rank"].dtype == pl.UInt32
+    assert out["hist"].dtype == pl.Float32
+
+
+def test_compute_indicators_builtin_default_dtypes() -> None:
+    class BuiltinDtypeStrategy(_RisklessStrategy):
+        def buy(
+            self,
+            pe_rank: Annotated[float, Rank(column="pe", method="ordinal")],
+            pe_pct: Annotated[float, Percentile(column="pe")],
+            rsi_fast: Annotated[float, RSI() | Take("fast")],
+            kdj_k: Annotated[float, KDJ() | Take("k")],
+        ) -> float | None:
+            return pe_rank
+
+    dates = [date(2024, 1, day) for day in range(1, 31)]
+    df = pl.DataFrame(
+        {
+            "code": ["A"] * 30 + ["B"] * 30,
+            "date": dates + dates,
+            "close": [float(i) for i in range(1, 61)],
+            "pe": [float(i) for i in range(1, 61)],
+            "high": [float(i) + 1 for i in range(1, 61)],
+            "low": [float(i) - 1 for i in range(1, 61)],
+            "adj_factor": [1.0] * 60,
+        }
+    )
+
+    out = BuiltinDtypeStrategy(_config()).compute_indicators(df)  # pyright: ignore[reportArgumentType]
+
+    assert out["pe_rank"].dtype == pl.Float32
+    assert out["pe_pct"].dtype == pl.UInt8
+    assert out["rsi_fast"].dtype == pl.Float16
+    assert out["kdj_k"].dtype == pl.Float16
+
+
+def test_annotated_int_indicator_is_not_a_float_subclass() -> None:
+    class CalendarStrategy(_RisklessStrategy):
+        def buy(
+            self,
+            month: Annotated[int, DatePart(part="month")],
+            day: Annotated[int, DatePart(part="day")],
+        ) -> float | None:
+            return None if (month, day) != (1, 2) else 1.0
+
+    strategy = CalendarStrategy(_config())
+    params = {
+        param.name: param.indicator for param in strategy._strategy_parameters()
+    }
+    assert isinstance(params["month"], DatePart)
+    assert isinstance(params["day"], DatePart)
+    assert not isinstance(params["month"], float)
+    assert not issubclass(DatePart, float)
+    assert not issubclass(Indicator, float)
+
+    dates = [date(2024, 1, day) for day in range(1, 4)]
+    df = pl.DataFrame(
+        {
+            "code": ["A"] * 3,
+            "date": dates,
+            "close": [1.0, 2.0, 3.0],
+            "adj_factor": [1.0] * 3,
+        }
+    )
+    out = strategy.compute_indicators(df)  # pyright: ignore[reportArgumentType]
+    assert out["month"].dtype == pl.UInt8
+    assert out["day"].dtype == pl.UInt8
+    assert out["month"].to_list() == [1, 1, 1]
+    assert out["day"].to_list() == [1, 2, 3]
+
+
+def test_raw_column_params_have_no_indicator_metadata() -> None:
+    class RawColumnStrategy(_RisklessStrategy):
+        def buy(
+            self,
+            close: float,
+            sma5: Annotated[float, SMA(5)],
+        ) -> float | None:
+            return close if sma5 > 0 else None
+
+    params = {
+        param.name: param.indicator
+        for param in RawColumnStrategy(_config())._strategy_parameters()
+    }
+    assert params["close"] is None
+    assert isinstance(params["sma5"], SMA)

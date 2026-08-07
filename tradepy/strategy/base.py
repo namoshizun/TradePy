@@ -3,7 +3,14 @@ import inspect
 import random
 import sys
 from dataclasses import dataclass
-from typing import Callable, Generic
+from typing import (
+    Annotated,
+    Callable,
+    Generic,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 import numpy as np
 
@@ -34,6 +41,21 @@ class IndicatorExpression:
     over: tuple[str, ...] = ("code",)
 
 
+@dataclass(frozen=True)
+class StrategyParameter:
+    name: str
+    indicator: Indicator | None = None
+
+
+def _indicator_from_annotation(annotation: object) -> Indicator | None:
+    if get_origin(annotation) is not Annotated:
+        return None
+    for meta in get_args(annotation)[1:]:
+        if isinstance(meta, Indicator):
+            return meta
+    return None
+
+
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
 
 Portfolio = list[BudgetAllocation]
@@ -61,12 +83,11 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                 return
         raise TypeError(f"{cls.__name__} must define a buy method")
 
-    def _strategy_parameters(
-        self,
-    ) -> tuple[inspect.Parameter, ...]:
-        params: list[inspect.Parameter] = []
+    def _strategy_parameters(self) -> tuple[StrategyParameter, ...]:
+        params: list[StrategyParameter] = []
         for method_name in ("buy", "sell"):
             method = getattr(self.__class__, method_name)
+            hints = get_type_hints(method, include_extras=True)
             for name, param in inspect.signature(method).parameters.items():
                 if name == "self":
                     continue
@@ -75,7 +96,12 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                     inspect.Parameter.VAR_KEYWORD,
                 ):
                     continue
-                params.append(param)
+                params.append(
+                    StrategyParameter(
+                        name=name,
+                        indicator=_indicator_from_annotation(hints.get(name)),
+                    )
+                )
         return tuple(params)
 
     @abc.abstractmethod
@@ -159,19 +185,19 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
         indicators: dict[str, Indicator] = {}
 
         for param in self._strategy_parameters():
-            name, default = param.name, param.default
-            if not isinstance(default, Indicator):
+            name, indicator = param.name, param.indicator
+            if indicator is None:
                 continue
 
             existing = indicators.get(name)
             if existing is not None:
-                if existing != default:
+                if existing != indicator:
                     raise ValueError(
                         f"Conflicting indicator defaults for parameter {name!r}"
                     )
                 continue
 
-            result = default.resolve()
+            result = indicator.resolve()
             if isinstance(result, dict):
                 outputs = ", ".join(sorted(result))
                 raise ValueError(
@@ -179,12 +205,12 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                     f"outputs ({outputs}); pipe Take(...) before using it"
                 )
 
-            indicators[name] = default
+            indicators[name] = indicator
             exprs[name] = IndicatorExpression(
                 name=name,
-                expr=result.alias(name),
-                not_na=default.not_na,
-                over=default.partition_by,
+                expr=result.cast(indicator.get_dtype()).alias(name),
+                not_na=indicator.not_na,
+                over=indicator.partition_by,
             )
 
         return tuple(exprs.values())

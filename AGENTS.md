@@ -1,10 +1,13 @@
 ## General coding style
 
-- Prefer iteration and modularization over code duplication.
-- Follow the "let it crash" principle: avoid excessive error handling and edge case checks, especially when implementing experimental solutions or features. Don't let the main intent of functions and classes be obscured by boilerplate exception handling.
-- **Important**: try to fix things at the cause, not the symptom.
+- Prefer iteration and modularization over code duplication. Implementation must be elegant, intuitive and Pythonic.
+- Follow the "let it crash" principle: avoid excessive error handling and edge-case checks, especially for experimental solutions or features. Do not obscure the main intent with defensive boilerplate.
 - When asked to review the code, GO BY THE BOOK! Be thoughtful, critical and brutally honest.
 - Don't assume. Don't hide confusion. Surface tradeoffs.
+- **Important**: 
+  1. Fix problems at their root cause, not their symptoms.
+  2. If a bug reveals a deeper design flaw or incomplete design, propose fixing the design instead.
+
 
 ## Python dev
 

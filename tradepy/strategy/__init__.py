@@ -9,6 +9,7 @@ from .indicators import (
     SMA,
     Average,
     CrossSectionIndicator,
+    DatePart,
     Indicator,
     Lag,
     OriginalPrice,
@@ -41,4 +42,5 @@ __all__ = [
     "OriginalPrice",
     "WeightedAverage",
     "Average",
+    "DatePart",
 ]

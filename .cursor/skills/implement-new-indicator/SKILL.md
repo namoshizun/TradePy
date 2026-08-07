@@ -26,6 +26,23 @@ Core rules:
 
 `compute_indicators` applies each indicator's `partition_by` automatically. Do not call `.over(...)` inside `compute`.
 
+Indicators are computation specifications, not scalar values. Bind them to strategy
+`buy`/`sell` parameters with `Annotated`:
+
+```python
+from typing import Annotated
+
+def buy(
+    self,
+    sma5: Annotated[float, SMA(5)],
+    month: Annotated[int, DatePart(part="month")],
+) -> float | None:
+    ...
+```
+
+The leading type is the row value used inside the method body; the indicator
+metadata is what `StrategyBase.collect_indicator_expressions` materializes.
+
 ### Series indicators
 
 Composable with `|` (e.g. `SMA(20) | Lag(1)`, `RSI() | Take("fast") | SMA(5)`).

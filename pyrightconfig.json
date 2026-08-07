@@ -21,8 +21,13 @@
     "**/__pycache__",
     "tests",
     "docs",
-    "examples",
+    "examples/manage_dataset.py",
     "**/*.ipynb"
+  ],
+  "include": [
+    "tradepy",
+    "examples/ma_cross.py",
+    "examples/value_small_cap.py"
   ],
   "pythonPlatform": "Linux"
 }
