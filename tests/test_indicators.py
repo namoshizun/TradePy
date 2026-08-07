@@ -16,6 +16,8 @@ from tradepy.strategy.indicators import (
     Percentile,
     Rank,
     Take,
+    resolve_indicators,
+    validate_indicator_steps,
 )
 
 
@@ -99,7 +101,7 @@ def test_sma_ref_sma_pipeline(
         timeperiod=sma_period,
     )
     actual = eval_indicator(
-        (SMA(base_period) | Lag(lag_period) | SMA(sma_period)).resolve(),
+        resolve_indicators(SMA(base_period), Lag(lag_period), SMA(sma_period)),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -118,7 +120,7 @@ def test_bias_converges_with_talib_sma(
     ma = talib.SMA(close, timeperiod=period)
     expected = 100.0 * (close - ma) / ma
     actual = eval_indicator(
-        (BIAS() | Take(name)).resolve(),
+        resolve_indicators(BIAS(), Take(name)),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -134,7 +136,7 @@ def test_bias_pipeline(
     ma = talib.SMA(base, timeperiod=12)
     expected = 100.0 * (base - ma) / ma
     actual = eval_indicator(
-        (SMA(period) | BIAS() | Take("mid")).resolve(),
+        resolve_indicators(SMA(period), BIAS(), Take("mid")),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -164,7 +166,7 @@ def test_kdj_converges_with_talib_stoch(
         "j": 3.0 * k - 2.0 * d,
     }
     actual = eval_indicator(
-        (KDJ() | Take(name)).resolve(),
+        resolve_indicators(KDJ(), Take(name)),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected_by_name[name], rtol=1e-4, atol=1e-6)
@@ -176,7 +178,7 @@ def test_ref(fake_klines_convergence: pl.DataFrame, lag_period: int) -> None:
     close = fake_klines_convergence["close"].to_numpy().astype(np.float64)
     expected = talib_lag(talib.SMA(close, timeperiod=sma_period), lag_period)
     actual = eval_indicator(
-        (SMA(sma_period) | Lag(lag_period)).resolve(),
+        resolve_indicators(SMA(sma_period), Lag(lag_period)),
         fake_klines_convergence,
     )
     assert_tail_allclose(actual, expected)
@@ -189,13 +191,13 @@ def test_ref_requires_upstream() -> None:
 
 def test_cross_section_indicators_are_not_composable() -> None:
     with pytest.raises(TypeError, match="not composable"):
-        _ = SMA(2) | Rank()
+        validate_indicator_steps((SMA(2), Rank()))
 
     with pytest.raises(TypeError, match="not composable"):
-        _ = Rank() | Lag(1)
+        validate_indicator_steps((Rank(), Lag(1)))
 
     with pytest.raises(TypeError, match="not composable"):
-        _ = SMA(2) | Percentile()
+        validate_indicator_steps((SMA(2), Percentile()))
 
 
 def test_rank_partitions_by_date() -> None:

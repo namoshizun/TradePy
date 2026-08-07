@@ -27,7 +27,8 @@ Core rules:
 `compute_indicators` applies each indicator's `partition_by` automatically. Do not call `.over(...)` inside `compute`.
 
 Indicators are computation specifications, not scalar values. Bind them to strategy
-`buy`/`sell` parameters with `Annotated`:
+`buy`/`sell` parameters with `Annotated`. Multiple metadata steps are evaluated
+left-to-right:
 
 ```python
 from typing import Annotated
@@ -35,6 +36,8 @@ from typing import Annotated
 def buy(
     self,
     sma5: Annotated[float, SMA(5)],
+    sma5_ref1: Annotated[float, SMA(5), Lag(1)],
+    macd_hist: Annotated[float, MACD(), Take("hist")],
     month: Annotated[int, DatePart(part="month")],
 ) -> float | None:
     ...
@@ -42,27 +45,31 @@ def buy(
 
 The leading type is the row value used inside the method body; the indicator
 metadata is what `StrategyBase.collect_indicator_expressions` materializes.
+Aliases compose via Annotated flattening: `MA10 = Annotated[float, SMA(10)]`
+then `MA10_REF1 = Annotated[MA10, Lag(1)]`.
 
 ### Series indicators
 
-Composable with `|` (e.g. `SMA(20) | Lag(1)`, `RSI() | Take("fast") | SMA(5)`).
+Compose by listing steps in `Annotated` (or `resolve_indicators(SMA(20), Lag(1))`
+in unit tests).
 
 ### Cross-sectional indicators
 
 - Inherit `CrossSectionIndicator` and implement `compute(self, value: pl.Expr)`
 - Optional `over=` adds grouping on top of `date` (e.g. `Rank(column="pe", over="industry_code")`)
-- **Not composable** with `|` — `SMA(20) | Rank()` raises `TypeError`. Standalone only; read inputs via `column=`
+- **Standalone only** — multi-step chains that include a cross-section raise `TypeError`
 
 ## Implementation Workflow
 
 1. Read `tradepy/strategy/indicators.py`, `tradepy/strategy/__init__.py`, and relevant tests before editing.
 2. Subclass `SeriesIndicator` or `CrossSectionIndicator` as a typed `@dataclass(frozen=True)` and implement `compute(self, value: pl.Expr)`.
-   - At the pipeline root (or for standalone cross-section), `value` is `pl.col(self.column)`.
-   - For series pipelines, `value` is the upstream output.
+   - At the chain root (or for standalone cross-section), `value` is `pl.col(self.column)`.
+   - For later steps in a chain, `value` is the upstream output.
 3. Follow the existing output style:
    - Return `pl.Expr` for single-output indicators.
    - Return `dict[str, pl.Expr]` for multi-output indicators that require `Take(...)`.
-   - Set `requires_upstream: ClassVar[bool] = True` for series transforms that are meaningless without a piped input (e.g. `Lag`).
+   - Set `requires_upstream: ClassVar[bool] = True` for series transforms that are meaningless without a prior step (e.g. `Lag`).
+   - Set a concrete `dtype=` only when this step defines the output type (e.g. `RSI`, `Rank`). Leave `dtype=None` for passthrough steps so chains inherit upstream (`Take`, `Lag`).
 4. For exponential weighted averages, use `_fast_ewm(...)` and set a warmup long enough for convergence against TA-Lib. Declare the warmup multiplier as a `WARMUP_FACTOR: ClassVar[int]` on the indicator class.
 5. Export the indicator (and `CrossSectionIndicator` if newly relevant) from `tradepy/strategy/__init__.py`.
 6. Add focused pytest coverage in `tests/test_indicators.py` (both series and cross-sectional).
@@ -95,7 +102,7 @@ TA-Lib does not apply. Put these in `tests/test_indicators.py` alongside series 
 - `over="industry_code"` (or similar) partitions by `(date, …)`
 - Composition with series indicators raises `TypeError`
 
-Evaluate with `resolve()` then `.over(*indicator.partition_by)` on a small multi-code, multi-date frame — do **not** go through `StrategyBase.compute_indicators` for indicator unit tests.
+Evaluate with `resolve()` / `resolve_indicators(...)` then `.over(*indicator.partition_by)` on a small multi-code, multi-date frame — do **not** go through `StrategyBase.compute_indicators` for indicator unit tests.
 
 ## Commands
 

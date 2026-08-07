@@ -23,49 +23,74 @@ def _fast_ewm(value: pl.Expr, *, alpha: float, warmup: int) -> pl.Expr:
     return _mask_warmup(ewm, warmup)
 
 
-def _pipeline_dtype(steps: tuple["Indicator", ...]) -> PolarsDataType:
-    last = steps[-1]
-    if len(steps) >= 2 and isinstance(last, Take) and last.dtype == pl.Float64:
-        return steps[-2].dtype
-    return last.dtype
+def validate_indicator_steps(
+    steps: tuple["Indicator", ...],
+) -> tuple["Indicator", ...]:
+    if not steps:
+        raise ValueError("Indicator chain requires at least one step")
+
+    first, *rest = steps
+    if rest and any(isinstance(step, CrossSectionIndicator) for step in steps):
+        raise TypeError("Cross-sectional indicators are not composable")
+
+    if not all(step.not_na == first.not_na for step in rest):
+        raise ValueError("All steps must have the same not_na")
+
+    return steps
+
+
+def steps_dtype(steps: tuple["Indicator", ...]) -> PolarsDataType:
+    """Resolve the output dtype of an indicator chain.
+
+    Walks steps right-to-left and uses the first concrete ``dtype``.
+    Steps with ``dtype=None`` (passthrough transforms like :class:`Take`
+    and :class:`Lag`) inherit from upstream. If no step sets a dtype,
+    defaults to ``Float64``.
+    """
+    for step in reversed(validate_indicator_steps(steps)):
+        if step.dtype is not None:
+            return step.get_dtype()
+    return pl.Float64
+
+
+def resolve_indicators(*steps: "Indicator") -> IndicatorValue:
+    """Resolve a left-to-right indicator chain.
+
+    Same composition semantics as ``Annotated[T, step1, step2, ...]`` on
+    strategy parameters.
+    """
+    validated = validate_indicator_steps(steps)
+    value: IndicatorValue | None = None
+    for step in validated:
+        value = step.pipe(value)
+
+    if value is None:
+        raise ValueError("Indicator chain requires at least one step")
+    return value
 
 
 @dataclass(frozen=True)
 class Indicator(abc.ABC):
-    """A composable indicator computation specification.
+    """An indicator computation specification.
 
-    Steps are chained with ``|`` into an :class:`IndicatorPipeline` and
-    evaluated by :meth:`resolve`. Each step receives the upstream value
-    (``None`` at the pipeline root) and produces either a single series
-    or a named multi-output mapping, which must be narrowed with
-    :class:`Take` before feeding a single-input step.
+    Attach one or more indicators to strategy ``buy``/``sell`` parameters
+    via ``Annotated`` metadata, evaluated left-to-right::
 
-    Attach indicators to strategy ``buy``/``sell`` parameters via
-    ``Annotated`` metadata, e.g. ``sma5: Annotated[float, SMA(5)]``.
+        sma5: Annotated[float, SMA(5)]
+        sma5_ref1: Annotated[float, SMA(5), Lag(1)]
+        macd_hist: Annotated[float, MACD(), Take("hist")]
+
     The leading type is the row value used inside the method body; the
-    indicator instance is the computation that materializes the column.
+    metadata steps materialize the column. Multi-output indicators must be
+    narrowed with :class:`Take` before a single-input step.
+
+    ``dtype=None`` means the step does not set an output type (inherit from
+    an upstream step in a chain; bare indicators default to ``Float64``).
     """
 
     column: str = field(default="close", kw_only=True)
     not_na: bool = field(default=True, kw_only=True)
-    dtype: PolarsDataType = field(default=pl.Float64, kw_only=True)
-
-    def __or__(self, step: object) -> "IndicatorPipeline":
-        if not isinstance(step, Indicator):
-            raise TypeError(
-                f"Cannot compose Indicator with {type(step).__name__}"
-            )
-        if isinstance(step, CrossSectionIndicator) or any(
-            isinstance(s, CrossSectionIndicator) for s in step._flatten()
-        ):
-            raise TypeError("Cross-sectional indicators are not composable")
-        steps = (*self._flatten(), *step._flatten())
-        return IndicatorPipeline(
-            steps, dtype=_pipeline_dtype(steps), not_na=steps[0].not_na
-        )
-
-    def _flatten(self) -> tuple["Indicator", ...]:
-        return (self,)
+    dtype: PolarsDataType | None = field(default=None, kw_only=True)
 
     @property
     def partition_by(self) -> tuple[str, ...]:
@@ -73,56 +98,33 @@ class Indicator(abc.ABC):
         return ("code",)
 
     def get_dtype(self) -> PolarsDataType:
-        return self.dtype
+        return pl.Float64 if self.dtype is None else self.dtype
 
     def resolve(self) -> IndicatorValue:
-        return self._pipe(None)
+        return self.pipe(None)
 
     @abc.abstractmethod
-    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
+    def pipe(self, value: IndicatorValue | None) -> IndicatorValue:
         """Evaluate this step against the upstream value."""
         raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class IndicatorPipeline(Indicator):
-    steps: tuple[Indicator, ...]
-
-    def __post_init__(self) -> None:
-        if not all(step.not_na == self.steps[0].not_na for step in self.steps):
-            raise ValueError("All steps must have the same not_na")
-
-    def _flatten(self) -> tuple[Indicator, ...]:
-        return self.steps
-
-    @property
-    def partition_by(self) -> tuple[str, ...]:
-        return self.steps[-1].partition_by
-
-    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
-        for step in self.steps:
-            value = step._pipe(value)
-        if value is None:
-            raise ValueError("Indicator pipeline requires at least one step")
-        return value
 
 
 @dataclass(frozen=True)
 class SeriesIndicator(Indicator):
     """An indicator computed from a single input series.
 
-    At the pipeline root the input defaults to the adjusted ``column``
+    At the chain root the input defaults to the adjusted ``column``
     price. ``requires_upstream`` marks transforms that are meaningless
-    without a piped input (e.g. :class:`Lag`).
+    without a prior step (e.g. :class:`Lag`).
     """
 
     requires_upstream: ClassVar[bool] = False
 
-    def _pipe(self, value: IndicatorValue | None) -> IndicatorValue:
+    def pipe(self, value: IndicatorValue | None) -> IndicatorValue:
         if isinstance(value, dict):
             raise ValueError(
                 f"{type(self).__name__} expects a single series; "
-                "pipe Take(...) first"
+                "add Take(...) first"
             )
         if value is None:
             if self.requires_upstream:
@@ -144,14 +146,11 @@ class CrossSectionIndicator(SeriesIndicator):
     Evaluated with ``.over("date", *over)``. Use ``over`` to add grouping
     columns (e.g. ``over="industry_code"`` for within-industry ranks).
 
-    Not composable with ``|`` (series and cross-section windows cannot be
-    nested in a single Polars expression).
+    Standalone only — cannot appear in a multi-step ``Annotated`` chain
+    (series and cross-section windows cannot be nested in one expression).
     """
 
     over: str | tuple[str, ...] = field(default=(), kw_only=True)
-
-    def __or__(self, step: object) -> "IndicatorPipeline":
-        raise TypeError("Cross-sectional indicators are not composable")
 
     @property
     def partition_by(self) -> tuple[str, ...]:
@@ -166,7 +165,7 @@ class Take(Indicator):
 
     name: str
 
-    def _pipe(self, value: IndicatorValue | None) -> pl.Expr:
+    def pipe(self, value: IndicatorValue | None) -> pl.Expr:
         if value is None:
             raise ValueError("Take requires an upstream indicator")
         if not isinstance(value, dict):

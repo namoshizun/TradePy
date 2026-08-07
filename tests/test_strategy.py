@@ -83,14 +83,14 @@ def test_infer_required_indicators_unions_buy_and_sell_params() -> None:
         def buy(
             self,
             sma20: Annotated[float, SMA(20)],
-            macd_hist: Annotated[float, MACD() | Take("hist")],
+            macd_hist: Annotated[float, MACD(), Take("hist")],
         ) -> float | None:
             return sma20 if macd_hist > 0 else None
 
         def sell(
             self,
             sma20: Annotated[float, SMA(20)],
-            macd_hist: Annotated[float, MACD() | Take("hist")],
+            macd_hist: Annotated[float, MACD(), Take("hist")],
             atr: Annotated[float, ATR()],
         ) -> float | None:
             return sma20 + atr if macd_hist < 0 else None
@@ -181,9 +181,9 @@ def test_multi_output_indicators_are_selected_by_take() -> None:
     class MultiOutputStrategy(_RisklessStrategy):
         def buy(
             self,
-            macd_hist: Annotated[float, MACD() | Take("hist")],
-            rsi_fast: Annotated[float, RSI() | Take("fast")],
-            boll_upper: Annotated[float, BOLL() | Take("upper")],
+            macd_hist: Annotated[float, MACD(), Take("hist")],
+            rsi_fast: Annotated[float, RSI(), Take("fast")],
+            boll_upper: Annotated[float, BOLL(), Take("upper")],
         ) -> float | None:
             return macd_hist + rsi_fast + boll_upper
 
@@ -200,7 +200,7 @@ def test_multi_output_indicators_are_selected_by_take() -> None:
 def test_indicator_composition_with_ref() -> None:
     class SmaLagStrategy(_RisklessStrategy):
         def buy(
-            self, sma5_ref1: Annotated[float, SMA(5) | Lag(1)]
+            self, sma5_ref1: Annotated[float, SMA(5), Lag(1)]
         ) -> float | None:
             return sma5_ref1
 
@@ -219,11 +219,38 @@ def test_indicator_composition_with_ref() -> None:
     assert out.tail(1)["sma5_ref1"].item() == pytest.approx(3.0)
 
 
+def test_annotated_alias_composition_flattens_steps() -> None:
+    sma5_t = Annotated[float, SMA(5)]
+    sma5_ref1_t = Annotated[sma5_t, Lag(1)]
+
+    class AliasStrategy(_RisklessStrategy):
+        def buy(self, sma5_ref1: sma5_ref1_t) -> float | None:
+            return sma5_ref1
+
+    params = {
+        param.name: param.steps
+        for param in AliasStrategy(_config())._strategy_parameters()
+    }
+    assert params["sma5_ref1"] == (SMA(5), Lag(1))
+
+    dates = [date(2024, 1, day) for day in range(1, 7)]
+    df = pl.DataFrame(
+        {
+            "code": ["A"] * 6,
+            "date": dates,
+            "close": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "adj_factor": [1.0] * 6,
+        }
+    )
+    out = AliasStrategy(_config()).compute_indicators(df)  # pyright: ignore[reportArgumentType]
+    assert out.tail(1)["sma5_ref1"].item() == pytest.approx(3.0)
+
+
 def test_indicator_composition_with_custom_rsi_period() -> None:
     class SmoothedRsiStrategy(_RisklessStrategy):
         def buy(
             self,
-            smoothed_rsi: Annotated[float, RSI(fast=7) | Take("fast") | SMA(5)],
+            smoothed_rsi: Annotated[float, RSI(fast=7), Take("fast"), SMA(5)],
         ) -> float | None:
             return smoothed_rsi
 
@@ -249,7 +276,7 @@ def test_multi_output_indicator_requires_take() -> None:
         def buy(self, macd: Annotated[float, MACD()]) -> float | None:
             return macd
 
-    with pytest.raises(ValueError, match=r"pipe Take\(\.\.\.\)"):
+    with pytest.raises(ValueError, match=r"add Take\(\.\.\.\)"):
         BadStrategy(_config()).collect_indicator_expressions()
 
 
@@ -275,7 +302,7 @@ def test_compute_indicators_respects_dtype() -> None:
                 float,
                 Rank(column="pe", method="ordinal", dtype=pl.UInt32),
             ],
-            hist: Annotated[float, MACD() | Take("hist", dtype=pl.Float32)],
+            hist: Annotated[float, MACD(), Take("hist", dtype=pl.Float32)],
         ) -> float | None:
             return sma5
 
@@ -305,8 +332,9 @@ def test_compute_indicators_builtin_default_dtypes() -> None:
             self,
             pe_rank: Annotated[float, Rank(column="pe", method="ordinal")],
             pe_pct: Annotated[float, Percentile(column="pe")],
-            rsi_fast: Annotated[float, RSI() | Take("fast")],
-            kdj_k: Annotated[float, KDJ() | Take("k")],
+            rsi_fast: Annotated[float, RSI(), Take("fast")],
+            kdj_k: Annotated[float, KDJ(), Take("k")],
+            rsi_fast_lag1: Annotated[float, RSI(), Take("fast"), Lag(1)],
         ) -> float | None:
             return pe_rank
 
@@ -329,6 +357,8 @@ def test_compute_indicators_builtin_default_dtypes() -> None:
     assert out["pe_pct"].dtype == pl.UInt8
     assert out["rsi_fast"].dtype == pl.Float16
     assert out["kdj_k"].dtype == pl.Float16
+    # Passthrough steps (Take, Lag) leave dtype=None and inherit upstream.
+    assert out["rsi_fast_lag1"].dtype == pl.Float16
 
 
 def test_annotated_int_indicator_is_not_a_float_subclass() -> None:
@@ -342,11 +372,13 @@ def test_annotated_int_indicator_is_not_a_float_subclass() -> None:
 
     strategy = CalendarStrategy(_config())
     params = {
-        param.name: param.indicator for param in strategy._strategy_parameters()
+        param.name: param.steps for param in strategy._strategy_parameters()
     }
-    assert isinstance(params["month"], DatePart)
-    assert isinstance(params["day"], DatePart)
-    assert not isinstance(params["month"], float)
+    assert len(params["month"]) == 1 and isinstance(
+        params["month"][0], DatePart
+    )
+    assert len(params["day"]) == 1 and isinstance(params["day"][0], DatePart)
+    assert not isinstance(params["month"][0], float)
     assert not issubclass(DatePart, float)
     assert not issubclass(Indicator, float)
 
@@ -376,8 +408,8 @@ def test_raw_column_params_have_no_indicator_metadata() -> None:
             return close if sma5 > 0 else None
 
     params = {
-        param.name: param.indicator
+        param.name: param.steps
         for param in RawColumnStrategy(_config())._strategy_parameters()
     }
-    assert params["close"] is None
-    assert isinstance(params["sma5"], SMA)
+    assert params["close"] == ()
+    assert len(params["sma5"]) == 1 and isinstance(params["sma5"][0], SMA)

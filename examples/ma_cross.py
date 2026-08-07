@@ -22,13 +22,14 @@ class MACrossConf(StrategyConf):
     min_trade_amount: int = 5000
 
 
-class MACrossStrategy(BacktestStrategyBase[MACrossConf]):
-    MA10 = Annotated[float, SMA(10)]
-    MA10_REF1 = Annotated[float, SMA(10) | Lag(1)]
-    MA30 = Annotated[float, SMA(30)]
-    MA30_REF1 = Annotated[float, SMA(30) | Lag(1)]
-    MA120 = Annotated[float, SMA(120)]
+MA10 = Annotated[float, SMA(10)]
+MA10_REF1 = Annotated[MA10, Lag(1)]
+MA30 = Annotated[float, SMA(30)]
+MA30_REF1 = Annotated[MA30, Lag(1)]
+MA120 = Annotated[float, SMA(120)]
 
+
+class MACrossStrategy(BacktestStrategyBase[MACrossConf]):
     def buy(
         self,
         name: str,

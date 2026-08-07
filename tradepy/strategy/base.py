@@ -27,7 +27,12 @@ from tradepy.core.config import StrategyConf
 from tradepy.core.types import (
     BarData,
 )
-from tradepy.strategy.indicators import Indicator
+from tradepy.strategy.indicators import (
+    Indicator,
+    resolve_indicators,
+    steps_dtype,
+    validate_indicator_steps,
+)
 from tradepy.strategy.portfolio_alloc import BudgetAllocation, portfolio_alloc
 from tradepy.strategy.transpiler import PolarsExprTranspiler
 from tradepy.utils import calc_pct_chg, ensure_laziness
@@ -44,16 +49,18 @@ class IndicatorExpression:
 @dataclass(frozen=True)
 class StrategyParameter:
     name: str
-    indicator: Indicator | None = None
+    steps: tuple[Indicator, ...] = ()
 
 
-def _indicator_from_annotation(annotation: object) -> Indicator | None:
+def _steps_from_annotation(annotation: object) -> tuple[Indicator, ...]:
     if get_origin(annotation) is not Annotated:
-        return None
-    for meta in get_args(annotation)[1:]:
-        if isinstance(meta, Indicator):
-            return meta
-    return None
+        return ()
+    steps = tuple(
+        meta for meta in get_args(annotation)[1:] if isinstance(meta, Indicator)
+    )
+    if not steps:
+        return ()
+    return validate_indicator_steps(steps)
 
 
 ConfigT = TypeVar("ConfigT", bound=StrategyConf, default=StrategyConf)
@@ -99,7 +106,7 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
                 params.append(
                     StrategyParameter(
                         name=name,
-                        indicator=_indicator_from_annotation(hints.get(name)),
+                        steps=_steps_from_annotation(hints.get(name)),
                     )
                 )
         return tuple(params)
@@ -182,35 +189,35 @@ class StrategyBase(abc.ABC, Generic[ConfigT]):
 
     def collect_indicator_expressions(self) -> tuple[IndicatorExpression, ...]:
         exprs: dict[str, IndicatorExpression] = {}
-        indicators: dict[str, Indicator] = {}
+        indicators: dict[str, tuple[Indicator, ...]] = {}
 
         for param in self._strategy_parameters():
-            name, indicator = param.name, param.indicator
-            if indicator is None:
+            name, steps = param.name, param.steps
+            if not steps:
                 continue
 
             existing = indicators.get(name)
             if existing is not None:
-                if existing != indicator:
+                if existing != steps:
                     raise ValueError(
                         f"Conflicting indicator defaults for parameter {name!r}"
                     )
                 continue
 
-            result = indicator.resolve()
+            result = resolve_indicators(*steps)
             if isinstance(result, dict):
                 outputs = ", ".join(sorted(result))
                 raise ValueError(
                     f"Indicator parameter {name!r} resolves to multiple "
-                    f"outputs ({outputs}); pipe Take(...) before using it"
+                    f"outputs ({outputs}); add Take(...) before using it"
                 )
 
-            indicators[name] = indicator
+            indicators[name] = steps
             exprs[name] = IndicatorExpression(
                 name=name,
-                expr=result.cast(indicator.get_dtype()).alias(name),
-                not_na=indicator.not_na,
-                over=indicator.partition_by,
+                expr=result.cast(steps_dtype(steps)).alias(name),
+                not_na=steps[0].not_na,
+                over=steps[-1].partition_by,
             )
 
         return tuple(exprs.values())

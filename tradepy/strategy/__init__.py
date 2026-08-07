@@ -19,6 +19,7 @@ from .indicators import (
     TypicalPrice,
     Volatility,
     WeightedAverage,
+    resolve_indicators,
 )
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "BacktestStrategyBase",
     "Indicator",
     "CrossSectionIndicator",
+    "resolve_indicators",
     "SMA",
     "BIAS",
     "RSI",
